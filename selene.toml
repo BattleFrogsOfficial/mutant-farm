@@ -1,0 +1,6 @@
+std = "roblox"
+exclude = ["Packages/*"]
+
+[lints]
+# Fusion's New "Frame" {...} call style and our harness globals are intentional.
+mixed_table = "allow"

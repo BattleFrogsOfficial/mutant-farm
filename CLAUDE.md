@@ -1,0 +1,105 @@
+# Mutant Farm — notes for Claude Code
+
+Grow-and-mutate idle simulator for Roblox. Luau, synced into Studio with Rojo. One PR per milestone (see "Milestones").
+
+## The one rule: the server is authoritative
+
+- Clients send **intents only**: `Plant(slotIndex, eggId)`, `Harvest(slotIndex)`, `HarvestAll()`, `Water()`, `BuyEgg(eggId, quantity)`, `Sell(itemId)`, `SellAll()`. Never a price, value, rarity or timestamp.
+- The server re-derives everything and rejects bad arguments silently (`src/server/Util/Validate.lua`). Every remote goes through `Net.on`, which rate-limits to `Game.remoteCallsPerSecond` per player and requires a loaded profile.
+- `EconomyService` is the **only** writer of `cash`/`gems`. `addCash` refuses any single amount above `Valuation.maxSingleSale` for the player's tier and logs every source/sink to Analytics.
+- Growth is a **pure function of timestamps** (`src/shared/Growth.lua`). No per-frame server work. `GrowthService.settle(data, now)` advances all slots and must run before anything that changes speed (watering, passes, upgrades) or reads maturity.
+- `Workspace.StreamingEnabled` is off (set in `default.project.json`): the map is small and PlotController expects every island to replicate. Client code may *preview* numbers with the shared modules (timers, sell values) but never decides outcomes.
+
+## Layout
+
+```
+src/shared/          ReplicatedStorage.Shared — pure modules, usable on both sides and in Lune
+  Config/            ALL balance numbers. Tuning never touches logic.
+    Eggs Rarities Mutations Sizes Upgrades Rebirths Game Passes Products Weather Assets Mutants
+  Growth.lua         grow time, speed, advance(), secondsRemaining(), rollsCrossed()
+  Rolls.lua          the single roll path for rarity / mutations / size (luck capped at Game.maxLuck)
+  Valuation.lua      sell value, base value (pen income), cash multiplier, sanity cap
+  Costs.lua          slot / upgrade / rebirth cost curves
+  Rng.lua            seeded mulberry32 (deterministic in Roblox and Lune)
+  Format.lua         1.2K / 4.5M, durations, odds percentages
+  Remotes.lua Types.lua Signal.lua
+src/server/          ServerScriptService.Server
+  Main.server.lua    loads services: Init() all, then Start() all, in dependency order
+  Services/          DataService EconomyService PlotService GrowthService (M1)
+  Util/              World (builds the map in code) Net RateLimiter Validate Analytics
+src/client/          StarterPlayerScripts.Client
+  Main.client.lua    loads controllers the same way
+  State.lua          Fusion Values fed by server snapshots
+  Controllers/       StateController PlotController UIController
+  UI/                Fusion 0.2 screens: Hud EggShop SellPanel Toasts + Theme Components
+Packages/            vendored: Fusion 0.2.0, ProfileStore 1.0.3 (no Wally step needed)
+tools/               Lune scripts: test, check, sim, harness
+tests/               *.spec.luau unit tests for src/shared
+```
+
+Services/controllers are plain tables with `Init()` (no yielding, no cross-service calls) and `Start()` (may yield and use other services). Add new ones to the `order` list in `Main.*.lua`.
+
+## Naming conventions
+
+- Files and modules: `PascalCase.lua`. Services end in `Service`, client modules in `Controller`.
+- Functions and locals: `camelCase`. Constants: `UPPER_SNAKE`.
+- Config ids are PascalCase strings used everywhere as keys: eggs `Starter Swamp Lab Toxic Void Cosmic`, rarities `Common Uncommon Rare Epic Legendary`, mutations `Shiny Golden Radioactive Glitched Cosmic`, passes `Luck2x AutoHarvest GrowthSpeed2x OfflineMutations PlotSlots10 VIP`.
+- Remote names are verbs (`Plant`, `BuyEgg`) client→server and nouns (`State`, `Notify`, `Harvested`) server→client.
+- Analytics SKUs: `Egg_<tier>`, `Sell_<tier>_<rarity>`.
+
+## Profile data (ProfileStore, store `PlayerData_v1`)
+
+Template lives in `DataService.lua`. Rules: JSON-safe only, no arrays with holes, no mixed keys, so slots and inventory are **string-keyed maps** (`slots["3"]`, `inventory["17"]`). Fields already exist for later milestones (rarity, mutations, size, pen, gems, passes, streak, codes) so no migration is ever needed; add new fields to the template and `profile:Reconcile()` fills them. Autosave every `Game.autoSaveSeconds` (120); ProfileStore flushes on BindToClose. Studio without API access falls back to a mock store automatically.
+
+## Balance tables (source of truth is `src/shared/Config`; keep this in sync)
+
+Egg tiers
+
+| Tier | Unlock | Cost | Grow | Base value | Common / Uncommon / Rare / Epic / Legendary % |
+|---|---|---|---|---|---|
+| Starter | R0 | 50 | 1 min | 80 | 80 / 15 / 4.45 / 0.5 / 0.05 |
+| Swamp | R0 | 500 | 5 min | 900 | 75 / 18 / 6 / 0.93 / 0.07 |
+| Lab | R1 | 5K | 20 min | 11K | 70 / 20 / 8 / 1.9 / 0.1 |
+| Toxic | R2 | 50K | 1 hr | 130K | 65 / 22 / 10 / 2.875 / 0.125 |
+| Void | R4 | 500K | 3 hr | 1.6M | 60 / 24 / 12 / 3.8 / 0.2 |
+| Cosmic | R7 | 5M | 8 hr | 20M | 55 / 25 / 14 / 5.67 / 0.33 |
+
+- Rarity value x1 / x3 / x10 / x40 / x250; grow time x1 / x1.25 / x1.5 / x2 / x3. Rarity is rolled **at planting**, revealed at harvest.
+- Luck multiplies Uncommon+ weights, then renormalizes to 100%. Total luck capped at 6x.
+- Mutations: exactly 10 rolls per grow, spaced evenly through growth; each roll checks each mutation independently. Shiny x2 @1.5%, Golden x5 @0.6%, Radioactive x10 @0.25%, Glitched x25 @0.08%, Cosmic x100 @0.01% per roll. Multiplicative, each at most once (ceiling x250,000). Offline rolls stop 2h after leaving unless Offline Mutations is owned.
+- Size bands: 0.8–1.0 (25%), 1.0–1.3 (55%), 1.3–2.0 (17%), 2.0–2.9 (2.5%), 3.0 Titan (0.5%); luck boosts the top two.
+- Value = base x rarity x mutations x size x cash multiplier. Cash multiplier = (1 + 0.5 x rebirths) x (1.5 if VIP).
+- Watering: one tap, whole plot, 2x for 30s; stacks with the 2x speed pass (4x).
+- Upgrades: slots 7–40 from 200 Cash, x1.5 each; Growth Speed and Mutation Odds 5 levels, +10%/level, from 2,000, x3 each. All upgrade costs x(1 + 0.5 x rebirths).
+- Rebirth costs: 800K, 20M, 90M, 140M, 530M, 1.6B, 4B, 25B, 100B, 400B, then x2 each. Rebirth resets cash (to `startingCash`), slots, upgrades, eggs and growing plants after auto-selling the inventory; keeps pen, passes, gems, streak.
+- Pen income: 0.05%/min online, 0.01%/min offline of base value (tier x rarity), x rebirth multiplier. Pen starts at 8 slots.
+- Inventory cap 200. New player: 100 Cash + 2 Starter eggs.
+
+## Tuning workflow
+
+1. Change numbers in `src/shared/Config/*.lua` only.
+2. `lune run tools/test` — unit tests for the shared math.
+3. `lune run tools/sim` — pacing report (first rebirth, day each rebirth is reached for free vs payer at 1.5 active h/day).
+4. `lune run tools/sim -- --suggest` — rebirth costs that hit `Rebirths.targetPhaseMinutes`.
+5. Update the tables above if anything changed.
+
+## Before opening a PR
+
+```
+lune run tools/check    # every .lua/.luau compiles
+lune run tools/test
+stylua src tools tests
+selene src              # needs `selene generate-roblox-std` once on a machine with internet
+```
+
+Then playtest in Studio (Rojo serve + Play). There is no way to run the Roblox side headlessly; say so in the PR if it wasn't playtested.
+
+## Milestones
+
+- **M1 Skeleton (this PR):** Rojo repo, ProfileStore, plot of 6 slots, Starter + Swamp eggs, grow timers, watering, harvest, sell, Cash HUD, economy simulator. Every hatch is Common/no mutations/size 1 — `GrowthService.rollOnPlant/rollOnHarvest` are the M2 hook points.
+- **M2 The hook:** wire `Rolls` into GrowthService (rarity at plant, mutation rolls in `settle` with the offline cap, size at harvest), guaranteed Rare second egg, hatch animation + rarity-scaled sound, mutation effects, display pen + pen income, "Next up" panel (bottom-left).
+- **M3 Monetize:** passes, Gem products, Luck Potion, Skip Timer, Starter Bundle, purchase effects, friction-only prompt placement, PolicyService paid-random-item check.
+- **M4 Return loops:** rebirth, Lab + Toxic, weather, daily streak, leaderboards, codes, slot/upgrade purchases.
+- **M5 Scale:** Void + Cosmic, Instant Weather, Rebirth Now, limited egg, Discord relay (Cloudflare Worker).
+
+Scope rule: no cosmetics, quests, separate pets, or map beyond the hub ring in v1.

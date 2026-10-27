@@ -1,0 +1,25 @@
+--!strict
+-- Developer products (Robux) and Gem-priced items. Replace id = 0 with real IDs from Creator Hub.
+-- Wired up in M3 (packs, potion, skip, bundle) and M5 (instant weather, rebirth now, limited eggs).
+
+return {
+	robux = {
+		Gems100 = { id = 0, price = 49, gems = 100 },
+		Gems550 = { id = 0, price = 199, gems = 550, tag = "Best value" },
+		Gems1500 = { id = 0, price = 499, gems = 1_500 },
+		Gems4000 = { id = 0, price = 999, gems = 4_000 },
+		StarterBundle = {
+			id = 0,
+			price = 599,
+			grants = { passes = { "Luck2x", "AutoHarvest" }, gems = 500, luckPotions = 2 },
+			offerSeconds = 10 * 60, -- shown once, in the first 10 minutes, never again
+		},
+	},
+	gems = {
+		LuckPotion = { cost = 25, durationSeconds = 30 * 60, luck = 3 },
+		SkipTimer = { costPer10Minutes = 5 },
+		InstantWeather = { cost = 400 },
+		RebirthNow = { cost = 100 },
+		LimitedEgg = { minCost = 500, maxCost = 1_500 },
+	},
+}
