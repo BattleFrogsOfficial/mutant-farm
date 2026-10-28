@@ -10,6 +10,8 @@ local Controllers = script.Parent.Controllers
 local order = {
 	require(Controllers.StateController),
 	require(Controllers.PlotController),
+	require(Controllers.HatchController),
+	require(Controllers.TutorialController),
 	require(Controllers.UIController),
 }
 

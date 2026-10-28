@@ -3,18 +3,22 @@
 -- Swap in real art/sound here without touching logic.
 
 return {
+	-- Placeholders use sounds that ship with every Roblox client (rbxasset://).
+	-- Swap for library sounds (rbxassetid://...) when picking final audio.
 	sounds = {
-		hatchCommon = "",
-		hatchUncommon = "",
-		hatchRare = "",
-		hatchEpic = "",
-		hatchLegendary = "",
-		harvest = "",
-		sell = "",
-		buy = "",
-		water = "",
+		hatchCommon = "rbxasset://sounds/action_jump.mp3",
+		hatchUncommon = "rbxasset://sounds/action_jump.mp3",
+		hatchRare = "rbxasset://sounds/electronicpingshort.wav",
+		hatchEpic = "rbxasset://sounds/electronicpingshort.wav",
+		hatchLegendary = "rbxasset://sounds/electronicpingshort.wav",
+		mutate = "rbxasset://sounds/electronicpingshort.wav",
+		harvest = "rbxasset://sounds/action_jump.mp3",
+		sell = "rbxasset://sounds/electronicpingshort.wav",
+		buy = "rbxasset://sounds/clickfast.wav",
+		plant = "rbxasset://sounds/clickfast.wav",
+		water = "rbxasset://sounds/impact_water.mp3",
 		weatherSiren = "",
-		error = "",
+		error = "rbxasset://sounds/clickfast.wav",
 	},
 	meshes = {
 		blob = "",

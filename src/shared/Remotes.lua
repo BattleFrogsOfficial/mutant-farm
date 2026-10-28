@@ -16,13 +16,15 @@ Remotes.ClientToServer = {
 	"BuyEgg", -- (eggId: string, quantity: number)
 	"Sell", -- (itemId: string)
 	"SellAll", -- ()
+	"BuySlot", -- ()
 }
 
 -- server -> client
 Remotes.ServerToClient = {
 	"State", -- (snapshot: Types.Snapshot)
 	"Notify", -- (message: string, kind: "info" | "error" | "success")
-	"Harvested", -- (item: Types.Item, valueNow: number)
+	"Harvested", -- (item: Types.Item, valueNow: number, slotIndex: number)
+	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string)
 }
 
 local folder: Folder

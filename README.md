@@ -2,7 +2,7 @@
 
 A grow-and-mutate idle simulator for Roblox. Plant mutant eggs, let them grow (even offline), sell what hatches, and work toward rarer eggs and rebirths.
 
-This is **Milestone 1 (Skeleton)**: a 6-slot plot, Starter and Swamp eggs, grow timers, watering, harvesting, selling, the Cash HUD, saved data, and an economy simulator for tuning.
+Current build: a walled-in valley with 12 fenced farm plots around a hub, 400 collectible mutant species that range from palm-sized to towering giants, six egg designs, mutations that pop while eggs grow, a hatch reveal, a pen full of your best mutants, buyable soil patches, a guided first session, saved data, and an economy simulator for tuning.
 
 ## Run it in Studio
 
@@ -16,7 +16,7 @@ You need **Roblox Studio** and **Rojo 7** (the command line tool plus the Rojo S
 3. In the Plugins tab, open **Rojo** and click **Connect**. The scripts appear in ReplicatedStorage, ServerScriptService and StarterPlayerScripts.
 4. Press **Play**.
 
-What to try: tap a dark soil pad on your island to plant a Starter egg, tap **Water 2x**, wait for READY, tap the egg (or **Harvest**), walk to the **SELL** pad in the middle to sell, then buy more eggs at the purple **EGG SHOP**.
+You spawn inside your own farm. Follow the **NEXT UP** box (bottom left) and the green beam: plant, water, hatch, sell, buy eggs, buy a new soil patch.
 
 ### Testing saved data
 

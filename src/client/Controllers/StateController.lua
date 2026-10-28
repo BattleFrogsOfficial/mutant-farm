@@ -5,8 +5,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Remotes = require(Shared.Remotes)
-local Format = require(Shared.Format)
-local Mutants = require(Shared.Config.Mutants)
 local State = require(script.Parent.Parent.State)
 
 local StateController = {}
@@ -28,11 +26,6 @@ function StateController.Start()
 
 	Remotes.get("Notify").OnClientEvent:Connect(function(message, kind)
 		State.toast(message, kind)
-	end)
-
-	Remotes.get("Harvested").OnClientEvent:Connect(function(item, value)
-		local mutant = Mutants[item.tier][item.rarity]
-		State.toast(string.format("Hatched %s (%s) worth %s", mutant.name, item.rarity, Format.cash(value)), "success")
 	end)
 
 	while true do

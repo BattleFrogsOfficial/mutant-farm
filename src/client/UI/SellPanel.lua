@@ -7,7 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Shared = ReplicatedStorage.Shared
 local Rarities = require(Shared.Config.Rarities)
-local Mutants = require(Shared.Config.Mutants)
+local MutantModel = require(Shared.MutantModel)
 local Valuation = require(Shared.Valuation)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
@@ -28,7 +28,7 @@ local function itemRow(itemId: string)
 	if not item then
 		return nil
 	end
-	local mutant = Mutants[item.tier][item.rarity]
+	local mutant = MutantModel.species(item)
 	local value = valueOf(item)
 	local details = { item.rarity, string.format("x%.2f size", item.size) }
 	for _, mutation in item.mutations do

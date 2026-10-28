@@ -42,7 +42,12 @@ function Components.label(props: { [any]: any })
 	}
 	props.MaxTextSize = nil
 	for k, v in props do
-		base[k] = v
+		if k == Children then
+			-- Keep the stroke and size constraint; add the caller's children alongside.
+			table.insert(base[Children], v)
+		else
+			base[k] = v
+		end
 	end
 	return New("TextLabel")(base)
 end

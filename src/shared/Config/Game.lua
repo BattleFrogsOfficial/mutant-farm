@@ -32,5 +32,9 @@ return {
 
 	-- Data
 	autoSaveSeconds = 120,
-	growthTickSeconds = 60,
+	-- Server settles online plots this often so mid-grow mutations show up promptly.
+	growthTickSeconds = 5,
+
+	-- Pen shows the owner's most valuable mutants from their bag.
+	penDisplayCount = 8,
 }

@@ -5,3 +5,5 @@
 sourcemap.json
 roblox.yml
 .DS_Store
+build/
+tools/preview/node_modules/

@@ -12,6 +12,7 @@ local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
 local Growth = require(Shared.Growth)
 local Valuation = require(Shared.Valuation)
+local Costs = require(Shared.Costs)
 local Signal = require(Shared.Signal)
 local Types = require(Shared.Types)
 local Remotes = require(Shared.Remotes)
@@ -21,6 +22,9 @@ local DataService = {}
 
 -- Fired after a profile is loaded and ready: (player, data)
 DataService.Loaded = Signal.new()
+
+-- Fired (batched, at most every stateFlushInterval) after changes: (player, data)
+DataService.Changed = Signal.new()
 
 -- Called synchronously, in registration order, right before a profile is released: (player, data)
 local releaseHooks: { (Player, Types.Profile) -> () } = {}
@@ -44,7 +48,7 @@ local TEMPLATE: Types.Profile = {
 	redeemedCodes = {},
 	funnel = {},
 	grantedStarterEggs = false,
-	stats = { eggsBought = 0, eggsPlanted = 0, harvested = 0, sold = 0, cashEarned = 0 },
+	stats = { eggsBought = 0, eggsPlanted = 0, harvested = 0, sold = 0, cashEarned = 0, waters = 0, slotsBought = 0 },
 	nextItemId = 1,
 }
 
@@ -104,6 +108,8 @@ local function snapshot(data: Types.Profile): Types.Snapshot
 		slots = slots,
 		inventory = data.inventory,
 		inventoryCap = GameConfig.inventoryCap,
+		nextSlotCost = Costs.slot(data.slotCount + 1, data.rebirths),
+		stats = data.stats,
 	}
 end
 
@@ -194,6 +200,7 @@ function DataService.Start()
 			local data = DataService.get(player)
 			if data then
 				state:FireClient(player, snapshot(data))
+				DataService.Changed:Fire(player, data)
 			end
 		end
 	end

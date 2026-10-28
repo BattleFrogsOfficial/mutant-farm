@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Eggs = require(Shared.Config.Eggs)
 local Valuation = require(Shared.Valuation)
+local Costs = require(Shared.Costs)
 local Format = require(Shared.Format)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
@@ -128,12 +129,28 @@ local function onSellAll(player: Player, data: Types.Profile)
 	end
 end
 
+local function onBuySlot(player: Player, data: Types.Profile)
+	local cost = Costs.slot(data.slotCount + 1, data.rebirths)
+	if not cost then
+		return
+	end
+	if not EconomyService.spendCash(player, data, cost, "Shop", "Slot_" .. (data.slotCount + 1)) then
+		Net.notify(player, "Need " .. Format.cash(cost) .. " for a new patch", "error")
+		return
+	end
+	data.slotCount += 1
+	data.stats.slotsBought += 1
+	Net.notify(player, "New soil patch unlocked!", "success")
+	DataService.changed(player)
+end
+
 function EconomyService.Init() end
 
 function EconomyService.Start()
 	Net.on("BuyEgg", onBuyEgg)
 	Net.on("Sell", onSell)
 	Net.on("SellAll", onSellAll)
+	Net.on("BuySlot", onBuySlot)
 end
 
 return EconomyService

@@ -2,6 +2,7 @@
 -- Egg tiers. All balance numbers for eggs live here; logic never hardcodes them.
 -- growTime is in seconds for a Common hatch; Rarities.growMultiplier stretches it.
 -- odds are percentages (must sum to 100) and are what the in-game odds panel shows.
+-- design: shell look (pattern: spots | blotches | hazard | cracks | stars | ring); color is the UI swatch.
 
 local Eggs = {}
 
@@ -10,6 +11,7 @@ Eggs.order = { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" }
 Eggs.tiers = {
 	Starter = {
 		id = "Starter",
+		design = { pattern = "spots", shell = "#F6F0D8", accent = "#9BE04A" },
 		name = "Starter Egg",
 		unlockRebirth = 0,
 		cost = 50,
@@ -20,6 +22,7 @@ Eggs.tiers = {
 	},
 	Swamp = {
 		id = "Swamp",
+		design = { pattern = "blotches", shell = "#7FA85A", accent = "#3E5E2A" },
 		name = "Swamp Egg",
 		unlockRebirth = 0,
 		cost = 500,
@@ -30,6 +33,7 @@ Eggs.tiers = {
 	},
 	Lab = {
 		id = "Lab",
+		design = { pattern = "hazard", shell = "#EEF3F8", accent = "#4AB8FF" },
 		name = "Lab Egg",
 		unlockRebirth = 1,
 		cost = 5_000,
@@ -40,6 +44,7 @@ Eggs.tiers = {
 	},
 	Toxic = {
 		id = "Toxic",
+		design = { pattern = "cracks", shell = "#3B4A2A", accent = "#7CFF4A", glow = true },
 		name = "Toxic Egg",
 		unlockRebirth = 2,
 		cost = 50_000,
@@ -50,6 +55,7 @@ Eggs.tiers = {
 	},
 	Void = {
 		id = "Void",
+		design = { pattern = "stars", shell = "#2B2140", accent = "#C29BFF", glow = true },
 		name = "Void Egg",
 		unlockRebirth = 4,
 		cost = 500_000,
@@ -60,6 +66,7 @@ Eggs.tiers = {
 	},
 	Cosmic = {
 		id = "Cosmic",
+		design = { pattern = "ring", shell = "#5A2DFF", accent = "#FFD24A", glow = true },
 		name = "Cosmic Egg",
 		unlockRebirth = 7,
 		cost = 5_000_000,

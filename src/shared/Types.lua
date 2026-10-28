@@ -5,6 +5,7 @@
 export type Slot = {
 	eggId: string,
 	rarity: string, -- rolled at planting, revealed at harvest
+	species: string?, -- Mutants.species id, rolled with rarity
 	mutations: { string },
 	size: number, -- rolled at harvest; 1 while growing
 	plantedAt: number,
@@ -18,6 +19,7 @@ export type Item = {
 	id: string,
 	tier: string,
 	rarity: string,
+	species: string?,
 	mutations: { string },
 	size: number,
 	harvestedAt: number,
@@ -48,6 +50,8 @@ export type Profile = {
 		harvested: number,
 		sold: number,
 		cashEarned: number,
+		waters: number,
+		slotsBought: number,
 	},
 	nextItemId: number,
 }
@@ -73,6 +77,8 @@ export type Snapshot = {
 	slots: { [string]: SlotView },
 	inventory: { [string]: Item },
 	inventoryCap: number,
+	nextSlotCost: number?,
+	stats: { [string]: number },
 }
 
 return {}

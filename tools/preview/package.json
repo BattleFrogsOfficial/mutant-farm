@@ -1,0 +1,7 @@
+{
+  "name": "mutant-farm-preview",
+  "private": true,
+  "type": "module",
+  "description": "Renders exported scene JSON to PNG screenshots (dev tool, not part of the game)",
+  "dependencies": { "three": "0.169.0" }
+}

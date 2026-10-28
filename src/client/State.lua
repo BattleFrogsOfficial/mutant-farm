@@ -17,6 +17,10 @@ State.now = Value(workspace:GetServerTimeNow())
 State.selectedEgg = Value("Starter")
 State.panel = Value("none") -- "none" | "shop" | "sell"
 State.toasts = Value({} :: { { id: number, text: string, kind: string } })
+-- "Next up" panel: { text, progress?, ui? } where ui names a HUD button to pulse.
+State.objective = Value({ text = "", progress = nil :: number?, ui = nil :: string? })
+-- Big center-screen banner for Rare+ hatches.
+State.banner = Value({ text = "", color = Color3.new(1, 1, 1), id = 0 })
 
 function State.get(): Types.Snapshot?
 	return State.snapshot:get(false)
@@ -46,6 +50,18 @@ State.readyCount = Computed(function()
 	end
 	return n
 end)
+
+local bannerId = 0
+function State.showBanner(text: string, color: Color3)
+	bannerId += 1
+	local id = bannerId
+	State.banner:set({ text = text, color = color, id = id })
+	task.delay(2.6, function()
+		if State.banner:get(false).id == id then
+			State.banner:set({ text = "", color = color, id = id })
+		end
+	end)
+end
 
 local nextToastId = 0
 function State.toast(text: string, kind: string?)
