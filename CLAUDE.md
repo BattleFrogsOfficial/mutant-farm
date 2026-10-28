@@ -93,6 +93,21 @@ Plot model: `OwnerUserId`, `WateredUntil`, `Speed`, `Pen` (JSON), `PenCenter` (V
 Slot part: `Index`, `State` (owned | buy | locked), `EggId`, `Mutations` (comma list), `Growth`, `UpdatedAt`, `Required`, `Price`.
 `PlotService.refresh` writes these after every batched data change (`DataService.Changed`).
 
+## Art rules
+
+- **No Neon on large surfaces, no strong lights.** Neon only for small details (crack lines, star specks, tiny jewels). PointLights on mutants: range <= 16, brightness <= 0.35. Bloom stays near-invisible (intensity 0.12, threshold 2.6). Players complained the old glow hurt their eyes.
+- Labels are SurfaceGuis on physical signs, not floating BillboardGuis. Temporary billboards (timers on your own plot) only.
+- The valley is closed by a solid 14-stud hedge, rocks, trees and mountains, plus an invisible 120-stud barrier.
+
+## UI
+
+- `UI/Components.lua`: chunky 3D buttons (lip + pressable face, hover lift, click sound, `Selected` gold ring, `Disabled` grey), panels that pop open, pills, a padlock drawn from Frames. Reuse these; don't hand-roll buttons.
+- `UI/Viewport.lua`: live 3D previews of eggs/mutants in the UI (silhouette mode for locked/undiscovered).
+- Egg Shop card states: available, too pricey (grey buttons + "Need $X more"), locked (silhouette + padlock + "Rebirth N to unlock").
+- Almanac (`UI/Almanac.lua`): 400 species by tier tab, 18 per page, silhouettes for undiscovered, detail page with description, traits, size range, your biggest, hatch count, first found, fun fact. Data: `profile.almanac[speciesId] = { n, first, best }`, sent with the `Almanac` remote (full on join, one entry per change).
+- Hatch cutscene (`HatchController`): flash, camera cuts to a stage at z=2600, egg shakes twice, shell explodes, mutant lands, reveal card (`UI/HatchOverlay.lua`). Hatches queue; Skip / Skip all. Your own pen waits for the cutscene to end.
+- Farm income: `DataService.incomePerMinute` (shared `Expected.lua`), shown on the sign by each gate and under the Cash pill.
+
 ## Seeing the world without Studio
 
 ```
@@ -126,7 +141,8 @@ Then playtest in Studio (Rojo serve + Play). There is no way to run the Roblox s
 
 - **M1 Skeleton (done):** Rojo repo, ProfileStore, plots, Starter + Swamp eggs, grow timers, watering, harvest, sell, Cash HUD, economy simulator.
 - **M1.5 Feel pass (done):** bounded world with fenced plots, spawn inside your own gate, 400 species, egg designs, giant visual scaling, rarity/species/mutation/size rolls (offline cap, guaranteed Rare 2nd egg), mid-grow mutation pops, hatch reveal with banner/sound/shake, pen display, buying soil patches, guided tutorial + Next up panel.
-- **M2 The hook (remaining):** Keep-in-pen choice + pen income, an Index (collection book) for the 400 species, final sounds.
+- **M1.6 Polish (done):** softer lighting, solid hedge wall, rebuilt hub, HUD overhaul, locked egg cards, hatch cutscene, Almanac, income signs.
+- **M2 The hook (remaining):** Keep-in-pen choice + pen income, Almanac completion rewards, final sounds.
 - **M3 Monetize:** passes, Gem products, Luck Potion, Skip Timer, Starter Bundle, purchase effects, friction-only prompt placement, PolicyService paid-random-item check.
 - **M4 Return loops:** rebirth, Lab + Toxic, weather, daily streak, leaderboards, codes, slot/upgrade purchases.
 - **M5 Scale:** Void + Cosmic, Instant Weather, Rebirth Now, limited egg, Discord relay (Cloudflare Worker).

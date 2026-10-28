@@ -163,6 +163,22 @@ local PATTERNS = { "plain", "spots", "stripes", "belly", "belly" }
 local EYE_STYLES = { "normal", "normal", "normal", "stalk", "sleepy", "angry" }
 
 local used: { [string]: boolean } = {}
+-- Generated names must never read like rude words (kids' game; Roblox moderation).
+local BLOCKED = {
+	"twur", "twer", "bish", "bich", "fuk", "fuc", "phuk", "shit", "sht", "cum", "dik", "dic", "cok", "coc",
+	"fag", "nig", "neg", "ass", "tit", "hoe", "sex", "kkk", "jiz", "wank", "cunt", "kunt", "slut", "whor",
+	"pis", "nazi", "rape", "porn", "pen", "vag", "boob", "butt", "crap", "damn", "hell", "suk", "suc",
+	"lick", "blow", "spunk", "bum", "poop", "poo", "dum", "gay", "wtf", "omg", "sht", "jew", "kill", "die",
+}
+local function clean(name: string): boolean
+	local lower = name:lower():gsub("[^a-z]", "")
+	for _, bad in BLOCKED do
+		if lower:find(bad, 1, true) then
+			return false
+		end
+	end
+	return true
+end
 local function word(): string
 	return pick(START) .. pick(MID) .. pick(FINISH)
 end
@@ -181,7 +197,7 @@ local function makeName(tier: string, rarity: string): string
 		else
 			name = pick(LEGEND_PREFIX) .. " " .. base
 		end
-		if not used[name] then
+		if not used[name] and clean(name) then
 			used[name] = true
 			return name
 		end
@@ -259,6 +275,100 @@ for tierIndex, tier in TIERS do
 	local _ = tierIndex
 end
 
+-- Pokedex-style text, built from each species' traits so it always matches the model.
+local HABITAT = {
+	Starter = { "Hatches on brand-new farms everywhere", "The first mutant most farmers ever meet", "Found wobbling around beginner farms" },
+	Swamp = { "Lurks in Swamp Eggs and smells faintly of pond", "Loves mud baths and soggy socks", "Grown in the murkiest corner of the bog" },
+	Lab = { "Escaped from a very important experiment", "Was cloned by accident during lunch break", "Hatched under bright lab lights and won't stop beeping" },
+	Toxic = { "Glows a little when nobody is watching", "Bathed in barrel ooze since birth", "Its puddles have to be cleaned with tongs" },
+	Void = { "Drifted in from a place with no up or down", "Casts a shadow even in the dark", "Whispers in a language made of static" },
+	Cosmic = { "Fell from the sky inside a shooting star", "Hums the tune of a faraway galaxy", "Weighs less on Tuesdays, for space reasons" },
+}
+local BODY = {
+	blob = "a round, squishy body",
+	tall = "a tall, bean-shaped body",
+	flat = "a low, pancake-flat body",
+	spiky = "a back covered in spines",
+	pear = "a pear-shaped body with a big round belly",
+	worm = "a stack of wiggly segments",
+	puff = "a cloud of puffy lumps",
+}
+local EYES = { "one huge eye", "two goggly eyes", "three eyes that never blink together", "four eyes that look in four directions" }
+local MOUTH = {
+	smile = "a cheerful grin",
+	fangs = "two tiny fangs",
+	tooth = "one giant tooth",
+	wide = "a mouth wider than its face",
+	tongue = "a tongue that is always out",
+	none = "no mouth at all (nobody knows how it eats)",
+}
+local ACCESSORY = {
+	none = "",
+	antennae = " Its antennae twitch whenever Cash is nearby.",
+	horns = " Its horns are softer than they look.",
+	ears = " Its floppy ears can hear eggs hatching from across the farm.",
+	leaf = " It wears a leaf like a little hat.",
+	goggles = " It never takes off its goggles, even to sleep.",
+	mohawk = " Its mohawk stands up when it gets excited.",
+	wings = " Its wings are far too small to fly with, but it keeps trying.",
+	halo = " A glowing halo floats above its head.",
+	crown = " It wears a crown and expects to be treated like royalty.",
+}
+local RARITY_LINE = {
+	Common = "",
+	Uncommon = " Spotting one is a good sign.",
+	Rare = " Farmers brag about hatching one.",
+	Epic = " Only a lucky few have ever seen one up close.",
+	Legendary = " Legends say only one in a thousand eggs holds one.",
+}
+local FUN_FACTS = {
+	"%s can hold its breath for nine whole minutes, but only on Tuesdays.",
+	"%s once ate a whole fence post and asked for seconds.",
+	"If you play music near %s, it dances completely off-beat.",
+	"%s sleeps standing up, upside down, or both.",
+	"Nobody has ever heard %s burp. Scientists are still waiting.",
+	"%s's favorite snack is the crust you cut off sandwiches.",
+	"%s gets hiccups whenever it sees a Golden mutant.",
+	"A group of %ss is called a 'wobble'.",
+	"%s can count to three. It skips two.",
+	"%s collects shiny pebbles and hides them in its cheeks.",
+	"%s thinks it is a cat. Please don't tell it.",
+	"%s grows a tiny bit every time someone says its name.",
+	"%s is scared of butterflies but loves bees.",
+	"The world record for the biggest %s is still being measured.",
+	"%s hums when it's happy and honks when it's hungry.",
+	"%s has never once won a staring contest.",
+	"%s can sneeze so hard it rolls backward.",
+	"%s's footprints smell like bubblegum.",
+	"If you tickle %s, it turns a slightly different color for a second.",
+	"%s has a best friend. It's a rock.",
+	"%s refuses to walk on cracks in the path.",
+	"%s dreams about giant eggs every single night.",
+	"%s is allergic to mornings.",
+	"%s can balance a teacup on its head for an hour.",
+	"%s waves at every farmer who walks past, even the grumpy ones.",
+	"%s keeps trying to hatch other mutants' eggs.",
+	"%s once tried to sell itself at the Sell Pad.",
+	"%s's heartbeat sounds like a tiny drum solo.",
+	"%s loves rain and hates puddles. It's complicated.",
+	"%s can fit in places it absolutely should not fit.",
+}
+
+for _, id in order do
+	local e = species[id]
+	local eyes = EYES[math.clamp(e.eyes, 1, 4)]
+	e.description = string.format(
+		"%s. It has %s, %s and %s.%s%s",
+		pick(HABITAT[e.tier]),
+		BODY[e.body],
+		eyes,
+		MOUTH[e.mouth],
+		ACCESSORY[e.accessory],
+		RARITY_LINE[e.rarity]
+	)
+	e.funFact = string.format(pick(FUN_FACTS), e.name)
+end
+
 -- Write the Luau data file.
 local lines = {
 	"--!strict",
@@ -267,7 +377,8 @@ local lines = {
 	"--   name, body (blob tall flat spiky pear worm puff), color/accent (hex),",
 	"--   pattern (plain spots stripes belly), eyes (1-4), eyeStyle (normal stalk sleepy angry),",
 	"--   mouth (smile fangs tooth wide tongue none),",
-	"--   accessory (none antennae horns ears leaf goggles mohawk wings halo crown), scale (base size).",
+	"--   accessory (none antennae horns ears leaf goggles mohawk wings halo crown), scale (base size),",
+	"--   description and funFact (shown in the Almanac).",
 	"-- Each hatch picks a species uniformly from buckets[tier][rarity]. Value depends only on",
 	"-- tier, rarity, mutations and size, so species is a collectible look, not a power level.",
 	"",
@@ -281,7 +392,7 @@ for _, id in order do
 	table.insert(
 		lines,
 		string.format(
-			"\t%s = { tier = %s, rarity = %s, name = %s, body = %s, color = %s, accent = %s, pattern = %s, eyes = %d, eyeStyle = %s, mouth = %s, accessory = %s, scale = %s },",
+			"\t%s = { tier = %s, rarity = %s, name = %s, body = %s, color = %s, accent = %s, pattern = %s, eyes = %d, eyeStyle = %s, mouth = %s, accessory = %s, scale = %s,\n\t\tdescription = %s,\n\t\tfunFact = %s },",
 			e.id,
 			q(e.tier),
 			q(e.rarity),
@@ -294,7 +405,9 @@ for _, id in order do
 			q(e.eyeStyle),
 			q(e.mouth),
 			q(e.accessory),
-			tostring(e.scale)
+			tostring(e.scale),
+			q(e.description),
+			q(e.funFact)
 		)
 	)
 end

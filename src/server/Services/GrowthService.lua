@@ -158,7 +158,27 @@ local function harvest(player: Player, data: Types.Profile, key: string): (Types
 	data.slots[key] = nil
 	data.stats.harvested += 1
 	Analytics.funnel(player, data, "FirstHarvest")
-	Net.fire(player, "Harvested", item, Valuation.sellValue(item, DataService.cashMultiplier(data)), tonumber(key))
+
+	-- Almanac: first sighting, count, biggest size.
+	local speciesId = item.species :: string
+	local entry = data.almanac[speciesId]
+	local isNew = entry == nil
+	if not entry then
+		entry = { n = 0, first = item.harvestedAt, best = 0 }
+		data.almanac[speciesId] = entry
+	end
+	entry.n += 1
+	entry.best = math.max(entry.best, item.size)
+	Net.fire(player, "Almanac", { [speciesId] = entry })
+
+	Net.fire(
+		player,
+		"Harvested",
+		item,
+		Valuation.sellValue(item, DataService.cashMultiplier(data)),
+		tonumber(key),
+		isNew
+	)
 	return item, nil
 end
 
@@ -238,6 +258,7 @@ function GrowthService.Start()
 	DataService.Loaded:Connect(function(player, data)
 		catchUp(player, data)
 		Analytics.funnel(player, data, "Joined")
+		Net.fire(player, "Almanac", data.almanac)
 		DataService.changed(player)
 	end)
 

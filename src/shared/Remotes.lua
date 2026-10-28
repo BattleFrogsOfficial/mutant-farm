@@ -23,8 +23,9 @@ Remotes.ClientToServer = {
 Remotes.ServerToClient = {
 	"State", -- (snapshot: Types.Snapshot)
 	"Notify", -- (message: string, kind: "info" | "error" | "success")
-	"Harvested", -- (item: Types.Item, valueNow: number, slotIndex: number)
+	"Harvested", -- (item: Types.Item, valueNow: number, slotIndex: number, isNewSpecies: boolean)
 	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string)
+	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
 }
 
 local folder: Folder

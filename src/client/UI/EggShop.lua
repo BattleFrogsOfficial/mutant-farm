@@ -1,7 +1,9 @@
 --!strict
--- Egg Shop panel. Every egg shows its odds before purchase (required for paid random items
--- once Gem eggs exist, and good practice for Cash eggs too). Locked tiers stay visible so
--- there is always one egg the player can't buy yet.
+-- Egg Shop: a grid of egg cards with live 3D eggs. Three clear states per card:
+--   available  - full color, green Buy buttons
+--   too pricey - full color, grey Buy buttons and "Need $X more" in red
+--   locked     - black silhouette, padlock, "Rebirth N to unlock", no Buy buttons
+-- Every card has an Odds view (required for paid random items once Gem eggs exist).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -11,147 +13,234 @@ local Eggs = require(Shared.Config.Eggs)
 local Rarities = require(Shared.Config.Rarities)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
+local MutantModel = require(Shared.MutantModel)
 local State = require(script.Parent.Parent.State)
 local Theme = require(script.Parent.Theme)
 local C = require(script.Parent.Components)
+local Viewport = require(script.Parent.Viewport)
 
 local New, Children, Computed, Value = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.Value
 
-local function oddsRow(tierId: string)
-	local cells = {}
+local function oddsList(tierId: string)
+	local rows: { any } = {
+		New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2) }),
+	}
 	for i, rarity in Rarities.order do
-		cells[i] = C.label({
-			LayoutOrder = i,
-			Size = UDim2.new(0.2, -4, 1, 0),
-			TextColor3 = Color3.fromHex(Rarities.info[rarity].color),
-			MaxTextSize = 16,
-			Text = rarity .. "\n" .. Format.percent(Eggs.tiers[tierId].odds[rarity]),
-		})
+		table.insert(
+			rows,
+			New("Frame")({
+				LayoutOrder = i,
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 22),
+				[Children] = {
+					C.label({
+						Text = rarity,
+						Size = UDim2.new(0.62, 0, 1, 0),
+						TextXAlignment = Enum.TextXAlignment.Left,
+						TextColor3 = Color3.fromHex(Rarities.info[rarity].color),
+						MaxTextSize = 18,
+					}),
+					C.label({
+						Text = Format.percent(Eggs.tiers[tierId].odds[rarity]),
+						Position = UDim2.fromScale(0.62, 0),
+						Size = UDim2.new(0.38, 0, 1, 0),
+						TextXAlignment = Enum.TextXAlignment.Right,
+						MaxTextSize = 18,
+					}),
+				},
+			})
+		)
 	end
-	table.insert(
-		cells,
-		New("UIListLayout")({
-			FillDirection = Enum.FillDirection.Horizontal,
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			Padding = UDim.new(0, 4),
-		})
-	)
-	return cells
+	return rows
 end
 
-local function eggRow(tierId: string, order: number)
+local function eggCard(tierId: string, order: number)
 	local tier = Eggs.tiers[tierId]
 	local showOdds = Value(false)
 	local locked = Computed(function()
 		local snap = State.snapshot:get()
 		return not snap or snap.rebirths < tier.unlockRebirth
 	end)
-	local function cannotAfford(quantity: number)
+	local function short(quantity: number)
 		return Computed(function()
-			return locked:get() or State.cash:get() < tier.cost * quantity
+			return math.max(0, tier.cost * quantity - State.cash:get())
 		end)
 	end
-	local function buy(quantity: number)
-		return function()
-			Remotes.get("BuyEgg"):FireServer(tierId, quantity)
-		end
-	end
+	local short1 = short(1)
+	local short5 = short(5)
 
 	return New("Frame")({
 		Name = tierId,
 		LayoutOrder = order,
-		Size = Computed(function()
-			return UDim2.new(1, -8, 0, if showOdds:get() then 132 else 84)
+		Size = UDim2.fromOffset(186, 228),
+		BackgroundColor3 = Computed(function()
+			return if locked:get() then Theme.colors.slate else Theme.colors.slateLight
 		end),
-		BackgroundColor3 = Theme.colors.slateLight,
 		[Children] = {
-			C.corner(14),
+			C.corner(18),
+			C.stroke(
+				Computed(function()
+					return if locked:get() then Theme.colors.locked else Color3.fromHex(tier.color)
+				end),
+				3
+			),
+			-- Egg preview (black silhouette while locked).
+			Computed(function()
+				return Viewport.new({
+					Build = function()
+						return MutantModel.buildEgg(tierId, 1, {})
+					end,
+					Spin = not locked:get(),
+					Silhouette = locked:get(),
+					Size = UDim2.fromOffset(110, 104),
+					Position = UDim2.new(0.5, 0, 0, 8),
+					AnchorPoint = Vector2.new(0.5, 0),
+					ZIndex = 11,
+				})
+			end, Fusion.cleanup),
 			New("Frame")({
-				Name = "Swatch",
-				Position = UDim2.fromOffset(10, 12),
-				Size = UDim2.fromOffset(48, 60),
-				BackgroundColor3 = Color3.fromHex(tier.color),
-				[Children] = { New("UICorner")({ CornerRadius = UDim.new(0.5, 0) }), C.stroke() },
+				Name = "LockLayer",
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				Visible = locked,
+				ZIndex = 12,
+				[Children] = C.padlock({
+					Size = UDim2.fromOffset(40, 48),
+					Position = UDim2.new(0.5, 0, 0, 34),
+					AnchorPoint = Vector2.new(0.5, 0),
+					ZIndex = 12,
+				}),
 			}),
 			C.label({
-				Position = UDim2.fromOffset(70, 8),
-				Size = UDim2.new(0.45, -70, 0, 32),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 26,
 				Text = tier.name,
+				Position = UDim2.fromOffset(8, 112),
+				Size = UDim2.new(1, -16, 0, 28),
+				MaxTextSize = 24,
+				ZIndex = 11,
+				TextColor3 = Computed(function()
+					return if locked:get() then Theme.colors.muted else Theme.colors.white
+				end),
 			}),
 			C.label({
-				Position = UDim2.fromOffset(70, 42),
-				Size = UDim2.new(0.45, -70, 0, 32),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextColor3 = Theme.colors.muted,
-				MaxTextSize = 18,
+				Position = UDim2.fromOffset(8, 140),
+				Size = UDim2.new(1, -16, 0, 20),
+				MaxTextSize = 16,
+				ZIndex = 11,
+				TextColor3 = Computed(function()
+					if locked:get() then
+						return Theme.colors.gold
+					elseif short1:get() > 0 then
+						return Theme.colors.danger
+					end
+					return Theme.colors.muted
+				end),
 				Text = Computed(function()
 					if locked:get() then
-						return string.format("Unlocks at Rebirth %d", tier.unlockRebirth)
+						return string.format("🔒 Rebirth %d to unlock", tier.unlockRebirth)
+					elseif short1:get() > 0 then
+						return "Need " .. Format.cash(short1:get()) .. " more"
 					end
 					return string.format(
-						"%s  ·  sells from %s",
+						"Grows %s · sells %s+",
 						Format.duration(tier.growTime),
 						Format.cash(tier.baseValue)
 					)
 				end),
 			}),
+			-- Buy row (hidden while locked).
+			New("Frame")({
+				Name = "BuyRow",
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, 8, 1, -60),
+				Size = UDim2.new(1, -16, 0, 52),
+				Visible = Computed(function()
+					return not locked:get()
+				end),
+				ZIndex = 11,
+				[Children] = {
+					C.button({
+						Name = "Buy1",
+						Size = UDim2.new(0.62, -4, 1, 0),
+						Text = Format.cash(tier.cost),
+						MaxTextSize = 22,
+						Disabled = Computed(function()
+							return short1:get() > 0
+						end),
+						OnClick = function()
+							Remotes.get("BuyEgg"):FireServer(tierId, 1)
+						end,
+					}),
+					C.button({
+						Name = "Buy5",
+						Size = UDim2.new(0.38, -4, 1, 0),
+						Position = UDim2.new(0.62, 4, 0, 0),
+						Text = "x5",
+						MaxTextSize = 22,
+						Disabled = Computed(function()
+							return short5:get() > 0
+						end),
+						OnClick = function()
+							Remotes.get("BuyEgg"):FireServer(tierId, 5)
+						end,
+					}),
+				},
+			}),
+			-- Odds toggle and overlay.
 			C.button({
 				Name = "Odds",
+				Size = UDim2.fromOffset(40, 36),
+				Position = UDim2.new(1, -6, 0, 6),
 				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -236, 0, 18),
-				Size = UDim2.fromOffset(64, 48),
 				Color = Theme.colors.purple,
-				Text = "Odds",
-				MaxTextSize = 18,
+				Text = "%",
+				MaxTextSize = 20,
 				OnClick = function()
 					showOdds:set(not showOdds:get(false))
 				end,
 			}),
-			C.button({
-				Name = "Buy1",
-				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -118, 0, 18),
-				Size = UDim2.fromOffset(110, 48),
-				Text = Computed(function()
-					return if locked:get() then "Locked" else "Buy " .. Format.cash(tier.cost)
-				end),
-				MaxTextSize = 20,
-				Disabled = cannotAfford(1),
-				OnClick = buy(1),
-			}),
-			C.button({
-				Name = "Buy5",
-				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -10, 0, 18),
-				Size = UDim2.fromOffset(100, 48),
-				Text = "x5",
-				MaxTextSize = 20,
-				Disabled = cannotAfford(5),
-				OnClick = buy(5),
-			}),
 			New("Frame")({
-				Name = "OddsRow",
+				Name = "OddsOverlay",
 				Visible = showOdds,
-				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(10, 84),
-				Size = UDim2.new(1, -20, 0, 40),
-				[Children] = oddsRow(tierId),
+				Active = true,
+				BackgroundColor3 = Theme.colors.slate,
+				BackgroundTransparency = 0.04,
+				Position = UDim2.fromOffset(6, 46),
+				Size = UDim2.new(1, -12, 1, -52),
+				ZIndex = 14,
+				[Children] = {
+					C.corner(12),
+					C.padding(10),
+					C.label({ Text = "Hatch odds", Size = UDim2.new(1, 0, 0, 22), MaxTextSize = 20, ZIndex = 15 }),
+					New("Frame")({
+						BackgroundTransparency = 1,
+						Position = UDim2.fromOffset(0, 28),
+						Size = UDim2.new(1, 0, 1, -28),
+						ZIndex = 15,
+						[Children] = oddsList(tierId),
+					}),
+				},
 			}),
 		},
 	})
 end
 
 return function()
-	local rows = {}
+	local cards: { any } = {
+		New("UIGridLayout")({
+			CellSize = UDim2.fromOffset(186, 228),
+			CellPadding = UDim2.fromOffset(12, 14),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		}),
+	}
 	for i, tierId in Eggs.order do
-		rows[i] = eggRow(tierId, i)
+		table.insert(cards, eggCard(tierId, i))
 	end
-	table.insert(rows, New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }))
 
 	return C.panel({
-		Title = "Egg Shop",
+		Title = "🥚 Egg Shop",
+		Accent = Theme.colors.purple,
+		Size = UDim2.fromOffset(640, 520),
 		IsOpen = Computed(function()
 			return State.panel:get() == "shop"
 		end),
@@ -165,7 +254,8 @@ return function()
 			ScrollBarThickness = 6,
 			CanvasSize = UDim2.new(),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
-			[Children] = rows,
+			ZIndex = 10,
+			[Children] = cards,
 		}),
 	})
 end

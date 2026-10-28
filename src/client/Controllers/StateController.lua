@@ -24,6 +24,14 @@ function StateController.Start()
 		end
 	end)
 
+	Remotes.get("Almanac").OnClientEvent:Connect(function(entries)
+		local merged = table.clone(State.almanac:get(false))
+		for id, entry in entries do
+			merged[id] = entry
+		end
+		State.almanac:set(merged)
+	end)
+
 	Remotes.get("Notify").OnClientEvent:Connect(function(message, kind)
 		State.toast(message, kind)
 	end)

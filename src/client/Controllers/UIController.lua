@@ -11,6 +11,9 @@ local Hud = require(UI.Hud)
 local EggShop = require(UI.EggShop)
 local SellPanel = require(UI.SellPanel)
 local Toasts = require(UI.Toasts)
+local Almanac = require(UI.Almanac)
+local HatchOverlay = require(UI.HatchOverlay)
+local State = require(script.Parent.Parent.State)
 
 local New, Children, Value, Computed = Fusion.New, Fusion.Children, Fusion.Value, Fusion.Computed
 
@@ -21,16 +24,9 @@ local DESIGN_SIZE = Vector2.new(900, 600)
 function UIController.Init() end
 
 function UIController.Start()
-	local camera = workspace.CurrentCamera
 	local scale = Value(1)
-	local function updateScale()
-		local viewport = camera.ViewportSize
-		scale:set(math.clamp(math.min(viewport.X / DESIGN_SIZE.X, viewport.Y / DESIGN_SIZE.Y), 0.55, 1.25))
-	end
-	camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
-	updateScale()
 
-	New("ScreenGui")({
+	local gui = New("ScreenGui")({
 		Name = "MutantFarm",
 		ResetOnSpawn = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
@@ -45,13 +41,37 @@ function UIController.Start()
 			end),
 			[Children] = {
 				New("UIScale")({ Scale = scale }),
-				Hud(),
-				Toasts(),
-				EggShop(),
-				SellPanel(),
+				-- Everything except the hatch overlay hides during the cutscene.
+				New("Frame")({
+					Name = "Main",
+					BackgroundTransparency = 1,
+					Size = UDim2.fromScale(1, 1),
+					Visible = Computed(function()
+						return not State.hatching:get()
+					end),
+					[Children] = {
+						Hud(),
+						Toasts(),
+						EggShop(),
+						SellPanel(),
+						Almanac(),
+					},
+				}),
+				HatchOverlay(),
 			},
 		}),
 	})
+
+	-- Scale from the area the GUI can actually use (below the top bar), not the raw viewport.
+	local function updateScale()
+		local size = gui.AbsoluteSize
+		if size.X < 1 or size.Y < 1 then
+			return
+		end
+		scale:set(math.clamp(math.min(size.X / DESIGN_SIZE.X, size.Y / DESIGN_SIZE.Y), 0.5, 1.25))
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateScale)
+	updateScale()
 end
 
 return UIController

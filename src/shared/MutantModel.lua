@@ -85,7 +85,7 @@ local function addEffects(model: Model, anchor: BasePart, set: { [string]: boole
 	local function emitter(color: Color3, rate: number)
 		local e = Instance.new("ParticleEmitter")
 		e.Color = ColorSequence.new(color)
-		e.LightEmission = 1
+		e.LightEmission = 0.3
 		e.Rate = rate
 		e.Lifetime = NumberRange.new(0.8, 1.6)
 		e.Speed = NumberRange.new(0.5 * scale, 1.5 * scale)
@@ -99,8 +99,8 @@ local function addEffects(model: Model, anchor: BasePart, set: { [string]: boole
 	local function light(color: Color3)
 		local l = Instance.new("PointLight")
 		l.Color = color
-		l.Range = math.min(8 * scale, 60)
-		l.Brightness = 1.2
+		l.Range = math.min(5 * scale, 16)
+		l.Brightness = 0.35
 		l.Parent = anchor
 	end
 	if set.Shiny then
@@ -708,13 +708,6 @@ function MutantModel.buildEgg(eggId: string, progress: number, mutations: { stri
 			).Material =
 				Enum.Material.Neon
 		end
-	end
-	if design.glow then
-		local l = Instance.new("PointLight")
-		l.Color = accent
-		l.Range = 7
-		l.Brightness = 0.8
-		l.Parent = lower
 	end
 	addEffects(model, lower, set, s)
 	return model

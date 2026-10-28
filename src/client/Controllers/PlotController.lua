@@ -144,8 +144,9 @@ local function updateSlot(v: SlotVisual, now: number, t: number)
 		if v.egg then
 			v.egg:Destroy()
 			v.egg = nil
-			v.key = ""
 		end
+		-- Always reset, so a slot hidden for a hatch ("hatching") draws its next egg.
+		v.key = ""
 		if v.gui then
 			v.gui.Enabled = false
 		end
@@ -320,7 +321,8 @@ end
 
 local function updatePen(pen: Pen, dt: number, t: number, camPos: Vector3)
 	local key = (pen.plot:GetAttribute("Pen") or "[]") :: string
-	if key ~= pen.key then
+	-- Hold your own pen during a hatch cutscene so the new mutant isn't spoiled.
+	if key ~= pen.key and not (State.hatching:get(false) and isMine(pen.plot)) then
 		pen.key = key
 		rebuildPen(pen)
 	end

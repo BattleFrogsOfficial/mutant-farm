@@ -88,6 +88,8 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 	end
 	plot.model:SetAttribute("WateredUntil", data.wateredUntil)
 	plot.model:SetAttribute("Speed", DataService.speed(data))
+	local income = DataService.incomePerMinute(data)
+	plot.income.Text = if income > 0 then Format.cash(income) .. " / min" else "Plant eggs!"
 	local pen = penJson(data)
 	if plot.model:GetAttribute("Pen") ~= pen then
 		plot.model:SetAttribute("Pen", pen)
@@ -104,9 +106,9 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 			part.Color = World.colors.soil
 			part.Material = Enum.Material.Ground
 		elseif state == "buy" then
-			part.Transparency = 0.35
+			part.Transparency = 0.3
 			part.Color = World.colors.buy
-			part.Material = Enum.Material.Neon
+			part.Material = Enum.Material.SmoothPlastic
 			local price = Costs.slot(i, data.rebirths) or 0
 			part:SetAttribute("Price", price)
 			priceLabel(part).Text = "+\n" .. Format.cash(price)
@@ -137,6 +139,7 @@ local function clear(plot: World.Plot)
 	plot.model:SetAttribute("WateredUntil", 0)
 	plot.model:SetAttribute("Pen", "[]")
 	plot.sign.Text = "Empty Plot"
+	plot.income.Text = ""
 	for _, part in plot.slots do
 		part:SetAttribute("State", "locked")
 		part:SetAttribute("EggId", "")

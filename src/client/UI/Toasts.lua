@@ -28,6 +28,7 @@ return function()
 
 	return New("Frame")({
 		Name = "Toasts",
+		ZIndex = 20, -- above open panels
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 70),
 		Size = UDim2.fromOffset(460, 220),

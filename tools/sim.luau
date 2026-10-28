@@ -15,9 +15,6 @@ local harness = require("./harness")
 
 local shared = "src/shared"
 local Eggs = harness.require(shared .. "/Config/Eggs")
-local Rarities = harness.require(shared .. "/Config/Rarities")
-local Mutations = harness.require(shared .. "/Config/Mutations")
-local Sizes = harness.require(shared .. "/Config/Sizes")
 local Upgrades = harness.require(shared .. "/Config/Upgrades")
 local GameConfig = harness.require(shared .. "/Config/Game")
 local Rebirths = harness.require(shared .. "/Config/Rebirths")
@@ -52,33 +49,10 @@ end
 
 ---------------------------------------------------------------------------- expected values
 
-local function sizeEV(luck: number): number
-	local ev = 0
-	for i, w in Rolls.sizeWeights(luck) do
-		local band = Sizes.bands[i]
-		ev += w / 100 * (band.min + band.max) / 2
-	end
-	return ev
-end
+local Expected = harness.require(shared .. "/Expected")
 
-local function mutationEV(luck: number, oddsBonus: number): number
-	local ev = 1
-	for _, id in Mutations.order do
-		local p = 1 - (1 - Rolls.mutationChance(id, luck, oddsBonus)) ^ Mutations.rollsPerGrow
-		ev *= 1 + p * (Mutations.info[id].multiplier - 1)
-	end
-	return ev
-end
-
--- Expected sell value (before cash multiplier) and expected grow seconds (at speed 1).
 local function eggEV(tierId: string, luck: number, oddsBonus: number): (number, number)
-	local tier = Eggs.tiers[tierId]
-	local value, time = 0, 0
-	for rarity, w in Rolls.rarityWeights(tierId, luck) do
-		value += w / 100 * Rarities.info[rarity].valueMultiplier
-		time += w / 100 * Rarities.info[rarity].growMultiplier
-	end
-	return tier.baseValue * value * mutationEV(luck, oddsBonus) * sizeEV(luck), tier.growTime * time
+	return Expected.egg(tierId, luck, oddsBonus)
 end
 
 ---------------------------------------------------------------------------- player model

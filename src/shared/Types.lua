@@ -25,6 +25,8 @@ export type Item = {
 	harvestedAt: number,
 }
 
+export type AlmanacEntry = { n: number, first: number, best: number }
+
 export type Profile = {
 	version: number,
 	cash: number,
@@ -44,6 +46,7 @@ export type Profile = {
 	redeemedCodes: { [string]: boolean },
 	funnel: { [string]: boolean },
 	grantedStarterEggs: boolean,
+	almanac: { [string]: AlmanacEntry },
 	stats: {
 		eggsBought: number,
 		eggsPlanted: number,
@@ -79,6 +82,7 @@ export type Snapshot = {
 	inventoryCap: number,
 	nextSlotCost: number?,
 	stats: { [string]: number },
+	incomePerMinute: number,
 }
 
 return {}

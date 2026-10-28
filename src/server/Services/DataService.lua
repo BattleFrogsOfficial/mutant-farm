@@ -13,6 +13,7 @@ local Upgrades = require(Shared.Config.Upgrades)
 local Growth = require(Shared.Growth)
 local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
+local Expected = require(Shared.Expected)
 local Signal = require(Shared.Signal)
 local Types = require(Shared.Types)
 local Remotes = require(Shared.Remotes)
@@ -48,6 +49,8 @@ local TEMPLATE: Types.Profile = {
 	redeemedCodes = {},
 	funnel = {},
 	grantedStarterEggs = false,
+	-- Almanac: speciesId -> { n = times hatched, first = timestamp, best = biggest size }
+	almanac = {},
 	stats = { eggsBought = 0, eggsPlanted = 0, harvested = 0, sold = 0, cashEarned = 0, waters = 0, slotsBought = 0 },
 	nextItemId = 1,
 }
@@ -82,6 +85,20 @@ function DataService.cashMultiplier(data: Types.Profile): number
 	return Valuation.cashMultiplier(data.rebirths, data.ownedPasses.VIP == true)
 end
 
+-- Expected Cash per minute from everything growing right now (unwatered speed).
+function DataService.incomePerMinute(data: Types.Profile): number
+	local speed = DataService.speed(data)
+	local mult = DataService.cashMultiplier(data)
+	local luck = if data.ownedPasses.Luck2x then 2 else 1
+	local oddsBonus = Upgrades.mutationOdds.bonusPerLevel * data.upgrades.mutationOdds
+	local total = 0
+	for _, slot in data.slots do
+		local value = Expected.egg(slot.eggId, luck, oddsBonus, slot.rarity)
+		total += value * mult / (Growth.requiredSeconds(slot.eggId, slot.rarity) / speed) * 60
+	end
+	return total
+end
+
 -- What the owning client is allowed to see. Rarity isn't sent, but `required` scales with rarity,
 -- so an accurate timer implies it (a deliberate trade-off: "this one's taking longer...").
 local function snapshot(data: Types.Profile): Types.Snapshot
@@ -110,6 +127,7 @@ local function snapshot(data: Types.Profile): Types.Snapshot
 		inventoryCap = GameConfig.inventoryCap,
 		nextSlotCost = Costs.slot(data.slotCount + 1, data.rebirths),
 		stats = data.stats,
+		incomePerMinute = DataService.incomePerMinute(data),
 	}
 end
 
