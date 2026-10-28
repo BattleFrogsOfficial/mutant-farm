@@ -29,9 +29,14 @@ State.panel = Value("none")
 State.weather = Value({ nextId = "", nextAt = 0, id = "", endsAt = 0 })
 State.toasts = Value({} :: { { id: number, text: string, kind: string } })
 -- "Next up" panel: { text, progress?, ui? } where ui names a HUD button to pulse.
-State.objective = Value({ text = "", progress = nil :: number?, ui = nil :: string? })
+State.objective = Value({ text = "", progress = nil :: number?, ui = nil :: string?, hub = nil :: boolean? })
 -- Almanac entries the player has discovered: speciesId -> { n, first, best }
 State.almanac = Value({} :: { [string]: { n: number, first: number, best: number } })
+-- Where the player is: "hub" (the plaza and paths) or "plot" (on their own island). The HUD
+-- shows only what that place needs (ZoneController sets it).
+State.zone = Value("hub")
+-- The ☰ menu (Almanac, Codes) is open.
+State.menuOpen = Value(false)
 -- True while the hatch cutscene owns the camera (pens hold their update until it ends).
 State.hatching = Value(false)
 
@@ -92,48 +97,42 @@ State.readyCount = Computed(function()
 	return n
 end)
 
+-- One toast lane, one message at a time. New ones queue (newest few kept) and each shows for
+-- TOAST_SECONDS. State.toasts holds the one on screen (a list of 0 or 1 for the UI).
+local TOAST_SECONDS = 2.6
+local MAX_QUEUED = 4
 local nextToastId = 0
-local heldToasts: { { text: string, kind: string? } } = {}
-local releasing = false
-function State.toast(text: string, kind: string?)
-	-- The HUD (and the toast stack) is hidden during the hatch cinematic; hold toasts until it ends.
-	if State.hatching:get(false) then
-		table.insert(heldToasts, { text = text, kind = kind })
-		if not releasing then
-			releasing = true
-			task.spawn(function()
-				while State.hatching:get(false) do
-					task.wait(0.2)
-				end
-				releasing = false
-				local held = heldToasts
-				heldToasts = {}
-				-- Keep the newest few; older ones would scroll off anyway.
-				for i = math.max(1, #held - 2), #held do
-					State.toast(held[i].text, held[i].kind)
-				end
-			end)
-		end
+local queue: { { id: number, text: string, kind: string } } = {}
+local showing = false
+
+local function pump()
+	if showing then
 		return
 	end
-	nextToastId += 1
-	local id = nextToastId
-	local list = table.clone(State.toasts:get(false))
-	table.insert(list, { id = id, text = text, kind = kind or "info" })
-	while #list > 3 do
-		table.remove(list, 1)
-	end
-	State.toasts:set(list)
-	task.delay(3, function()
-		local current = table.clone(State.toasts:get(false))
-		for i, toast in current do
-			if toast.id == id then
-				table.remove(current, i)
-				break
+	showing = true
+	task.spawn(function()
+		while #queue > 0 do
+			-- The HUD (and the toast lane) is hidden during the hatch cutscene; wait it out.
+			while State.hatching:get(false) do
+				task.wait(0.2)
 			end
+			local toast = table.remove(queue, 1)
+			State.toasts:set({ toast })
+			task.wait(TOAST_SECONDS)
+			State.toasts:set({})
+			task.wait(0.15)
 		end
-		State.toasts:set(current)
+		showing = false
 	end)
+end
+
+function State.toast(text: string, kind: string?)
+	nextToastId += 1
+	table.insert(queue, { id = nextToastId, text = text, kind = kind or "info" })
+	while #queue > MAX_QUEUED do
+		table.remove(queue, 1)
+	end
+	pump()
 end
 
 return State

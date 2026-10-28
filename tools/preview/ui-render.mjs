@@ -18,6 +18,15 @@ const sizes = [
   ["desktop", 1280, 720],
   ["phone", 844, 390],
 ];
+// Extra screens the HUD overlap check runs on (no screenshots): small/wide phones, tablet, 1080p.
+const checkSizes = [
+  ["phone-small", 667, 375],
+  ["phone-wide", 800, 360],
+  ["tablet", 1024, 768],
+  ["hd", 1920, 1080],
+];
+// HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
+const ZONES = ["Cash", "RebirthStrip", "Gems", "Daily", "MenuButton", "Shop", "Weather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip", "MenuList"];
 
 const html = `<!doctype html><html><head><style>
 * { box-sizing: border-box; }
@@ -210,6 +219,70 @@ window.render = (sceneIndex, W, H) => {
   return data.scenes[sceneIndex].name;
 };
 window.sceneCount = data.scenes.length;
+
+// Painted area of a zone: union of its visible descendants that draw something (fill, outline or
+// text), so transparent layout containers don't count.
+function paintedRect(el) {
+  let r = null;
+  const add = (b) => {
+    if (b.width < 1 || b.height < 1) return;
+    r = r ? { left: Math.min(r.left, b.left), top: Math.min(r.top, b.top), right: Math.max(r.right, b.right), bottom: Math.max(r.bottom, b.bottom) }
+          : { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+  };
+  for (const d of [el, ...el.querySelectorAll("*")]) {
+    if (d.offsetParent === null && d !== el) continue;
+    const cs = getComputedStyle(d);
+    if (cs.visibility === "hidden" || cs.display === "none") continue;
+    const bgAlpha = /rgba\\([^)]*,\\s*([\\d.]+)\\)$/.exec(cs.backgroundColor);
+    const painted = (cs.backgroundColor !== "transparent" && !(bgAlpha && +bgAlpha[1] === 0)) ||
+      cs.boxShadow !== "none" || (d.tagName === "SPAN" && d.textContent.trim() !== "");
+    if (painted) add(d.getBoundingClientRect());
+  }
+  return r;
+}
+
+window.checkOverlaps = (W, H) => {
+  const problems = [];
+  const rects = [];
+  for (const name of ${JSON.stringify(ZONES)}) {
+    const el = document.querySelector(\`.gui [title="\${name}"]\`);
+    if (!el) continue;
+    const r = paintedRect(el);
+    if (r) rects.push({ name, r });
+  }
+  // Items drawn on the egg tray (tab, 2x Luck badge, cards, HATCH) against each other; the
+  // tray's own background layers (Shadow, Tray) are meant to sit under them.
+  for (const name of ["EggTray"]) {
+    const el = document.querySelector(\`.gui [title="\${name}"]\`);
+    if (!el) continue;
+    const items = [...el.querySelectorAll(":scope > .inner > *, :scope > *")].filter((c) => c.title && c.offsetParent !== null && !["Shadow", "Tray"].includes(c.title))
+      .map((c) => ({ name: name + "/" + c.title, r: paintedRect(c) })).filter((x) => x.r);
+    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+      const a = items[i], b = items[j];
+      const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+      const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+      if (w > 0.5 && h > 0.5) problems.push(\`\${a.name} overlaps \${b.name} (\${w.toFixed(0)}x\${h.toFixed(0)}px)\`);
+    }
+  }
+  for (const b of document.querySelectorAll("#topbar i")) {
+    const r = b.getBoundingClientRect();
+    rects.push({ name: "RobloxButton", r: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } });
+  }
+  for (let i = 0; i < rects.length; i++) {
+    const a = rects[i];
+    if (a.name !== "RobloxButton" && (a.r.left < 0 || a.r.top < 0 || a.r.right > W || a.r.bottom > H)) {
+      problems.push(\`\${a.name} goes off screen\`);
+    }
+    for (let j = i + 1; j < rects.length; j++) {
+      const b = rects[j];
+      if (a.name === "RobloxButton" && b.name === "RobloxButton") continue;
+      const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+      const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+      if (w > 0.5 && h > 0.5) problems.push(\`\${a.name} overlaps \${b.name} (\${w.toFixed(0)}x\${h.toFixed(0)}px)\`);
+    }
+  }
+  return problems;
+};
 </script></body></html>`;
 
 const browser = await chromium.launch();
@@ -227,4 +300,18 @@ for (let i = 0; i < count; i++) {
     console.log("wrote", file);
   }
 }
+// Overlap check on every HUD state (hub, plot) at every screen size.
+let issues = 0, checked = 0;
+const hudScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n === "hud" || n === "hud-plot" || n === "hud-menu"));
+for (const [sceneName, hudIndex] of hudScenes) {
+  for (const [label, W, H] of [...sizes, ...checkSizes]) {
+    checked++;
+    await page.setViewportSize({ width: W, height: H });
+    await page.evaluate(([i, W, H]) => window.render(i, W, H), [hudIndex, W, H]);
+    const problems = await page.evaluate(([W, H]) => window.checkOverlaps(W, H), [W, H]);
+    for (const p of problems) console.log(`[overlap] ${sceneName} ${label} ${W}x${H}: ${p}`);
+    issues += problems.length;
+  }
+}
+console.log(`HUD overlap check: ${issues} issue(s) across ${checked} state x screen-size combinations`);
 await browser.close();

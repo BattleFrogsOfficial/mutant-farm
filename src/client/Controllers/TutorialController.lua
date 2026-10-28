@@ -22,6 +22,7 @@ type Step = {
 	text: string,
 	target: (() -> BasePart?)?,
 	ui: string?, -- name of a HUD element to pulse ("Water", "Harvest")
+	hub: boolean?, -- the step happens in the hub, so Next Up shows there too
 	progress: number?,
 }
 
@@ -92,6 +93,7 @@ local function currentStep(snap: Types.Snapshot): Step
 	elseif st.sold == 0 then
 		return {
 			text = "Walk to the gold SELL pad and sell your mutants",
+			hub = true,
 			target = function()
 				return hub("SellPad")
 			end,
@@ -99,6 +101,7 @@ local function currentStep(snap: Types.Snapshot): Step
 	elseif st.eggsBought == 0 then
 		return {
 			text = "Buy more eggs at the EGG SHOP",
+			hub = true,
 			target = function()
 				return hub("EggShopPad")
 			end,
@@ -193,7 +196,7 @@ function TutorialController.Start()
 		local snap = State.get()
 		if snap and snap.stats then
 			local step = currentStep(snap)
-			State.objective:set({ text = step.text, progress = step.progress, ui = step.ui })
+			State.objective:set({ text = step.text, progress = step.progress, ui = step.ui, hub = step.hub })
 			setTarget(if step.target then step.target() else nil)
 		end
 		task.wait(0.25)

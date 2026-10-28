@@ -25,6 +25,9 @@ Theme.colors = {
 	ink = Color3.fromHex("#14111F"), -- outlines and hard shadows
 	panel = Color3.fromHex("#201D33"),
 	panelHi = Color3.fromHex("#2C2846"),
+	-- The one accent color: spending (Shop, Gems +, passes, bundle, R$ buttons). Nothing else is pink.
+	spend = Color3.fromHex("#FF4FA3"),
+	navy = Color3.fromHex("#2A2F4F"), -- every other HUD button
 }
 
 Theme.font = Enum.Font.GothamBlack

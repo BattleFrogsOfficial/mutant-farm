@@ -167,7 +167,7 @@ return function()
 				Name = "Pass",
 				Position = UDim2.new(0.5, 4, 0, 4),
 				Size = UDim2.new(0.5, -10, 0, 220),
-				Color = Theme.colors.purpleDark,
+				Color = Theme.colors.navy,
 				Visible = Computed(function()
 					return not ownsPass:get()
 				end),
@@ -205,7 +205,7 @@ return function()
 						AnchorPoint = Vector2.new(0.5, 1),
 						Position = UDim2.new(0.5, 0, 1, -10),
 						Size = UDim2.new(1, -28, 0, 44),
-						Color = Theme.colors.toxic,
+						Color = Theme.colors.spend,
 						Text = "R$ " .. Passes.PlotSlots10.price,
 						MaxTextSize = 20,
 						Pulse = true,

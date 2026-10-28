@@ -13,6 +13,7 @@ local order = {
 	require(Controllers.HatchController),
 	require(Controllers.TutorialController),
 	require(Controllers.WeatherController),
+	require(Controllers.ZoneController),
 	require(Controllers.UIController),
 }
 

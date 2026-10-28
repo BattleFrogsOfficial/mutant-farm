@@ -426,10 +426,15 @@ set(State.almanac, almanac)
 set(State.objective, { text = "Next soil patch: $675", progress = 0.62 })
 set(State.toasts, {
 	{ id = 1, text = "GOLDEN x5 on your Swamp Egg · worth $4.5K now", kind = "success" },
-	{ id = 2, text = "No eggs! Step on the Egg Shop pad in the middle.", kind = "info" },
 })
 set(State.panel, "none")
+set(State.zone, "hub")
 capture("hud")
+set(State.zone, "plot")
+capture("hud-plot")
+set(State.menuOpen, true)
+capture("hud-menu")
+set(State.menuOpen, false)
 set(State.toasts, {})
 set(State.panel, "shop")
 capture("shop")

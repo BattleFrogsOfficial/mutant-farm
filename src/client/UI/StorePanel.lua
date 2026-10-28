@@ -18,7 +18,7 @@ local C = require(script.Parent.Components)
 local New, Children, Computed = Fusion.New, Fusion.Children, Fusion.Computed
 
 local GEM = Color3.fromHex("#4FD8FF")
-local PINK = Color3.fromHex("#FF4FA3")
+local PINK = Theme.colors.spend
 
 local PASS_ORDER = { "Luck2x", "AutoHarvest", "GrowthSpeed2x", "PlotSlots10", "OfflineMutations", "VIP" }
 local PASS_ICON = {
@@ -127,7 +127,7 @@ local function bundleBanner()
 				AnchorPoint = Vector2.new(1, 0.5),
 				Position = UDim2.new(1, -14, 0.5, 0),
 				Size = UDim2.fromOffset(170, 56),
-				Color = Theme.colors.toxic,
+				Color = PINK,
 				Text = "R$ " .. offer.price,
 				MaxTextSize = 24,
 				Pulse = true,
@@ -185,7 +185,7 @@ local function gemCard(productId: string, order: number)
 				AnchorPoint = Vector2.new(0.5, 1),
 				Position = UDim2.new(0.5, 0, 1, -8),
 				Size = UDim2.new(1, -16, 0, 40),
-				Color = Theme.colors.toxic,
+				Color = PINK,
 				Text = "R$ " .. product.price,
 				MaxTextSize = 18,
 				ZIndex = 3,
@@ -245,7 +245,7 @@ local function passCard(passId: string, order: number)
 				Position = UDim2.new(0.5, 0, 1, -8),
 				Size = UDim2.new(1, -16, 0, 40),
 				Color = Computed(function()
-					return if owned:get() then Theme.colors.toxicDark else Theme.colors.toxic
+					return if owned:get() then Theme.colors.navy else PINK
 				end),
 				Text = Computed(function()
 					return if owned:get() then "✓ OWNED" else "R$ " .. pass.price
