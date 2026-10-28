@@ -138,6 +138,38 @@ return function(t)
 			t.eq(pinned, GameConfig.penDisplayCount)
 		end,
 
+		["leaderboards: 3 players populate Top Pens and Top Rebirths, top first"] = function()
+			local world = t.server()
+			local Leaderboards = t.require("src/shared/Leaderboards")
+			local players = {}
+			for i, setup in { { 2, "Swamp" }, { 5, "Lab" }, { 0, "Starter" } } do
+				players[i] = world:join(i, {
+					rebirths = setup[1],
+					inventory = { ["1"] = mutant(1, setup[2], "Rare") },
+					nextItemId = 2,
+				})
+			end
+			world:advance(GameConfig.leaderboardSeconds + 1, 1)
+			t.eq(world.ordered.TopPens_v1["2"], 110_000) -- Lab 11K x Rare 10
+			t.eq(world.ordered.TopRebirths_v1["2"], 5)
+			-- The last broadcast has both boards, best first, and leaderstats are filled.
+			local last
+			for _, m in world.broadcast do
+				if m.name == "Leaderboards" then
+					last = m.args[1]
+				end
+			end
+			t.ok(last, "boards sent to clients")
+			t.eq(#last.pens, 3)
+			t.eq(#last.rebirths, 3)
+			t.eq(last.pens[1].userId, 2)
+			t.eq(last.rebirths[1].value, 5)
+			t.eq(last.rebirths[3].userId, 3)
+			t.eq(Leaderboards.rankOf(last.pens, 1), 2)
+			t.eq(Leaderboards.rankOf(last.pens, 99), nil)
+			t.eq(players[2]:FindFirstChild("leaderstats"):FindFirstChild("Rebirths").Value, 5)
+		end,
+
 		["Auto-Harvest offline: 3 h of 5-minute eggs fills the bag and spends Cash"] = function()
 			local world = t.server()
 			local player, data = world:join(1, {

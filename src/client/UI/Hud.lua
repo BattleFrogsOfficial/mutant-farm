@@ -6,7 +6,8 @@
 --                 (red dots). SHOP bottom-right (mid-right on touch screens). One toast lane.
 --   (the top row shares the top-bar strip with Roblox's buttons, which keep the top-left corner;
 --   the whole HUD hides while a panel is open)
---   right column  weather (hub), Starter Bundle (always, while it runs), bag count (plot)
+--   right column  weather (hub; a countdown chip everywhere from 5 min before an event), Starter
+--                 Bundle (always, while it runs), bag count (plot)
 --   plot          egg tray (the biggest thing: eggs, next locked tier, 2x Luck, HATCH), WATER with
 --                 its drain ring, the Next Up line above the tray, bag count top-left.
 --   hub           SHOP grows to the biggest button; weather countdown as plain text and the Starter
@@ -486,7 +487,9 @@ end
 
 ---------------------------------------------------------------------------- hub only
 
--- "☢ ACID RAIN IN 4:12", or "☢ ACID RAIN NOW · 1:12" while it runs. Plain text, no box.
+-- Weather: "☢ ACID RAIN IN 12:40" as plain text in the hub; from Weather.announceSeconds (5 min)
+-- before an event until it ends, a server-wide countdown chip in every zone, in the event's
+-- color: "☢ ACID RAIN IN 4:12", then "☢ ACID RAIN NOW · 1:12".
 local function weatherText()
 	local info = Computed(function()
 		State.now:get()
@@ -502,24 +505,69 @@ local function weatherText()
 		end
 		return nil
 	end)
-	return C.label({
+	local soon = Computed(function()
+		local i = info:get()
+		return i ~= nil and (i.active or i.left <= Weather.announceSeconds)
+	end)
+	local text = Computed(function()
+		local i = info:get()
+		if not i then
+			return ""
+		end
+		local name = i.event.icon .. " " .. string.upper(i.event.name)
+		return if i.active then name .. " NOW · " .. clock(i.left) else name .. " IN " .. clock(i.left)
+	end)
+	local color = Computed(function()
+		local i = info:get()
+		return if i then Color3.fromHex(i.event.color) else Theme.colors.cream
+	end)
+	return New("Frame")({
 		Name = "Weather",
 		LayoutOrder = 1,
-		Size = UDim2.fromOffset(250, 22),
-		TextXAlignment = Enum.TextXAlignment.Right,
-		MaxTextSize = 17,
-		StrokeThickness = 2.5,
+		Size = Computed(function()
+			return UDim2.fromOffset(250, if soon:get() then 32 else 22)
+		end),
+		BackgroundTransparency = 1,
 		Visible = Computed(function()
-			return inHub:get() and info:get() ~= nil
+			return soon:get() or (inHub:get() and info:get() ~= nil)
 		end),
-		Text = Computed(function()
-			local i = info:get()
-			if not i then
-				return ""
-			end
-			local name = i.event.icon .. " " .. string.upper(i.event.name)
-			return if i.active then name .. " NOW · " .. clock(i.left) else name .. " IN " .. clock(i.left)
-		end),
+		[Children] = {
+			C.label({
+				Name = "Plain",
+				Size = UDim2.fromScale(1, 1),
+				TextXAlignment = Enum.TextXAlignment.Right,
+				MaxTextSize = 17,
+				StrokeThickness = 2.5,
+				Visible = Computed(function()
+					return not soon:get()
+				end),
+				Text = text,
+			}),
+			New("Frame")({
+				Name = "Chip",
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Visible = soon,
+				[Children] = {
+					C.pill({
+						Size = UDim2.fromScale(1, 1),
+						Rim = color,
+						Children = {
+							C.label({
+								Position = UDim2.fromOffset(12, 3),
+								Size = UDim2.new(1, -18, 1, -6),
+								TextXAlignment = Enum.TextXAlignment.Left,
+								MaxTextSize = 17,
+								TextColor3 = color,
+								StrokeThickness = 2.5,
+								Text = text,
+								ZIndex = 3,
+							}),
+						},
+					}),
+				},
+			}),
+		},
 	})
 end
 

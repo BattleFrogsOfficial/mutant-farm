@@ -14,6 +14,7 @@ local order = {
 	require(Controllers.TutorialController),
 	require(Controllers.WeatherController),
 	require(Controllers.ZoneController),
+	require(Controllers.LeaderboardController),
 	require(Controllers.UIController),
 }
 

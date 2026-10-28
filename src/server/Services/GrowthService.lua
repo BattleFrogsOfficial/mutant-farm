@@ -21,6 +21,8 @@ local Costs = require(Shared.Costs)
 local ShopRules = require(Shared.ShopRules)
 local Growth = require(Shared.Growth)
 local AutoHarvest = require(Shared.AutoHarvest)
+local WeatherRules = require(Shared.WeatherRules)
+local Weather = require(Shared.Config.Weather)
 local Rolls = require(Shared.Rolls)
 local Rng = require(Shared.Rng)
 local Valuation = require(Shared.Valuation)
@@ -124,14 +126,17 @@ function GrowthService.settleAndAnnounce(player: Player, data: Types.Profile)
 	end
 end
 
--- Weather: gives a still-growing egg `mutation` (once) with `chance` x luck. Returns true if it did.
-function GrowthService.weatherRoll(player: Player, data: Types.Profile, mutation: string, chance: number): boolean
+-- Weather: one roll of the event's mutation on every still-growing egg (once per egg) at the
+-- event's chance x luck (WeatherRules.chance). Returns true if anything changed.
+function GrowthService.weatherRoll(player: Player, data: Types.Profile, eventId: string): boolean
+	local mutation = (Weather.events :: any)[eventId].mutation
+	local chance = WeatherRules.chance(eventId, luck(data))
 	local events = GrowthService.settle(data, DataService.now())
 	announce(player, data, events)
 	local any = #events > 0
 	for key, slot in data.slots do
 		if not isMature(slot) and not table.find(slot.mutations, mutation) then
-			if rng:next() < math.min(chance * luck(data), 0.9) then
+			if rng:next() < chance then
 				table.insert(slot.mutations, mutation)
 				any = true
 				announce(

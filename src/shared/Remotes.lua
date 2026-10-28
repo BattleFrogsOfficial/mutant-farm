@@ -37,6 +37,7 @@ Remotes.ServerToClient = {
 	"WelcomeBack", -- ({ away, ready, mutations, capped, earned, autoHarvested })
 	"Rebirthed", -- (rebirths: number) celebration after a rebirth
 	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
+	"Leaderboards", -- ({ pens: { Leaderboards.Entry }, rebirths: { ... } }) top 100 of each, every 120 s
 }
 
 local folder: Folder

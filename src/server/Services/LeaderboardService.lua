@@ -1,8 +1,10 @@
 --!strict
--- Leaderboards. Server: `leaderstats` (Cash, Rebirths) in Roblox's player list. Global: all-time
--- Cash earned in an OrderedDataStore, saved and read every Game.leaderboardSeconds, shown on the
--- board in the hub (World builds it; Row1..Row10 labels). Every DataStore call is pcall'd: in
--- Studio without API access the board just keeps its placeholders.
+-- Leaderboards. Server: `leaderstats` (Rebirths, Cash) in Roblox's player list. Global: two
+-- OrderedDataStores, Top Pens (pen value, shared/Leaderboards.penValue) and Top Rebirths. Every
+-- Game.leaderboardSeconds online players' values are saved (and again on leave), then the top
+-- 100 of each are read and sent to every client (`Leaderboards` remote), which draws both boards
+-- side by side in the hub with the viewer's own rank at the bottom (LeaderboardController).
+-- Every DataStore call is pcall'd: in Studio without API access the boards just stay empty.
 
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
@@ -11,15 +13,21 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.Game)
 local Format = require(Shared.Format)
+local Leaderboards = require(Shared.Leaderboards)
+local Remotes = require(Shared.Remotes)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
-local World = require(script.Parent.Parent.Util.World)
+local Net = require(script.Parent.Parent.Util.Net)
 
 local LeaderboardService = {}
 
-local store: OrderedDataStore? = nil
+local STORES = { pens = "TopPens_v1", rebirths = "TopRebirths_v1" }
+
+local stores: { [string]: OrderedDataStore } = {}
 local names: { [number]: string } = {}
 local pending = 0 -- leave-time saves still running (BindToClose waits for them)
+-- The latest top lists, sent to players as they join.
+local boards: { [string]: { Leaderboards.Entry } } = { pens = {}, rebirths = {} }
 
 local function nameOf(userId: number): string
 	if names[userId] then
@@ -58,59 +66,67 @@ local function updateStats(player: Player, data: Types.Profile)
 	rebirths.Value = data.rebirths
 end
 
-local function save(player: Player, data: Types.Profile)
-	if store then
-		-- OrderedDataStore holds integers; cap at 2^53 so huge late-game totals don't error.
-		local value = math.floor(math.min(data.stats.totalCashEarned, 2 ^ 53))
+-- What each board records for a player right now.
+local function values(data: Types.Profile): { [string]: number }
+	return {
+		pens = Leaderboards.penValue(DataService.penItems(data)),
+		rebirths = Leaderboards.storeValue(data.rebirths),
+	}
+end
+
+local function save(userId: number, current: { [string]: number })
+	for board, store in stores do
 		pcall(function()
-			(store :: OrderedDataStore):SetAsync(tostring(player.UserId), value)
+			store:SetAsync(tostring(userId), current[board])
 		end)
 	end
 end
 
-local function refreshBoard()
-	if not store then
-		return
-	end
+local function read(store: OrderedDataStore): { Leaderboards.Entry }?
 	local ok, pages = pcall(function()
-		return (store :: OrderedDataStore):GetSortedAsync(false, World.LEADERBOARD_ROWS)
+		return store:GetSortedAsync(false, Leaderboards.SIZE)
 	end)
 	if not ok or not pages then
-		return
+		return nil
 	end
-	local entries = pages:GetCurrentPage()
-	local board = workspace:FindFirstChild("Map")
-		and workspace.Map:FindFirstChild("Hub")
-		and workspace.Map.Hub:FindFirstChild("Leaderboard")
-		and workspace.Map.Hub.Leaderboard:FindFirstChild("Board")
-	local gui = board and board:FindFirstChild("Rows")
-	if not gui then
-		return
+	local entries = {}
+	for _, entry in pages:GetCurrentPage() do
+		local userId = tonumber(entry.key) or 0
+		table.insert(entries, { userId = userId, name = nameOf(userId), value = entry.value })
 	end
-	for i = 1, World.LEADERBOARD_ROWS do
-		local label = gui:FindFirstChild("Row" .. i) :: TextLabel?
-		local entry = entries[i]
-		if label then
-			label.Text = if entry
-				then string.format("%d. %s  ·  %s", i, nameOf(tonumber(entry.key) or 0), Format.cash(entry.value))
-				else i .. ". ..."
+	return entries
+end
+
+local function refresh()
+	for board, store in stores do
+		local entries = read(store)
+		if entries then
+			boards[board] = entries
+		end
+	end
+	Remotes.get("Leaderboards"):FireAllClients(boards)
+end
+
+function LeaderboardService.Init()
+	for board, name in STORES do
+		local ok, store = pcall(DataStoreService.GetOrderedDataStore, DataStoreService, name)
+		if ok and store then
+			stores[board] = store
 		end
 	end
 end
 
-function LeaderboardService.Init()
-	local ok, result = pcall(DataStoreService.GetOrderedDataStore, DataStoreService, "CashEarned_v1")
-	store = if ok then result else nil
-end
-
 function LeaderboardService.Start()
 	DataService.Changed:Connect(updateStats)
+	DataService.Loaded:Connect(function(player)
+		Net.fire(player, "Leaderboards", boards)
+	end)
 	-- Release hooks run synchronously before the profile is released: don't yield there.
 	DataService.onRelease(function(player, data)
-		local earned = data.stats.totalCashEarned
+		local current = values(data)
 		pending += 1
 		task.spawn(function()
-			save(player, { stats = { totalCashEarned = earned } } :: any)
+			save(player.UserId, current)
 			pending -= 1
 		end)
 	end)
@@ -120,16 +136,16 @@ function LeaderboardService.Start()
 			task.wait(0.2)
 		end
 	end)
-	task.spawn(refreshBoard)
+	task.spawn(refresh)
 	while true do
 		task.wait(GameConfig.leaderboardSeconds)
 		for _, player in Players:GetPlayers() do
 			local data = DataService.get(player)
 			if data then
-				save(player, data)
+				save(player.UserId, values(data))
 			end
 		end
-		refreshBoard()
+		refresh()
 	end
 end
 

@@ -63,6 +63,7 @@ return {
 		},
 	},
 
-	-- Global leaderboard (OrderedDataStore of all-time Cash earned): how often to save and refresh.
+	-- Global boards in the hub (Top Pens, Top Rebirths; OrderedDataStores): how often online
+	-- players' values are saved and the top 100 re-read and sent to clients.
 	leaderboardSeconds = 120,
 }

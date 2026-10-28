@@ -7,7 +7,7 @@
 --   world:send(player, "Rebirth")
 --   world:advance(3 * 3600) -- runs every service loop whose wait is due
 --
--- Not covered (they build or read Instances): PlotService, LeaderboardService, World.
+-- Not covered (they build or read the map's Instances): PlotService, World.
 -- task.wait yields to a small scheduler; time only moves when a test calls advance().
 
 local fs = require("@lune/fs")
@@ -29,7 +29,28 @@ local SERVICES = {
 	"MonetizationService",
 	"RebirthService",
 	"WeatherService",
+	"LeaderboardService",
 }
+
+-- Just enough of an Instance for leaderstats: Name, Value, Parent and FindFirstChild.
+local function fakeInstance(className: string)
+	local children = {}
+	local inst = { ClassName = className, Name = className, children = children }
+	function inst.FindFirstChild(_, name)
+		return children[name]
+	end
+	return setmetatable({}, {
+		__index = inst,
+		__newindex = function(self, k, v)
+			if k == "Parent" then
+				if v then
+					v.children[self.Name] = self
+				end
+			end
+			rawset(inst, k, v)
+		end,
+	})
+end
 
 local function deepCopy(v)
 	if type(v) ~= "table" then
@@ -345,7 +366,7 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 		workspace = fakeWorkspace,
 		task = task,
 		Enum = roblox.Enum,
-		Instance = roblox.Instance,
+		Instance = { new = fakeInstance },
 		Vector3 = roblox.Vector3,
 		Color3 = roblox.Color3,
 		Random = {
@@ -435,6 +456,7 @@ function ServerHarness.join(self, userId: number, profile: { [string]: any }?)
 		Name = "Player" .. userId,
 		Parent = self.Players,
 		attributes = {},
+		children = {},
 	}
 	function player.Kick(_, message)
 		player.kicked = message
@@ -445,8 +467,8 @@ function ServerHarness.join(self, userId: number, profile: { [string]: any }?)
 	function player.GetAttribute(_, k)
 		return player.attributes[k]
 	end
-	function player.FindFirstChild()
-		return nil
+	function player.FindFirstChild(_, name)
+		return player.children[name]
 	end
 	function player.IsInGroup(_, groupId)
 		return table.find(self.groups[userId] or {}, groupId) ~= nil

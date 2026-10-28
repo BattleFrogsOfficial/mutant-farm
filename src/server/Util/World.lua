@@ -666,14 +666,19 @@ local function building(
 	return m, up
 end
 
--- Global leaderboard on the north edge of the plaza, facing the fountain. LeaderboardService
--- fills the rows (Row1..Row10 TextLabels in the board's SurfaceGui).
-World.LEADERBOARD_ROWS = 10
-local function leaderboard(hub: Instance)
-	local m = group("Leaderboard", hub)
-	local frame = CFrame.lookAt(Vector3.new(0, 0, -27), Vector3.new(0, 0, 0))
-	local W, H, bottom = 13, 10, Y.plaza + 2
-	local postHeight = bottom + H - Y.plaza -- from the plaza surface to the top of the board
+-- Two global boards side by side on the north edge of the plaza, facing the fountain: Top Pens
+-- and Top Rebirths. The title is a header strip on top; the rows are drawn per player by
+-- LeaderboardController (a SurfaceGui on the Board part, so it can scroll and show your rank).
+World.LEADERBOARDS = {
+	{ name = "TopPens", title = "🏆 TOP PENS", x = -7.4 },
+	{ name = "TopRebirths", title = "🔁 TOP REBIRTHS", x = 7.4 },
+}
+local function leaderboard(hub: Instance, name: string, title: string, x: number)
+	local m = group(name, hub)
+	local frame = CFrame.lookAt(Vector3.new(x, 0, -27), Vector3.new(x, 0, 0))
+	local W, H, bottom, header = 12, 11, Y.plaza + 2, 1.6
+	local top = bottom + H + header
+	local postHeight = top - Y.plaza -- from the plaza surface to the top of the header
 	for _, side in { -1, 1 } do
 		part({
 			Name = "Post",
@@ -684,57 +689,35 @@ local function leaderboard(hub: Instance)
 			Parent = m,
 		})
 	end
-	local board = part({
+	part({
 		Name = "Board",
 		Size = Vector3.new(W, H, 0.4),
 		CFrame = frame * CFrame.new(0, bottom + H / 2, 0),
 		Color = COLORS.slate,
 		Parent = m,
 	})
+	local head = part({
+		Name = "Header",
+		Size = Vector3.new(W, header, 0.4),
+		CFrame = frame * CFrame.new(0, bottom + H + header / 2, 0),
+		Color = COLORS.purpleDark,
+		Parent = m,
+	})
+	signText(head, Enum.NormalId.Front, title, COLORS.gold)
 	part({
 		Name = "Frame",
-		Size = Vector3.new(W + 0.8, H + 0.8, 0.3),
-		CFrame = frame * CFrame.new(0, bottom + H / 2, 0.3),
+		Size = Vector3.new(W + 0.8, H + header + 0.8, 0.3),
+		CFrame = frame * CFrame.new(0, bottom + (H + header) / 2, 0.3),
 		Color = COLORS.darkWood,
 		Material = Enum.Material.Wood,
 		Parent = m,
 	})
-	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Rows"
-	gui.Face = Enum.NormalId.Front
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	gui.PixelsPerStud = 40
-	gui.LightInfluence = 0.15
-	local list = Instance.new("UIListLayout")
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = gui
-	local function row(name: string, order: number, text: string, color: Color3, height: number)
-		local label = Instance.new("TextLabel")
-		label.Name = name
-		label.LayoutOrder = order
-		label.Size = UDim2.new(1, 0, height, 0)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.GothamBlack
-		label.TextScaled = true
-		label.TextColor3 = color
-		label.Text = text
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 3
-		stroke.Color = COLORS.slate
-		stroke.Parent = label
-		local pad = Instance.new("UIPadding")
-		pad.PaddingLeft = UDim.new(0.04, 0)
-		pad.PaddingRight = UDim.new(0.04, 0)
-		pad.PaddingTop = UDim.new(0.12, 0)
-		pad.PaddingBottom = UDim.new(0.12, 0)
-		pad.Parent = label
-		label.Parent = gui
+end
+
+local function leaderboards(hub: Instance)
+	for _, board in World.LEADERBOARDS do
+		leaderboard(hub, board.name, board.title, board.x)
 	end
-	row("Title", 0, "🏆 TOP FARMERS · ALL TIME", COLORS.gold, 0.15)
-	for i = 1, World.LEADERBOARD_ROWS do
-		row("Row" .. i, i, i .. ". ...", Color3.new(1, 1, 1), 0.085)
-	end
-	gui.Parent = board
 end
 
 local function buildHub(parent: Instance)
@@ -836,7 +819,7 @@ local function buildHub(parent: Instance)
 	for i = 0, 11 do
 		local a = i / 12 * math.pi * 2
 		local nearBuilding = math.abs(math.cos(a)) > 0.85
-		local atLeaderboard = math.abs(math.sin(a) + 1) < 0.05 -- north: the leaderboard stands there
+		local atLeaderboard = math.abs(math.sin(a) + 1) < 0.05 -- north: the leaderboards stand there
 		if not nearBuilding and not atLeaderboard then
 			lamp(hub, Vector3.new(math.cos(a) * (HUB_RADIUS - 2.5), Y.plaza, math.sin(a) * (HUB_RADIUS - 2.5)))
 		end
@@ -939,7 +922,7 @@ local function buildHub(parent: Instance)
 	signText(coinPart, Enum.NormalId.Right, "$", COLORS.goldDark)
 	pad(hub, "SellPad", (sellFrame * CFrame.new(0, 0, -10.4)).Position, 3.6, COLORS.gold, "SELL", "sell", Vector3.zero)
 
-	leaderboard(hub)
+	leaderboards(hub)
 end
 
 ---------------------------------------------------------------------------- plots

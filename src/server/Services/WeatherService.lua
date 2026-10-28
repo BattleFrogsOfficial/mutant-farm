@@ -1,57 +1,55 @@
 --!strict
--- Server-wide weather events from Config/Weather.lua. Every 20-30 minutes one event (weighted)
--- runs for its duration; while it runs, every online player's growing eggs roll for the event's
--- mutation every rollEverySeconds. The schedule is replicated as Workspace attributes so every
--- client can show "☢ Acid Rain in 4:12" and draw the weather.
+-- Server-wide weather events from Config/Weather.lua. Every 20-30 minutes one event (weighted;
+-- Glitch Storm is 1 in 6) runs for 120 s; while it runs, every online player's growing eggs roll
+-- for the event's mutation every rollEverySeconds (a chance per tick, not a forced mutation).
+-- The schedule is replicated as Workspace attributes so every client can show the countdown
+-- ("☢ Acid Rain in 4:12", a chip from 5 min before) and draw the weather.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Weather = require(Shared.Config.Weather)
+local WeatherRules = require(Shared.WeatherRules)
+local Rng = require(Shared.Rng)
 local DataService = require(script.Parent.DataService)
 local GrowthService = require(script.Parent.GrowthService)
 
 local WeatherService = {}
 
 local random = Random.new()
-
-local function pick(): string
-	local total = 0
-	for _, e in Weather.events do
-		total += e.weight
-	end
-	local r = random:NextNumber() * total
-	for id, e in Weather.events do
-		r -= e.weight
-		if r <= 0 then
-			return id
-		end
-	end
-	return next(Weather.events) :: string
-end
+local rng = Rng.new(random:NextInteger(1, 2 ^ 31 - 1))
 
 local function schedule(at: number)
-	workspace:SetAttribute("WeatherNextId", pick())
+	workspace:SetAttribute("WeatherNextId", WeatherRules.pick(rng))
 	workspace:SetAttribute("WeatherNextAt", at)
 end
 
+local function waitUntil(at: number)
+	while DataService.now() < at do
+		task.wait(math.max(at - DataService.now(), 0.05))
+	end
+end
+
+-- One event: a roll on every online player's growing eggs when it starts and every
+-- rollEverySeconds after (WeatherRules.rolls: 4 for 120 s), then clear it.
 local function run(eventId: string)
 	local event = (Weather.events :: any)[eventId]
-	local now = DataService.now()
+	local startAt = DataService.now()
+	local endsAt = startAt + event.durationSeconds
 	workspace:SetAttribute("WeatherId", eventId)
-	workspace:SetAttribute("WeatherEndsAt", now + event.durationSeconds)
-	schedule(now + event.durationSeconds + random:NextNumber(Weather.minIntervalSeconds, Weather.maxIntervalSeconds))
-	local endsAt = now + event.durationSeconds
-	while DataService.now() < endsAt do
+	workspace:SetAttribute("WeatherEndsAt", endsAt)
+	schedule(endsAt + random:NextNumber(Weather.minIntervalSeconds, Weather.maxIntervalSeconds))
+	for k = 0, WeatherRules.rolls(eventId) - 1 do
+		waitUntil(startAt + k * Weather.rollEverySeconds)
 		for _, player in Players:GetPlayers() do
 			local data = DataService.get(player)
 			if data and next(data.slots) then
-				GrowthService.weatherRoll(player, data, event.mutation, event.chancePerRoll or Weather.chancePerRoll)
+				GrowthService.weatherRoll(player, data, eventId)
 			end
 		end
-		task.wait(math.min(Weather.rollEverySeconds, math.max(endsAt - DataService.now(), 0.1)))
 	end
+	waitUntil(endsAt)
 	workspace:SetAttribute("WeatherId", "")
 	workspace:SetAttribute("WeatherEndsAt", 0)
 end
