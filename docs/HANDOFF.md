@@ -77,6 +77,14 @@ Verified at the end of the session: `lune run tools/check` (91 files), `lune run
 (64 pass), world checker 0 issues (1989 parts), UI preview 0 HUD overlaps (24 combinations) and
 0 shop issues (30 scenes). `selene` was not run (needs internet for the Roblox std).
 
+## Tools in a fresh container
+
+`lune`, `rojo`, `stylua` and `selene` are not part of the repo. Install them with
+`bash tools/install-tools.sh` (cargo from crates.io, pinned versions; GitHub release downloads are
+blocked by the session proxy), or set the cloud environment's setup script to run it so every new
+session starts with them. Expected results once installed: `lune run tools/check` 91 files,
+`lune run tools/test` 64 pass, world checker 0 issues, UI preview 0 HUD and 0 shop issues.
+
 ## Untested in Studio
 
 None of this has been exercised in a real Roblox client; the headless preview only checks layout.

@@ -155,6 +155,8 @@ Egg tiers
 
 ## Commands (tests, simulator, previews, checks)
 
+Tools: lune 0.11.1, rojo 7.7.1, stylua 2.6.0, selene 0.31.0, installed by `bash tools/install-tools.sh` (cargo from crates.io, pinned; also `npm install` for the previews). If a session lacks them, run that, or put it in the cloud environment's setup script.
+
 ```
 lune run tools/check                      # every .lua/.luau compiles
 lune run tools/test                       # tests/*.spec.luau (shared math, shop rules, carousel)
