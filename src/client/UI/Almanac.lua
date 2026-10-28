@@ -18,7 +18,7 @@ local Viewport = require(script.Parent.Viewport)
 
 local New, Children, Computed, Value = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.Value
 
-local PER_PAGE = 18 -- 6 x 3
+local PER_PAGE = 12 -- 6 x 2
 local TOTAL = 0
 for _ in Mutants.species do
 	TOTAL += 1
@@ -114,7 +114,7 @@ local function detailPage(id: string, entry: { n: number, first: number, best: n
 	return {
 		New("Frame")({
 			Name = "Stage",
-			Size = UDim2.fromOffset(250, 330),
+			Size = UDim2.fromOffset(230, 300),
 			BackgroundColor3 = Theme.colors.slate,
 			ZIndex = 11,
 			[Children] = {
@@ -137,8 +137,8 @@ local function detailPage(id: string, entry: { n: number, first: number, best: n
 		}),
 		New("ScrollingFrame")({
 			Name = "Info",
-			Position = UDim2.fromOffset(266, 0),
-			Size = UDim2.new(1, -266, 1, 0),
+			Position = UDim2.fromOffset(246, 0),
+			Size = UDim2.new(1, -246, 1, 0),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			ScrollBarThickness = 5,
@@ -394,7 +394,7 @@ return function()
 			return string.format("📖 Almanac   %d / %d found", foundCount:get(), TOTAL)
 		end),
 		Accent = Theme.colors.purple,
-		Size = UDim2.fromOffset(780, 540),
+		Size = UDim2.fromOffset(760, 480),
 		IsOpen = isOpen,
 		OnClose = function()
 			selected:set(nil)
@@ -441,9 +441,10 @@ return function()
 				ZIndex = 11,
 				[Children] = {
 					New("UIGridLayout")({
-						-- 3 rows must fit the grid height (540 panel - 92 chrome - 74 tabs - 54 pager).
-						CellSize = UDim2.fromOffset(116, 100),
-						CellPadding = UDim2.fromOffset(9, 9),
+						-- 2 rows must fit the grid height (480 panel - 90 chrome - 74 tabs - 54 pager).
+						-- 6 columns must fit the content width (760 - 32): 6 x 110 + 5 x 8 = 700.
+						CellSize = UDim2.fromOffset(110, 120),
+						CellPadding = UDim2.fromOffset(8, 9),
 						SortOrder = Enum.SortOrder.LayoutOrder,
 						HorizontalAlignment = Enum.HorizontalAlignment.Center,
 					}),

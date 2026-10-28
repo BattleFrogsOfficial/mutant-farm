@@ -17,6 +17,7 @@ Remotes.ClientToServer = {
 	"Sell", -- (itemId: string)
 	"SellAll", -- ()
 	"BuySlot", -- ()
+	"ClaimDaily", -- ()
 }
 
 -- server -> client
@@ -25,6 +26,7 @@ Remotes.ServerToClient = {
 	"Notify", -- (message: string, kind: "info" | "error" | "success")
 	"Harvested", -- (item: Types.Item, valueNow: number, slotIndex: number, isNewSpecies: boolean)
 	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string)
+	"WelcomeBack", -- ({ away: number, ready: number, mutations: number })
 	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
 }
 

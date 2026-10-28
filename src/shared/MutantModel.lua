@@ -713,6 +713,35 @@ function MutantModel.buildEgg(eggId: string, progress: number, mutations: { stri
 	return model
 end
 
+-- Adds dark crack lines across the front of an egg built by buildEgg (for the hatch cinematic).
+-- `level` 1 = a couple of hairline cracks, 2 = cracks all over.
+function MutantModel.addCracks(egg: Model, level: number)
+	local root = egg.PrimaryPart :: BasePart
+	local s = root.Size.X -- buildEgg sizes the root 1 stud wide per unit of egg scale (ScaleTo keeps that)
+	local count = if level >= 2 then 6 else 2
+	for c = 1, count do
+		local a = (c - (count + 1) / 2) * 0.55
+		local y = 0.8 + (c % 3) * 0.2 -- ends below ~2.0, short of the tip where the radius shrinks to 0
+		for seg = 0, 2 do
+			local da = if seg % 2 == 0 then 0.16 else -0.16
+			local function at(angle: number, height: number): Vector3
+				local r = eggRadius(height) * s + 0.06 * s -- clear of the shell even across the waist
+				return root.CFrame * Vector3.new(math.sin(angle) * r, height * s, -math.cos(angle) * r)
+			end
+			local p0, p1 = at(a, y), at(a + da, y + 0.28)
+			newPart(
+				egg,
+				"Crack",
+				Vector3.new(0.07 * s, 0.07 * s, (p1 - p0).Magnitude),
+				CFrame.lookAt((p0 + p1) / 2, p1),
+				DARK
+			)
+			a += da
+			y += 0.28
+		end
+	end
+end
+
 -- Names of mutations in display order, e.g. { "Golden", "Glitched" }.
 function MutantModel.sortedMutations(mutations: { string }): { string }
 	local set = mutationSet(mutations)

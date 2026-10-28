@@ -101,12 +101,24 @@ Slot part: `Index`, `State` (owned | buy | locked), `EggId`, `Mutations` (comma 
 
 ## UI
 
-- `UI/Components.lua`: chunky 3D buttons (lip + pressable face, hover lift, click sound, `Selected` gold ring, `Disabled` grey), panels that pop open, pills, a padlock drawn from Frames. Reuse these; don't hand-roll buttons.
-- `UI/Viewport.lua`: live 3D previews of eggs/mutants in the UI (silhouette mode for locked/undiscovered).
-- Egg Shop card states: available, too pricey (grey buttons + "Need $X more"), locked (silhouette + padlock + "Rebirth N to unlock").
-- Almanac (`UI/Almanac.lua`): 400 species by tier tab, 18 per page, silhouettes for undiscovered, detail page with description, traits, size range, your biggest, hatch count, first found, fun fact. Data: `profile.almanac[speciesId] = { n, first, best }`, sent with the `Almanac` remote (full on join, one entry per change).
-- Hatch cutscene (`HatchController`): flash, camera cuts to a stage at z=2600, egg shakes twice, shell explodes, mutant lands, reveal card (`UI/HatchOverlay.lua`). Hatches queue; Skip / Skip all. Your own pen waits for the cutscene to end.
-- Farm income: `DataService.incomePerMinute` (shared `Expected.lua`), shown on the sign by each gate and under the Cash pill.
+- Design canvas is **900x540**; `UIController` scales it to the usable screen (below the top bar). Panels stay <= 480 tall.
+- **Zones** (keep new HUD pieces inside one, so nothing overlaps): top center Cash + income chip + Bag; left column menu tiles (Daily, Almanac); bottom left NEXT UP card; bottom center egg tray (420 wide); bottom right HATCH / WATER; toasts under the top bar (380 wide, ZIndex 20).
+- `UI/Root.lua` mounts the HUD, a dim backdrop (tap to close panels), all panels and toasts. Panels: EggShop, SellPanel, Almanac (6x2 grid pages), DailyPanel, WelcomePanel.
+- `UI/Components.lua`: chunky 3D buttons (shadow + lip + pressable gradient face, hover, click sound, `Selected`, `Disabled`, `Pulse`), menu `tile` with badge + alert dot, `pill`, `shadow`, `pulse`, `padlock`, `panel`. Reuse these; don't hand-roll buttons.
+- `UI/Viewport.lua`: live 3D previews of eggs/mutants (silhouette mode for locked/undiscovered).
+- **Hatch cinematic**: `HatchController` + `UI/HatchScreen.lua` on its own ScreenGui (`IgnoreGuiInset`, DisplayOrder 50): backdrop, spinning rays, glow, egg in a ViewportFrame -> shake + cracks (`MutantModel.addCracks`) twice -> flash + shell explosion + 2D confetti -> mutant pops, rarity title, value count-up, chips, NEW ribbon. Skip jumps to the reveal; Skip all summarizes. Your pen waits until it ends.
+- **Retention**: daily streak (`Config/Daily.lua`, `DailyService`, `shared/Streak.lua`), "Welcome back" summary after 10+ min away, Almanac NEW dot, pulsing HATCH when eggs are ready.
+- Almanac data: `profile.almanac[speciesId] = { n, first, best }`, `Almanac` remote (full on join, one entry per change).
+- Farm income: `DataService.incomePerMinute` (shared `Expected.lua`), shown on each gate sign and under Cash.
+
+## Seeing the UI without Studio
+
+```
+rojo build default.project.json -o build/preview.rbxl
+lune run tools/preview/ui-export -- build/preview.rbxl build/ui.json
+node tools/preview/ui-render.mjs build/ui.json build/ui-shots build/shots/spawn-view.png
+```
+Runs the real Fusion UI headlessly (events, springs, sounds and viewports stubbed), sets mock game states (HUD, each panel, the hatch reveal), and lays each out in Chromium at desktop and phone sizes with the Roblox top bar. Use it to check layout, overlap and readability after any UI change. Gradient text and 3D previews are approximations.
 
 ## Seeing the world without Studio
 
@@ -142,6 +154,7 @@ Then playtest in Studio (Rojo serve + Play). There is no way to run the Roblox s
 - **M1 Skeleton (done):** Rojo repo, ProfileStore, plots, Starter + Swamp eggs, grow timers, watering, harvest, sell, Cash HUD, economy simulator.
 - **M1.5 Feel pass (done):** bounded world with fenced plots, spawn inside your own gate, 400 species, egg designs, giant visual scaling, rarity/species/mutation/size rolls (offline cap, guaranteed Rare 2nd egg), mid-grow mutation pops, hatch reveal with banner/sound/shake, pen display, buying soil patches, guided tutorial + Next up panel.
 - **M1.6 Polish (done):** softer lighting, solid hedge wall, rebuilt hub, HUD overhaul, locked egg cards, hatch cutscene, Almanac, income signs.
+- **M1.7 HUD + hatch (done):** zoned HUD, full-screen hatch cinematic, daily streak, welcome back, UI preview tool.
 - **M2 The hook (remaining):** Keep-in-pen choice + pen income, Almanac completion rewards, final sounds.
 - **M3 Monetize:** passes, Gem products, Luck Potion, Skip Timer, Starter Bundle, purchase effects, friction-only prompt placement, PolicyService paid-random-item check.
 - **M4 Return loops:** rebirth, Lab + Toxic, weather, daily streak, leaderboards, codes, slot/upgrade purchases.

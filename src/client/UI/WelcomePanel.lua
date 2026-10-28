@@ -1,0 +1,143 @@
+--!strict
+-- "Welcome back!" card shown after a break: how long you were away, how many eggs are ready to
+-- hatch, and how many mutations happened while you were gone. One tap goes straight to hatching.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Fusion = require(ReplicatedStorage.Packages.Fusion)
+local Shared = ReplicatedStorage.Shared
+local Format = require(Shared.Format)
+local Remotes = require(Shared.Remotes)
+local State = require(script.Parent.Parent.State)
+local Theme = require(script.Parent.Theme)
+local C = require(script.Parent.Components)
+
+local New, Children, Computed = Fusion.New, Fusion.Children, Fusion.Computed
+
+local function stat(order: number, icon: string, value: any, label: string, color: Color3)
+	return New("Frame")({
+		LayoutOrder = order,
+		Size = UDim2.fromOffset(150, 120),
+		BackgroundColor3 = Theme.colors.slate,
+		ZIndex = 2,
+		[Children] = {
+			C.corner(16),
+			C.stroke(color, 3),
+			C.label({
+				Text = icon,
+				Size = UDim2.new(1, 0, 0, 40),
+				Position = UDim2.fromOffset(0, 8),
+				MaxTextSize = 34,
+				ZIndex = 3,
+			}),
+			C.label({
+				Text = value,
+				Size = UDim2.new(1, -12, 0, 36),
+				Position = UDim2.fromOffset(6, 48),
+				MaxTextSize = 32,
+				TextColor3 = color,
+				StrokeThickness = 3,
+				ZIndex = 3,
+			}),
+			C.label({
+				Text = label,
+				Size = UDim2.new(1, -12, 0, 22),
+				Position = UDim2.fromOffset(6, 88),
+				MaxTextSize = 16,
+				ZIndex = 3,
+			}),
+		},
+	})
+end
+
+return function()
+	local info = State.welcome
+	local function get()
+		return info:get() or { away = 0, ready = 0, mutations = 0, capped = false }
+	end
+	return C.panel({
+		Title = "👋 Welcome back!",
+		Accent = Theme.colors.toxicDark,
+		Size = UDim2.fromOffset(540, 400),
+		IsOpen = Computed(function()
+			return State.panel:get() == "welcome"
+		end),
+		OnClose = function()
+			State.panel:set("none")
+		end,
+		Content = {
+			C.label({
+				Text = Computed(function()
+					return "Your farm kept growing for " .. Format.duration(get().away) .. " while you were gone!"
+				end),
+				Size = UDim2.new(1, 0, 0, 30),
+				MaxTextSize = 20,
+				TextColor3 = Theme.colors.cream,
+				ZIndex = 2,
+			}),
+			New("Frame")({
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(0, 44),
+				Size = UDim2.new(1, 0, 0, 124),
+				ZIndex = 2,
+				[Children] = {
+					New("UIListLayout")({
+						FillDirection = Enum.FillDirection.Horizontal,
+						HorizontalAlignment = Enum.HorizontalAlignment.Center,
+						Padding = UDim.new(0, 16),
+						SortOrder = Enum.SortOrder.LayoutOrder,
+					}),
+					stat(
+						1,
+						"🥚",
+						Computed(function()
+							return tostring(get().ready)
+						end),
+						"ready to hatch",
+						Theme.colors.gold
+					),
+					stat(
+						2,
+						"✨",
+						Computed(function()
+							return tostring(get().mutations)
+						end),
+						"mutations",
+						Theme.colors.purple
+					),
+				},
+			}),
+			C.label({
+				Text = "Tip: eggs stop mutating 2 hours after you leave.",
+				Position = UDim2.fromOffset(0, 178),
+				Size = UDim2.new(1, 0, 0, 22),
+				MaxTextSize = 16,
+				TextColor3 = Theme.colors.muted,
+				Visible = Computed(function()
+					return get().capped
+				end),
+				ZIndex = 2,
+			}),
+			C.button({
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.new(0.5, 0, 1, 0),
+				Size = UDim2.fromOffset(300, 60),
+				Color = Theme.colors.gold,
+				MaxTextSize = 26,
+				ZIndex = 3,
+				Pulse = Computed(function()
+					return get().ready > 0
+				end),
+				Text = Computed(function()
+					return if get().ready > 0 then string.format("🥚 HATCH %d NOW", get().ready) else "Let's go!"
+				end),
+				OnClick = function()
+					State.panel:set("none")
+					if get().ready > 0 then
+						Remotes.get("HarvestAll"):FireServer()
+					end
+				end,
+			}),
+		},
+	})
+end

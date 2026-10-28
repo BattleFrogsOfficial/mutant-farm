@@ -15,6 +15,7 @@ local Eggs = require(Shared.Config.Eggs)
 local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
 local Mutants = require(Shared.Config.Mutants)
+local Daily = require(Shared.Config.Daily)
 local Growth = require(Shared.Growth)
 local Rolls = require(Shared.Rolls)
 local Rng = require(Shared.Rng)
@@ -230,19 +231,31 @@ end
 -- (or the whole time with the Offline Mutations pass); growth always runs.
 local function catchUp(player: Player, data: Types.Profile)
 	local now = DataService.now()
+	local events = {}
+	local capped = false
 	if data.lastSeen > 0 and not data.ownedPasses.OfflineMutations then
 		local capAt = data.lastSeen + GameConfig.offlineMutationCap
 		if now > capAt then
-			GrowthService.settle(data, capAt)
+			events = GrowthService.settle(data, capAt)
 			GrowthService.settle(data, now, false)
-			if next(data.slots) then
-				Net.notify(player, "Your eggs stopped mutating after 2 hours away.", "info")
-			end
-			return
+			capped = next(data.slots) ~= nil
 		end
 	end
-	GrowthService.settle(data, now)
-	local _ = player
+	if not capped then
+		events = GrowthService.settle(data, now)
+	end
+
+	-- "Welcome back" summary after a real break.
+	local away = if data.lastSeen > 0 then now - data.lastSeen else 0
+	if away >= Daily.welcomeBackSeconds then
+		local ready = 0
+		for _, slot in data.slots do
+			if isMature(slot) then
+				ready += 1
+			end
+		end
+		Net.fire(player, "WelcomeBack", { away = away, ready = ready, mutations = #events, capped = capped })
+	end
 end
 
 function GrowthService.Init()

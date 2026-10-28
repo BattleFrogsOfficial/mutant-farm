@@ -1,5 +1,5 @@
 --!strict
--- Short messages stacked under the Cash pill.
+-- Short messages stacked under the top bar, between the Cash pill and the side menu.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -10,10 +10,10 @@ local C = require(script.Parent.Components)
 
 local New, Children, Computed, ForPairs = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.ForPairs
 
-local KIND_COLORS = {
-	info = Theme.colors.slate,
-	success = Color3.fromHex("#2E7D32"),
-	error = Color3.fromHex("#B23A3A"),
+local KIND = {
+	info = { color = Theme.colors.slateLight, icon = "💬" },
+	success = { color = Color3.fromHex("#2E9A4A"), icon = "✨" },
+	error = { color = Color3.fromHex("#C0413F"), icon = "⚠️" },
 }
 
 return function()
@@ -30,30 +30,49 @@ return function()
 		Name = "Toasts",
 		ZIndex = 20, -- above open panels
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 70),
-		Size = UDim2.fromOffset(460, 220),
+		Position = UDim2.new(0.5, 0, 0, 104),
+		Size = UDim2.fromOffset(380, 170),
 		BackgroundTransparency = 1,
 		[Children] = {
 			New("UIListLayout")({
 				SortOrder = Enum.SortOrder.LayoutOrder,
 				HorizontalAlignment = Enum.HorizontalAlignment.Center,
-				Padding = UDim.new(0, 6),
+				Padding = UDim.new(0, 8),
 			}),
 			ForPairs(byId, function(id: number, encoded: string)
 				local kind, text = encoded:match("^(%a+)|(.*)$")
+				local style = KIND[kind or "info"] or KIND.info
 				return id,
 					New("Frame")({
 						LayoutOrder = id, -- ids only increase, so newest is last
-						Size = UDim2.fromOffset(460, 44),
-						BackgroundColor3 = KIND_COLORS[kind] or Theme.colors.slate,
-						BackgroundTransparency = 0.1,
+						Size = UDim2.fromOffset(380, 46),
+						BackgroundTransparency = 1,
 						[Children] = {
-							C.corner(12),
-							C.label({
-								Size = UDim2.new(1, -20, 1, -10),
-								Position = UDim2.fromOffset(10, 5),
-								MaxTextSize = 22,
-								Text = text,
+							C.shadow(14, 4),
+							New("Frame")({
+								Size = UDim2.fromScale(1, 1),
+								BackgroundColor3 = style.color,
+								ZIndex = 1,
+								[Children] = {
+									C.corner(14),
+									C.stroke(Theme.colors.slate, 2.5),
+									C.shine(),
+									C.label({
+										Text = style.icon,
+										Size = UDim2.fromOffset(30, 30),
+										Position = UDim2.new(0, 10, 0.5, -15),
+										MaxTextSize = 22,
+										ZIndex = 2,
+									}),
+									C.label({
+										Size = UDim2.new(1, -56, 1, -10),
+										Position = UDim2.fromOffset(46, 5),
+										TextXAlignment = Enum.TextXAlignment.Left,
+										MaxTextSize = 20,
+										Text = text,
+										ZIndex = 2,
+									}),
+								},
 							}),
 						},
 					})

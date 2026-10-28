@@ -1,10 +1,10 @@
 --!strict
--- The hatch cutscene. When the server confirms a hatch, the screen flashes and the camera cuts to
--- a stage far from the farm. The egg sits on a pedestal, shakes once, shakes harder, then bursts
--- into shell fragments flying in every direction, and the mutant is standing there at full size.
--- A reveal card slides up. Then the camera flashes back to the farm.
--- Hatches queue up (Hatch All); Skip and Skip all are always available. Pens hold their update
--- until the cutscene ends, so the mutant never appears on the farm before its reveal.
+-- The hatch cinematic, on its own full-screen ScreenGui (covers the top bar; the world never shows):
+--   backdrop fades in, rays spin, the egg drops in -> shakes and cracks -> shakes harder and cracks
+--   all over -> white flash, the shell flies apart toward the camera, confetti bursts -> the mutant
+--   pops up, the rarity title slams in, the value counts up, chips and a NEW ribbon appear.
+-- Hatches queue (Hatch All). Skip jumps straight to the reveal; Skip all summarizes the rest.
+-- Your own pen holds its update until the cinematic ends, so nothing is spoiled on the farm.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -19,14 +19,21 @@ local Eggs = require(Shared.Config.Eggs)
 local MutantModel = require(Shared.MutantModel)
 local State = require(script.Parent.Parent.State)
 local Sfx = require(script.Parent.Parent.Sfx)
+local Theme = require(script.Parent.Parent.UI.Theme)
+local HatchScreen = require(script.Parent.Parent.UI.HatchScreen)
 local PlotController = require(script.Parent.PlotController)
 
 local HatchController = {}
 
-local player = Players.LocalPlayer
 local RANK = { Common = 1, Uncommon = 2, Rare = 3, Epic = 4, Legendary = 5 }
-local STAGE = Vector3.new(0, 0, 2600) -- far outside the valley; only the cutscene camera sees it
-local EGG_SCALE = 2.4
+local DESIGN = Vector2.new(900, 540)
+local TITLE_COLORS = {
+	Common = { "#FFFFFF", "#B4B8C2" },
+	Uncommon = { "#C8FFB0", "#4FCB3F" },
+	Rare = { "#BFF0FF", "#3E8BFF" },
+	Epic = { "#FFC2FF", "#A24CFF" },
+	Legendary = { "#FFF3A8", "#FF9A1F" },
+}
 
 type Hatch = { item: any, value: number, slotIndex: number?, isNew: boolean }
 local queue: { Hatch } = {}
@@ -34,88 +41,21 @@ local playing = false
 local skip = false
 local skipAll = false
 local advance = false
+-- Taps only count once the reveal has been up briefly (players tap eggs by reflex).
+local revealedAt = math.huge
+-- Bumped per hatch so tweens spawned for an old hatch stop writing to the screen.
+local hatchId = 0
 
-local stage: Model? = nil
-local camBase = CFrame.identity
-local shake = 0
--- Bumped for every new camera move so a stale tween from a skipped hatch stops writing.
-local cameraGeneration = 0
-
----------------------------------------------------------------------------- stage
-
-local function stagePart(model: Model, props: { [string]: any }): Part
-	local p = Instance.new("Part")
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanQuery = false
-	p.CanTouch = false
-	p.TopSurface = Enum.SurfaceType.Smooth
-	p.BottomSurface = Enum.SurfaceType.Smooth
-	p.Material = Enum.Material.SmoothPlastic
-	for k, v in props do
-		(p :: any)[k] = v
-	end
-	p.Parent = model
-	return p
-end
-
-local function buildStage(): Model
-	local model = Instance.new("Model")
-	model.Name = "HatchStage"
-	local cream = Color3.fromHex("#FFF4D6")
-	local purple = Color3.fromHex("#9B5CFF")
-	local slate = Color3.fromHex("#2A2440")
-	stagePart(model, {
-		Name = "Floor",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(2, 120, 120),
-		CFrame = CFrame.new(STAGE + Vector3.new(0, -1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = slate,
-	})
-	stagePart(model, {
-		Name = "Ring",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.3, 30, 30),
-		CFrame = CFrame.new(STAGE + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = purple,
-	})
-	stagePart(model, {
-		Name = "Pedestal",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(1.6, 9, 9),
-		CFrame = CFrame.new(STAGE + Vector3.new(0, 0.8, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = cream,
-	})
-	-- Curtain arc behind the pedestal (+Z side; the camera looks from -Z).
-	for i = -7, 7 do
-		local a = math.rad(i * 9)
-		local pos = STAGE + Vector3.new(math.sin(a) * 46, 30, math.cos(a) * 46)
-		stagePart(model, {
-			Name = "Curtain",
-			Size = Vector3.new(7.6, 64, 1.5),
-			CFrame = CFrame.lookAt(pos, STAGE + Vector3.new(0, 30, 0)),
-			Color = if i % 2 == 0 then purple else Color3.fromHex("#7A45D6"),
-			Material = Enum.Material.Fabric,
-		})
-	end
-	-- A ring of bulbs around the edge of the stage floor.
-	for i = 0, 23 do
-		local a = i / 24 * math.pi * 2
-		stagePart(model, {
-			Name = "Bulb",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(1.2, 1.2, 1.2),
-			CFrame = CFrame.new(STAGE + Vector3.new(math.cos(a) * 15, 0.6, math.sin(a) * 15)),
-			Color = if i % 2 == 0 then Color3.fromHex("#FFD24A") else cream,
-		})
-	end
-	model.Parent = workspace
-	return model
-end
+local gui: ScreenGui
+local screen: HatchScreen.Screen
+local scaleRoot: Frame
+local rayBase = 0
+local raySpeed = 12 -- degrees per second
+local glowPulse = 0.05
 
 ---------------------------------------------------------------------------- helpers
 
--- Waits `seconds`, returning early (true) if the player skipped.
+-- Waits `seconds`; returns true early if the player skipped.
 local function wait(seconds: number): boolean
 	local t = os.clock()
 	while os.clock() - t < seconds do
@@ -127,17 +67,11 @@ local function wait(seconds: number): boolean
 	return skip or skipAll
 end
 
-local function tweenNumber(
-	from: number,
-	to: number,
-	duration: number,
-	set: (number) -> (),
-	easing: ((number) -> number)?
-)
+local function tween(duration: number, step: (number) -> (), easing: ((number) -> number)?)
 	local t0 = os.clock()
 	while true do
 		local k = math.clamp((os.clock() - t0) / duration, 0, 1)
-		set(from + (to - from) * (if easing then easing(k) else k))
+		step(if easing then easing(k) else k)
 		if k >= 1 then
 			break
 		end
@@ -145,88 +79,131 @@ local function tweenNumber(
 	end
 end
 
-local function easeOutBack(k: number): number
+local function backOut(k: number): number
 	local c1, c3 = 1.70158, 2.70158
 	return 1 + c3 * (k - 1) ^ 3 + c1 * (k - 1) ^ 2
 end
 
-local function flash(to: number, duration: number)
-	tweenNumber(State.hatchFlash:get(false), to, duration, function(v)
-		State.hatchFlash:set(v)
+local function quadOut(k: number): number
+	return 1 - (1 - k) * (1 - k)
+end
+
+local function flash(peak: number, up: number, down: number)
+	tween(up, function(k)
+		screen.flash.BackgroundTransparency = 1 - peak * k
+	end)
+	task.spawn(tween, down, function(k)
+		screen.flash.BackgroundTransparency = 1 - peak * (1 - k)
 	end)
 end
 
-local function burst(at: Vector3, color: Color3, amount: number, scale: number)
-	local anchor = Instance.new("Part")
-	anchor.Anchored = true
-	anchor.CanCollide = false
-	anchor.CanQuery = false
-	anchor.Transparency = 1
-	anchor.Size = Vector3.one
-	anchor.Position = at
-	local e = Instance.new("ParticleEmitter")
-	e.Color = ColorSequence.new(color)
-	e.LightEmission = 0.3
-	e.Lifetime = NumberRange.new(0.7, 1.4)
-	e.Speed = NumberRange.new(14 * scale, 28 * scale)
-	e.SpreadAngle = Vector2.new(180, 180)
-	e.Drag = 3
-	e.Acceleration = Vector3.new(0, -20, 0)
-	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8 * scale), NumberSequenceKeypoint.new(1, 0) })
-	e.Rate = 0
-	e.Parent = anchor
-	anchor.Parent = workspace
-	e:Emit(amount)
-	task.delay(2.5, function()
-		anchor:Destroy()
-	end)
-end
-
--- Shell fragments flying out in every direction with gravity, fading as they land.
-local function explodeShell(center: Vector3, shell: Color3, accent: Color3, scale: number)
-	local pieces = {}
-	for i = 1, 28 do
-		local p = Instance.new("Part")
-		p.Anchored = true
-		p.CanCollide = false
-		p.CanQuery = false
-		p.Material = Enum.Material.SmoothPlastic
-		p.Color = if i % 4 == 0 then accent else shell
-		local s = (0.35 + math.random() * 0.55) * scale
-		p.Size = Vector3.new(s, s * 0.35, s * (0.7 + math.random() * 0.6))
-		local dir = Vector3.new(math.random() * 2 - 1, math.random() * 1.4 - 0.2, math.random() * 2 - 1)
-		if dir.Magnitude < 0.1 then
-			dir = Vector3.yAxis
+local function clearStage()
+	for _, child in screen.viewport:GetChildren() do
+		if not child:IsA("Camera") then
+			child:Destroy()
 		end
-		dir = dir.Unit
-		p.CFrame = CFrame.new(center + dir * scale * 0.8) * CFrame.Angles(math.random() * 6, math.random() * 6, 0)
-		p.Parent = workspace
+	end
+end
+
+-- Points the stage camera at a model of this size standing at the origin.
+local function frameCamera(size: Vector3)
+	local height = math.max(size.Y, 0.5)
+	local extent = math.max(size.Y, size.X * 0.95, size.Z * 0.6, 0.5)
+	local distance = extent * 0.68 / math.tan(math.rad(16))
+	local focus = Vector3.new(0, height * 0.5, 0)
+	screen.camera.CFrame = CFrame.lookAt(focus + Vector3.new(0, extent * 0.12, -distance), focus)
+end
+
+local function stripEffects(model: Model)
+	for _, d in model:GetDescendants() do
+		if d:IsA("ParticleEmitter") or d:IsA("Light") then
+			d:Destroy()
+		end
+	end
+end
+
+-- 2D confetti bursting from the center of the screen.
+local function confetti(colors: { Color3 }, amount: number)
+	local pieces = {}
+	for i = 1, amount do
+		local f = Instance.new("Frame")
+		f.BorderSizePixel = 0
+		f.AnchorPoint = Vector2.new(0.5, 0.5)
+		f.Size = UDim2.fromOffset(8 + math.random(6), 14 + math.random(10))
+		f.BackgroundColor3 = colors[(i % #colors) + 1]
+		f.Position = UDim2.new(0.5, 0, 0.5, 10)
+		f.ZIndex = 6
+		f.Parent = screen.confetti
+		local angle = math.random() * math.pi * 2
+		local speed = 380 + math.random() * 520
 		table.insert(pieces, {
-			part = p,
-			vel = dir * (16 + math.random() * 18) * math.sqrt(scale) + Vector3.new(0, 10, 0),
-			spin = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 14,
+			frame = f,
+			x = 0,
+			y = 10,
+			vx = math.cos(angle) * speed,
+			vy = math.sin(angle) * speed - 260,
+			spin = (math.random() - 0.5) * 900,
 		})
 	end
 	task.spawn(function()
-		local t0 = os.clock()
-		local last = t0
-		while os.clock() - t0 < 1.6 do
+		local t0, last = os.clock(), os.clock()
+		while os.clock() - t0 < 2.2 do
 			local now = os.clock()
 			local dt = now - last
 			last = now
-			local fade = math.clamp((now - t0 - 1.1) / 0.5, 0, 1)
+			local fade = math.clamp((now - t0 - 1.4) / 0.8, 0, 1)
+			for _, p in pieces do
+				p.vy += 900 * dt
+				p.vx *= 1 - 1.2 * dt
+				p.x += p.vx * dt
+				p.y += p.vy * dt
+				p.frame.Position = UDim2.new(0.5, p.x, 0.5, p.y)
+				p.frame.Rotation += p.spin * dt
+				p.frame.BackgroundTransparency = fade
+			end
+			task.wait()
+		end
+		for _, p in pieces do
+			p.frame:Destroy()
+		end
+	end)
+end
+
+-- Shell pieces flying out of the egg (in 3D, inside the stage window).
+local function explodeShell(center: Vector3, scale: number, shell: Color3, accent: Color3)
+	local pieces = {}
+	for i = 1, 30 do
+		local p = Instance.new("Part")
+		p.Anchored = true
+		p.CanCollide = false
+		p.Material = Enum.Material.SmoothPlastic
+		p.Color = if i % 4 == 0 then accent else shell
+		local s = (0.25 + math.random() * 0.4) * scale
+		p.Size = Vector3.new(s, s * 0.3, s * (0.6 + math.random() * 0.6))
+		local dir = Vector3.new(math.random() * 2 - 1, math.random() * 1.6 - 0.3, math.random() * 2 - 1.4)
+		dir = if dir.Magnitude < 0.1 then Vector3.yAxis else dir.Unit
+		p.CFrame = CFrame.new(center + dir * scale * 0.4) * CFrame.Angles(math.random() * 6, math.random() * 6, 0)
+		p.Parent = screen.viewport
+		table.insert(pieces, {
+			part = p,
+			vel = dir * (5 + math.random() * 6) * scale,
+			spin = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 16,
+		})
+	end
+	task.spawn(function()
+		local t0, last = os.clock(), os.clock()
+		while os.clock() - t0 < 1.3 do
+			local now = os.clock()
+			local dt = now - last
+			last = now
 			for _, piece in pieces do
-				piece.vel += Vector3.new(0, -70, 0) * dt
-				local pos = piece.part.Position + piece.vel * dt
-				if pos.Y < STAGE.Y + 0.2 then
-					pos = Vector3.new(pos.X, STAGE.Y + 0.2, pos.Z)
-					piece.vel = Vector3.new(piece.vel.X * 0.6, -piece.vel.Y * 0.35, piece.vel.Z * 0.6)
+				if piece.part.Parent then
+					piece.vel += Vector3.new(0, -14 * scale, 0) * dt
+					local rotation = piece.part.CFrame - piece.part.Position
+					piece.part.CFrame = CFrame.new(piece.part.Position + piece.vel * dt)
+						* rotation
+						* CFrame.Angles(piece.spin.X * dt, piece.spin.Y * dt, piece.spin.Z * dt)
 				end
-				local rotation = piece.part.CFrame - piece.part.Position
-				piece.part.CFrame = CFrame.new(pos)
-					* rotation
-					* CFrame.Angles(piece.spin.X * dt, piece.spin.Y * dt, piece.spin.Z * dt)
-				piece.part.Transparency = fade
 			end
 			task.wait()
 		end
@@ -236,28 +213,18 @@ local function explodeShell(center: Vector3, shell: Color3, accent: Color3, scal
 	end)
 end
 
--- Camera framing for something `height` studs tall standing on the pedestal.
-local function framing(height: number): CFrame
-	local h = math.max(height, 3)
-	local focus = STAGE + Vector3.new(0, 1.6 + h * 0.5, 0)
-	local distance = h * 1.25 + 9
-	return CFrame.lookAt(focus + Vector3.new(0, h * 0.15 + 2, -distance), focus)
+local function setRevealVisible(visible: boolean)
+	screen.title.Visible = visible
+	screen.value.Visible = visible
+	screen.name.Visible = visible
+	screen.chips.Visible = visible
+	screen.hint.Visible = visible
+	if not visible then
+		screen.newRibbon.Visible = false
+	end
 end
 
-local function moveCamera(to: CFrame, duration: number)
-	cameraGeneration += 1
-	local generation = cameraGeneration
-	local from = camBase
-	tweenNumber(0, 1, duration, function(k)
-		if generation == cameraGeneration then
-			camBase = from:Lerp(to, k)
-		end
-	end, function(k)
-		return 1 - (1 - k) ^ 3
-	end)
-end
-
----------------------------------------------------------------------------- the cutscene
+---------------------------------------------------------------------------- the cinematic
 
 local function play(h: Hatch)
 	local item = h.item
@@ -265,127 +232,158 @@ local function play(h: Hatch)
 	local rarityColor = Color3.fromHex(Rarities.info[item.rarity].color)
 	local species = MutantModel.species(item)
 	local design = Eggs.tiers[item.tier].design
-	-- Commons in a long Hatch All get a short version.
-	local quick = #queue > 0 and rank <= 2
+	local quick = #queue > 0 and rank <= 2 -- Commons in a long Hatch All get a short version
 	skip = false
 	advance = false
+	revealedAt = math.huge
+	hatchId += 1
+	local myId = hatchId
 
-	-- Cut to the stage.
-	flash(1, 0.18)
-	stage = stage or buildStage()
-	workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+	clearStage()
+	setRevealVisible(false)
+	HatchScreen.setColor(screen, Color3.fromHex(design.accent))
+	raySpeed = 12
+	glowPulse = 0.05
+
+	-- The egg drops in.
 	local egg = MutantModel.buildEgg(item.tier, 1, item.mutations)
-	egg:ScaleTo(EGG_SCALE)
-	local top = CFrame.new(STAGE + Vector3.new(0, 1.6, 0))
-	egg:PivotTo(top)
-	egg.Parent = workspace
-	local eggHeight = egg:GetExtentsSize().Y
-	cameraGeneration += 1
-	camBase = framing(eggHeight) * CFrame.new(0, 0, 6)
-	flash(0, 0.25)
-
-	-- Dolly in, then two shakes: a small one, then a big one.
-	if not quick then
-		task.spawn(moveCamera, framing(eggHeight), 1.2)
+	stripEffects(egg)
+	egg:PivotTo(CFrame.identity)
+	egg.Parent = screen.viewport
+	local eggSize = egg:GetExtentsSize()
+	frameCamera(eggSize * 1.35)
+	local base = CFrame.identity
+	if not skip then
+		tween(if quick then 0.2 else 0.4, function(k)
+			egg:PivotTo(base * CFrame.new(0, (1 - backOut(k)) * eggSize.Y * 1.2, 0))
+		end)
 	end
-	local function wobble(duration: number, amount: number)
+
+	local function shake(duration: number, degrees: number, jitter: number)
 		local t0 = os.clock()
-		while os.clock() - t0 < duration and egg.Parent do
+		while os.clock() - t0 < duration and not (skip or skipAll) do
 			local k = (os.clock() - t0) / duration
-			egg:PivotTo(top * CFrame.Angles(0, 0, math.sin(k * math.pi * 10) * amount * (1 - k * 0.3)))
+			local swing = math.sin(k * math.pi * 12) * math.rad(degrees) * (0.6 + 0.4 * math.sin(k * math.pi))
+			local offset = Vector3.new((math.random() - 0.5) * jitter, 0, 0) * eggSize.X
+			egg:PivotTo(CFrame.new(offset) * CFrame.Angles(0, 0, swing))
 			task.wait()
 		end
-		if egg.Parent then
-			egg:PivotTo(top)
-		end
-	end
-	if not wait(if quick then 0.15 else 0.6) then
-		Sfx.play("crack", 0.6, 0.9)
-		wobble(if quick then 0.25 else 0.4, 0.12)
-	end
-	if not quick and not wait(0.55) then
-		Sfx.play("crack", 0.8, 1.15)
-		shake = 0.15
-		wobble(0.6, 0.28)
-		shake = 0
-		wait(0.2)
+		egg:PivotTo(base)
 	end
 
-	-- Boom: the shell flies apart in every direction.
-	local center = egg:GetPivot().Position + Vector3.new(0, eggHeight * 0.5, 0)
+	-- Shake once, crack; shake harder, crack all over.
+	if not wait(if quick then 0.1 else 0.35) then
+		Sfx.play("crack", 0.6, 0.95)
+		shake(if quick then 0.3 else 0.45, 9, 0.02)
+		MutantModel.addCracks(egg, 1)
+		glowPulse = 0.1
+	end
+	if not quick and not wait(0.4) then
+		Sfx.play("crack", 0.85, 1.2)
+		raySpeed = 40
+		shake(0.65, 18, 0.06)
+		MutantModel.addCracks(egg, 2)
+		glowPulse = 0.18
+		wait(0.12)
+	end
+
+	-- Boom.
 	egg:Destroy()
 	Sfx.play("explode", 0.8)
 	Sfx.play("hatch" .. item.rarity, 0.5 + rank * 0.1, 1.15 - rank * 0.06)
-	explodeShell(center, Color3.fromHex(design.shell), Color3.fromHex(design.accent), EGG_SCALE * 0.9)
-	burst(center, rarityColor, 30 + rank * 15, 1 + rank * 0.25)
-	if rank >= 3 then
-		burst(center, Color3.fromHex("#FFD24A"), 40, 1.6)
-	end
-	task.spawn(function()
-		State.hatchFlash:set(0.7)
-		flash(0, 0.3)
-	end)
-	shake = if rank >= 4 then 0.9 else 0.4
-	task.delay(0.45, function()
-		shake = 0
-	end)
+	flash(0.85, 0.06, 0.35)
+	HatchScreen.setColor(screen, rarityColor)
+	raySpeed = 18 + rank * 4
+	glowPulse = 0.06 + rank * 0.015
+	explodeShell(
+		Vector3.new(0, eggSize.Y * 0.5, 0),
+		eggSize.Y,
+		Color3.fromHex(design.shell),
+		Color3.fromHex(design.accent)
+	)
+	confetti(
+		{ rarityColor, Theme.colors.gold, Theme.colors.white, Color3.fromHex(design.accent) },
+		if quick then 20 else 30 + rank * 10
+	)
 
-	-- ...and the mutant is standing there.
-	local model = MutantModel.build(item)
-	local height = (model:GetAttribute("Height") or 4) :: number
-	model:PivotTo(top)
-	model:ScaleTo(0.15)
-	model.Parent = workspace
-	task.spawn(moveCamera, framing(height), 0.7)
-	tweenNumber(0.15, 1, 0.45, function(v)
-		if model.Parent then
-			model:ScaleTo(math.max(v, 0.05))
+	-- The mutant pops up.
+	local mutant = MutantModel.build(item)
+	stripEffects(mutant)
+	mutant:PivotTo(CFrame.identity)
+	local fullSize = mutant:GetExtentsSize()
+	frameCamera(fullSize)
+	mutant:ScaleTo(0.2)
+	mutant.Parent = screen.viewport
+	local height = (mutant:GetAttribute("Height") or 4) :: number
+	task.spawn(tween, 0.45, function(k)
+		if mutant.Parent then
+			mutant:ScaleTo(math.max(0.2 + 0.8 * backOut(k), 0.05))
 		end
-	end, easeOutBack)
+	end)
 
-	local tags = { string.format("x%.2f size", item.size), string.format("%.0f studs tall", height) }
+	-- Reveal text.
+	local colors = TITLE_COLORS[item.rarity] or TITLE_COLORS.Common
+	screen.titleGradient.Color = ColorSequence.new(Color3.fromHex(colors[1]), Color3.fromHex(colors[2]))
+	screen.title.Text = item.rarity:upper() .. "!"
+	screen.name.Text = species.name
+	screen.name.TextColor3 = rarityColor:Lerp(Color3.new(1, 1, 1), 0.3)
+	local chips = {
+		{ text = string.format("x%.2f size", item.size), color = Theme.colors.slateLight },
+		{ text = string.format("%.0f studs tall", height), color = Theme.colors.slateLight },
+	}
 	for _, m in MutantModel.sortedMutations(item.mutations) do
-		table.insert(tags, string.format("%s x%d", m:upper(), Mutations.info[m].multiplier))
+		table.insert(chips, {
+			text = string.format("%s x%d", m:upper(), Mutations.info[m].multiplier),
+			color = Color3.fromHex(Mutations.info[m].color):Lerp(Theme.colors.slate, 0.35),
+		})
 	end
-	State.hatchCard:set({
-		name = species.name,
-		rarity = item.rarity,
-		color = rarityColor,
-		tags = tags,
-		value = Format.cash(h.value),
-		isNew = h.isNew,
-	})
-
-	-- Hold until Continue / Skip, or a short auto-advance in quick mode.
-	local t0 = os.clock()
-	local auto = if quick then 1.4 else 8
-	while not advance and not skip and not skipAll and os.clock() - t0 < auto do
-		-- Slow turntable so the player sees the whole mutant.
-		if model.Parent then
-			model:PivotTo(top * CFrame.Angles(0, math.sin((os.clock() - t0) * 0.8) * 0.5, 0))
+	HatchScreen.setChips(screen, chips)
+	setRevealVisible(true)
+	screen.newRibbon.Visible = h.isNew
+	screen.titleScale.Scale = 1.8
+	task.spawn(tween, 0.3, function(k)
+		if hatchId == myId then
+			screen.titleScale.Scale = 1.8 - 0.8 * backOut(k)
 		end
+	end)
+	task.spawn(tween, 0.7, function(k)
+		if hatchId == myId then
+			screen.value.Text = "Worth " .. Format.cash(math.floor(h.value * quadOut(k)))
+		end
+	end)
+	if rank >= 4 then
+		-- Screen shake for Epic and Legendary.
+		task.spawn(function()
+			local t0 = os.clock()
+			while os.clock() - t0 < 0.5 do
+				local k = 1 - (os.clock() - t0) / 0.5
+				screen.root.Position = UDim2.fromOffset((math.random() - 0.5) * 14 * k, (math.random() - 0.5) * 14 * k)
+				task.wait()
+			end
+			screen.root.Position = UDim2.new()
+		end)
+	end
+
+	-- Hold until tapped / skipped, or a short auto-advance in quick mode.
+	skip = false
+	advance = false
+	revealedAt = os.clock()
+	local t0 = os.clock()
+	local auto = if quick then 1.3 else 9
+	while not advance and not skip and not skipAll and os.clock() - t0 < auto do
+		if mutant.Parent and os.clock() - t0 > 0.45 then
+			mutant:PivotTo(CFrame.Angles(0, math.sin((os.clock() - t0) * 0.9) * 0.55, 0))
+		end
+		screen.hint.TextTransparency = 0.25 + 0.35 * math.abs(math.sin((os.clock() - t0) * 2.5))
 		task.wait()
 	end
-
-	State.hatchCard:set(nil)
-	flash(1, 0.15)
-	model:Destroy()
+	mutant:Destroy()
+	revealedAt = math.huge
 end
 
-local function finish()
-	local camera = workspace.CurrentCamera
-	camera.CameraType = Enum.CameraType.Custom
-	local character = player.Character
-	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if humanoid then
-		camera.CameraSubject = humanoid
-	end
-	if stage then
-		stage:Destroy()
-		stage = nil
-	end
-	State.hatching:set(false)
-	flash(0, 0.3)
+local function setVisible(visible: boolean)
+	gui.Enabled = visible
+	screen.backdrop.BackgroundTransparency = if visible then 0.04 else 1
 end
 
 local function run()
@@ -396,40 +394,49 @@ local function run()
 	State.hatching:set(true)
 	State.panel:set("none")
 	skipAll = false
-	camBase = workspace.CurrentCamera.CFrame -- hold the current view until the stage is ready
-	RunService:BindToRenderStep("HatchCamera", Enum.RenderPriority.Camera.Value + 1, function()
-		local offset = if shake > 0
-			then CFrame.new((math.random() - 0.5) * shake, (math.random() - 0.5) * shake, 0)
-			else CFrame.identity
-		workspace.CurrentCamera.CFrame = camBase * offset
-	end)
+	setVisible(true)
+	-- Hatches skipped with "Skip all" (including the one on screen) become one summary toast.
+	local skippedCount, skippedValue, best = 0, 0, nil
+	local function addSkipped(h: Hatch)
+		skippedCount += 1
+		skippedValue += h.value
+		if not best or (RANK[h.item.rarity] or 0) > (RANK[best.item.rarity] or 0) then
+			best = h
+		end
+	end
 	while #queue > 0 do
 		local h = table.remove(queue, 1) :: Hatch
-		State.hatchQueue:set(#queue)
+		screen.skipAll.Visible = #queue > 0
+		screen.queue.Text = if #queue > 0 then string.format("+%d more", #queue) else ""
 		if skipAll then
-			-- Skipped hatches still get a line in the toasts.
-			State.toast(
-				string.format(
-					"Hatched %s (%s) worth %s",
-					MutantModel.species(h.item).name,
-					h.item.rarity,
-					Format.cash(h.value)
-				),
-				"success"
-			)
+			addSkipped(h)
 		else
 			local ok, err = pcall(play, h)
 			if not ok then
-				warn("[Hatch] cutscene failed:", err)
-				State.hatchCard:set(nil)
+				warn("[Hatch] cinematic failed:", err)
+			end
+			if skipAll then
+				addSkipped(h)
 			end
 		end
 	end
-	RunService:UnbindFromRenderStep("HatchCamera")
+	if skippedCount > 0 and best then
+		State.toast(
+			string.format(
+				"Hatched %d mutants worth %s (best: %s %s)",
+				skippedCount,
+				Format.cash(skippedValue),
+				best.item.rarity,
+				MutantModel.species(best.item).name
+			),
+			"success"
+		)
+	end
+	clearStage()
+	setVisible(false)
 	playing = false
-	finish()
-	State.hatchQueue:set(#queue)
-	-- A hatch that arrived during the final fade starts its own run.
+	State.hatching:set(false)
+	-- A hatch that arrived during the last moments starts a fresh run.
 	if #queue > 0 then
 		task.spawn(run)
 	end
@@ -440,7 +447,10 @@ local function onHarvested(item: any, value: number, slotIndex: number?, isNew: 
 		PlotController.hideSlotEgg(slotIndex)
 	end
 	table.insert(queue, { item = item, value = value, slotIndex = slotIndex, isNew = isNew == true })
-	State.hatchQueue:set(if playing then #queue else math.max(0, #queue - 1))
+	if playing then
+		screen.skipAll.Visible = true
+		screen.queue.Text = string.format("+%d more", #queue)
+	end
 	task.spawn(run)
 end
 
@@ -451,30 +461,98 @@ local function onMutated(slotIndex: number, eggId: string, mutation: string)
 	Sfx.play("mutate", 0.7, 1.3)
 	local slot = PlotController.slotPart(slotIndex)
 	if slot then
-		burst(slot.Position + Vector3.new(0, 1.5, 0), Color3.fromHex(info.color), 30, 0.6)
+		local anchor = Instance.new("Part")
+		anchor.Anchored = true
+		anchor.CanCollide = false
+		anchor.CanQuery = false
+		anchor.Transparency = 1
+		anchor.Size = Vector3.one
+		anchor.Position = slot.Position + Vector3.new(0, 1.5, 0)
+		local e = Instance.new("ParticleEmitter")
+		e.Color = ColorSequence.new(Color3.fromHex(info.color))
+		e.LightEmission = 0.3
+		e.Lifetime = NumberRange.new(0.6, 1.1)
+		e.Speed = NumberRange.new(6, 12)
+		e.SpreadAngle = Vector2.new(180, 180)
+		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
+		e.Rate = 0
+		e.Parent = anchor
+		anchor.Parent = workspace
+		e:Emit(30)
+		task.delay(2, function()
+			anchor:Destroy()
+		end)
 	end
 end
 
-function HatchController.Init() end
+function HatchController.Init()
+	gui = Instance.new("ScreenGui")
+	gui.Name = "MutantFarmHatch"
+	gui.IgnoreGuiInset = true -- cover the top bar too, so the flash and backdrop are full-screen
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 50
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.Enabled = false
 
-function HatchController.Start()
-	Remotes.get("Harvested").OnClientEvent:Connect(onHarvested)
-	Remotes.get("Mutated").OnClientEvent:Connect(onMutated)
-	-- Overlay buttons bump State.hatchInput; translate them into flags the cutscene checks.
-	local lastInput = 0
-	RunService.Heartbeat:Connect(function()
-		local input = State.hatchInput:get(false)
-		if input.id ~= lastInput then
-			lastInput = input.id
-			if input.action == "next" then
-				advance = true
-			elseif input.action == "skip" then
-				skip = true
-			elseif input.action == "skipAll" then
-				skipAll = true
-			end
+	scaleRoot = Instance.new("Frame")
+	scaleRoot.Name = "Root"
+	scaleRoot.BackgroundTransparency = 1
+	scaleRoot.Size = UDim2.fromScale(1, 1)
+	scaleRoot.Parent = gui
+	local uiScale = Instance.new("UIScale")
+	uiScale.Parent = scaleRoot
+
+	screen = HatchScreen.new()
+	screen.root.Parent = scaleRoot
+
+	-- Same scaling rule as the HUD: fit the 900x540 design canvas, oversize the root by 1/scale.
+	local function rescale()
+		local size = gui.AbsoluteSize
+		if size.X < 1 or size.Y < 1 then
+			return
+		end
+		local s = math.clamp(math.min(size.X / DESIGN.X, size.Y / DESIGN.Y), 0.5, 1.4)
+		uiScale.Scale = s
+		scaleRoot.Size = UDim2.fromScale(1 / s, 1 / s)
+	end
+	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(rescale)
+	HatchController.rescale = rescale
+
+	screen.tap.Activated:Connect(function()
+		if os.clock() - revealedAt > 0.3 then
+			advance = true
 		end
 	end)
+	screen.skip.Activated:Connect(function()
+		skip = true
+	end)
+	screen.skipAll.Activated:Connect(function()
+		skipAll = true
+	end)
+
+	-- Spin rays and breathe the glow while the cinematic is up.
+	RunService.RenderStepped:Connect(function(dt)
+		if not gui.Enabled then
+			return
+		end
+		rayBase += raySpeed * dt
+		for i, ray in screen.rays do
+			ray.Rotation = rayBase + (i - 1) * (360 / #screen.rays)
+		end
+		local pulse = 1 + glowPulse * math.sin(os.clock() * 5)
+		for i, g in screen.glow do
+			local size = (180 + i * 70) * pulse
+			g.Size = UDim2.fromOffset(size, size)
+		end
+	end)
+end
+
+function HatchController.Start()
+	-- Parent here, not in Init (Init must not yield).
+	gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+	HatchController.rescale()
+	Remotes.get("Harvested").OnClientEvent:Connect(onHarvested)
+	Remotes.get("Mutated").OnClientEvent:Connect(onMutated)
 end
 
 return HatchController

@@ -232,6 +232,7 @@ return function()
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		}),
+		C.padding(4), -- room for card outlines inside the scroll clip
 	}
 	for i, tierId in Eggs.order do
 		table.insert(cards, eggCard(tierId, i))
@@ -240,7 +241,7 @@ return function()
 	return C.panel({
 		Title = "🥚 Egg Shop",
 		Accent = Theme.colors.purple,
-		Size = UDim2.fromOffset(640, 520),
+		Size = UDim2.fromOffset(660, 480),
 		IsOpen = Computed(function()
 			return State.panel:get() == "shop"
 		end),

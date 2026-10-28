@@ -165,10 +165,61 @@ local EYE_STYLES = { "normal", "normal", "normal", "stalk", "sleepy", "angry" }
 local used: { [string]: boolean } = {}
 -- Generated names must never read like rude words (kids' game; Roblox moderation).
 local BLOCKED = {
-	"twur", "twer", "bish", "bich", "fuk", "fuc", "phuk", "shit", "sht", "cum", "dik", "dic", "cok", "coc",
-	"fag", "nig", "neg", "ass", "tit", "hoe", "sex", "kkk", "jiz", "wank", "cunt", "kunt", "slut", "whor",
-	"pis", "nazi", "rape", "porn", "pen", "vag", "boob", "butt", "crap", "damn", "hell", "suk", "suc",
-	"lick", "blow", "spunk", "bum", "poop", "poo", "dum", "gay", "wtf", "omg", "sht", "jew", "kill", "die",
+	"twur",
+	"twer",
+	"bish",
+	"bich",
+	"fuk",
+	"fuc",
+	"phuk",
+	"shit",
+	"sht",
+	"cum",
+	"dik",
+	"dic",
+	"cok",
+	"coc",
+	"fag",
+	"nig",
+	"neg",
+	"ass",
+	"tit",
+	"hoe",
+	"sex",
+	"kkk",
+	"jiz",
+	"wank",
+	"cunt",
+	"kunt",
+	"slut",
+	"whor",
+	"pis",
+	"nazi",
+	"rape",
+	"porn",
+	"pen",
+	"vag",
+	"boob",
+	"butt",
+	"crap",
+	"damn",
+	"hell",
+	"suk",
+	"suc",
+	"lick",
+	"blow",
+	"spunk",
+	"bum",
+	"poop",
+	"poo",
+	"dum",
+	"gay",
+	"wtf",
+	"omg",
+	"sht",
+	"jew",
+	"kill",
+	"die",
 }
 local function clean(name: string): boolean
 	local lower = name:lower():gsub("[^a-z]", "")
@@ -277,12 +328,36 @@ end
 
 -- Pokedex-style text, built from each species' traits so it always matches the model.
 local HABITAT = {
-	Starter = { "Hatches on brand-new farms everywhere", "The first mutant most farmers ever meet", "Found wobbling around beginner farms" },
-	Swamp = { "Lurks in Swamp Eggs and smells faintly of pond", "Loves mud baths and soggy socks", "Grown in the murkiest corner of the bog" },
-	Lab = { "Escaped from a very important experiment", "Was cloned by accident during lunch break", "Hatched under bright lab lights and won't stop beeping" },
-	Toxic = { "Glows a little when nobody is watching", "Bathed in barrel ooze since birth", "Its puddles have to be cleaned with tongs" },
-	Void = { "Drifted in from a place with no up or down", "Casts a shadow even in the dark", "Whispers in a language made of static" },
-	Cosmic = { "Fell from the sky inside a shooting star", "Hums the tune of a faraway galaxy", "Weighs less on Tuesdays, for space reasons" },
+	Starter = {
+		"Hatches on brand-new farms everywhere",
+		"The first mutant most farmers ever meet",
+		"Found wobbling around beginner farms",
+	},
+	Swamp = {
+		"Lurks in Swamp Eggs and smells faintly of pond",
+		"Loves mud baths and soggy socks",
+		"Grown in the murkiest corner of the bog",
+	},
+	Lab = {
+		"Escaped from a very important experiment",
+		"Was cloned by accident during lunch break",
+		"Hatched under bright lab lights and won't stop beeping",
+	},
+	Toxic = {
+		"Glows a little when nobody is watching",
+		"Bathed in barrel ooze since birth",
+		"Its puddles have to be cleaned with tongs",
+	},
+	Void = {
+		"Drifted in from a place with no up or down",
+		"Casts a shadow even in the dark",
+		"Whispers in a language made of static",
+	},
+	Cosmic = {
+		"Fell from the sky inside a shooting star",
+		"Hums the tune of a faraway galaxy",
+		"Weighs less on Tuesdays, for space reasons",
+	},
 }
 local BODY = {
 	blob = "a round, squishy body",
@@ -293,7 +368,12 @@ local BODY = {
 	worm = "a stack of wiggly segments",
 	puff = "a cloud of puffy lumps",
 }
-local EYES = { "one huge eye", "two goggly eyes", "three eyes that never blink together", "four eyes that look in four directions" }
+local EYES = {
+	"one huge eye",
+	"two goggly eyes",
+	"three eyes that never blink together",
+	"four eyes that look in four directions",
+}
 local MOUTH = {
 	smile = "a cheerful grin",
 	fangs = "two tiny fangs",

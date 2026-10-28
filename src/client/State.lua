@@ -15,7 +15,13 @@ local State = {}
 State.snapshot = Value(nil :: Types.Snapshot?)
 State.now = Value(workspace:GetServerTimeNow())
 State.selectedEgg = Value("Starter")
-State.panel = Value("none") -- "none" | "shop" | "sell"
+-- Seconds since start, ticked ~30x/s; drives pulses and glows.
+State.clock = Value(0)
+-- "Welcome back" summary from the server: { away, ready, mutations, capped } or nil.
+State.welcome = Value(nil :: { away: number, ready: number, mutations: number, capped: boolean }?)
+-- How many Almanac species the player had seen when they last opened it (for the NEW dot).
+State.almanacSeen = Value(-1)
+State.panel = Value("none") -- "none" | "shop" | "sell" | "almanac" | "daily" | "welcome"
 State.toasts = Value({} :: { { id: number, text: string, kind: string } })
 -- "Next up" panel: { text, progress?, ui? } where ui names a HUD button to pulse.
 State.objective = Value({ text = "", progress = nil :: number?, ui = nil :: string? })
@@ -23,22 +29,6 @@ State.objective = Value({ text = "", progress = nil :: number?, ui = nil :: stri
 State.almanac = Value({} :: { [string]: { n: number, first: number, best: number } })
 -- True while the hatch cutscene owns the camera (pens hold their update until it ends).
 State.hatching = Value(false)
--- Hatch cutscene overlay: white flash (0-1), the reveal card, and how many hatches are queued.
-State.hatchFlash = Value(0)
-State.hatchCard = Value(nil :: {
-	name: string,
-	rarity: string,
-	color: Color3,
-	tags: { string },
-	value: string,
-	isNew: boolean,
-}?)
-State.hatchQueue = Value(0)
--- Bumped by the overlay's buttons; HatchController listens. "next" = continue, "skip", "skipAll".
-State.hatchInput = Value({ action = "", id = 0 })
-
--- Big center-screen banner for Rare+ hatches.
-State.banner = Value({ text = "", color = Color3.new(1, 1, 1), id = 0 })
 
 function State.get(): Types.Snapshot?
 	return State.snapshot:get(false)
@@ -69,31 +59,35 @@ State.readyCount = Computed(function()
 	return n
 end)
 
-local inputId = 0
-function State.hatchAction(action: string)
-	inputId += 1
-	State.hatchInput:set({ action = action, id = inputId })
-end
-
-local bannerId = 0
-function State.showBanner(text: string, color: Color3)
-	bannerId += 1
-	local id = bannerId
-	State.banner:set({ text = text, color = color, id = id })
-	task.delay(2.6, function()
-		if State.banner:get(false).id == id then
-			State.banner:set({ text = "", color = color, id = id })
-		end
-	end)
-end
-
 local nextToastId = 0
+local heldToasts: { { text: string, kind: string? } } = {}
+local releasing = false
 function State.toast(text: string, kind: string?)
+	-- The HUD (and the toast stack) is hidden during the hatch cinematic; hold toasts until it ends.
+	if State.hatching:get(false) then
+		table.insert(heldToasts, { text = text, kind = kind })
+		if not releasing then
+			releasing = true
+			task.spawn(function()
+				while State.hatching:get(false) do
+					task.wait(0.2)
+				end
+				releasing = false
+				local held = heldToasts
+				heldToasts = {}
+				-- Keep the newest few; older ones would scroll off anyway.
+				for i = math.max(1, #held - 2), #held do
+					State.toast(held[i].text, held[i].kind)
+				end
+			end)
+		end
+		return
+	end
 	nextToastId += 1
 	local id = nextToastId
 	local list = table.clone(State.toasts:get(false))
 	table.insert(list, { id = id, text = text, kind = kind or "info" })
-	while #list > 4 do
+	while #list > 3 do
 		table.remove(list, 1)
 	end
 	State.toasts:set(list)

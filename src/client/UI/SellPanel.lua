@@ -147,7 +147,7 @@ return function()
 	return C.panel({
 		Title = "💰 Sell Pad",
 		Accent = Theme.colors.goldDark,
-		Size = UDim2.fromOffset(620, 520),
+		Size = UDim2.fromOffset(600, 470),
 		IsOpen = isOpen,
 		OnClose = function()
 			State.panel:set("none")
@@ -184,6 +184,7 @@ return function()
 				ZIndex = 10,
 				[Children] = {
 					New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8) }),
+					C.padding(4), -- room for row outlines inside the scroll clip
 					-- Keyed id -> id so selling one item doesn't rebuild every row below it;
 					-- positions come from `order` instead.
 					ForPairs(rows, function(id: string)

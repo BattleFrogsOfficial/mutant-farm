@@ -42,7 +42,7 @@ export type Profile = {
 	processedPurchases: { [string]: number },
 	wateredUntil: number,
 	lastSeen: number,
-	streak: { day: number, lastClaimDay: number },
+	streak: { day: number, lastClaimDay: number, count: number },
 	redeemedCodes: { [string]: boolean },
 	funnel: { [string]: boolean },
 	grantedStarterEggs: boolean,
@@ -83,6 +83,7 @@ export type Snapshot = {
 	nextSlotCost: number?,
 	stats: { [string]: number },
 	incomePerMinute: number,
+	daily: { day: number, canClaim: boolean, streak: number },
 }
 
 return {}

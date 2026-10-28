@@ -13,6 +13,7 @@ local order = {
 	require(Services.EconomyService),
 	require(Services.PlotService),
 	require(Services.GrowthService),
+	require(Services.DailyService),
 }
 
 for _, service in order do

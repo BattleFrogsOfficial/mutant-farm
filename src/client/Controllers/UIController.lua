@@ -1,5 +1,5 @@
 --!strict
--- Mounts the ScreenGui. Everything is laid out at a 900x600 design size and scaled down
+-- Mounts the ScreenGui. Everything is laid out at a 900x540 design size and scaled down
 -- with one UIScale so phones (the main audience) see the same layout, just smaller.
 
 local Players = game:GetService("Players")
@@ -7,19 +7,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local UI = script.Parent.Parent.UI
-local Hud = require(UI.Hud)
-local EggShop = require(UI.EggShop)
-local SellPanel = require(UI.SellPanel)
-local Toasts = require(UI.Toasts)
-local Almanac = require(UI.Almanac)
-local HatchOverlay = require(UI.HatchOverlay)
-local State = require(script.Parent.Parent.State)
+local Root = require(UI.Root)
 
 local New, Children, Value, Computed = Fusion.New, Fusion.Children, Fusion.Value, Fusion.Computed
 
 local UIController = {}
 
-local DESIGN_SIZE = Vector2.new(900, 600)
+local DESIGN_SIZE = Vector2.new(900, 540)
 
 function UIController.Init() end
 
@@ -41,23 +35,7 @@ function UIController.Start()
 			end),
 			[Children] = {
 				New("UIScale")({ Scale = scale }),
-				-- Everything except the hatch overlay hides during the cutscene.
-				New("Frame")({
-					Name = "Main",
-					BackgroundTransparency = 1,
-					Size = UDim2.fromScale(1, 1),
-					Visible = Computed(function()
-						return not State.hatching:get()
-					end),
-					[Children] = {
-						Hud(),
-						Toasts(),
-						EggShop(),
-						SellPanel(),
-						Almanac(),
-					},
-				}),
-				HatchOverlay(),
+				Root(),
 			},
 		}),
 	})
@@ -68,7 +46,7 @@ function UIController.Start()
 		if size.X < 1 or size.Y < 1 then
 			return
 		end
-		scale:set(math.clamp(math.min(size.X / DESIGN_SIZE.X, size.Y / DESIGN_SIZE.Y), 0.5, 1.25))
+		scale:set(math.clamp(math.min(size.X / DESIGN_SIZE.X, size.Y / DESIGN_SIZE.Y), 0.5, 1.4))
 	end
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateScale)
 	updateScale()

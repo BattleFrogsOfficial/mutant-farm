@@ -14,6 +14,8 @@ local Growth = require(Shared.Growth)
 local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
 local Expected = require(Shared.Expected)
+local Streak = require(Shared.Streak)
+local Daily = require(Shared.Config.Daily)
 local Signal = require(Shared.Signal)
 local Types = require(Shared.Types)
 local Remotes = require(Shared.Remotes)
@@ -45,7 +47,7 @@ local TEMPLATE: Types.Profile = {
 	processedPurchases = {},
 	wateredUntil = 0,
 	lastSeen = 0,
-	streak = { day = 0, lastClaimDay = 0 },
+	streak = { day = 0, lastClaimDay = 0, count = 0 }, -- day = position in the 7-day cycle, count = days in a row
 	redeemedCodes = {},
 	funnel = {},
 	grantedStarterEggs = false,
@@ -99,6 +101,14 @@ function DataService.incomePerMinute(data: Types.Profile): number
 	return total
 end
 
+-- Daily streak status for the HUD: the day you'd claim next and whether it's claimable now.
+function DataService.dailyStatus(data: Types.Profile): { day: number, canClaim: boolean, streak: number }
+	local today = math.floor(DataService.now() / 86400)
+	local day, canClaim, streak =
+		Streak.status(data.streak.day, data.streak.lastClaimDay, today, #Daily.rewards, data.streak.count)
+	return { day = day, canClaim = canClaim, streak = streak }
+end
+
 -- What the owning client is allowed to see. Rarity isn't sent, but `required` scales with rarity,
 -- so an accurate timer implies it (a deliberate trade-off: "this one's taking longer...").
 local function snapshot(data: Types.Profile): Types.Snapshot
@@ -128,6 +138,7 @@ local function snapshot(data: Types.Profile): Types.Snapshot
 		nextSlotCost = Costs.slot(data.slotCount + 1, data.rebirths),
 		stats = data.stats,
 		incomePerMinute = DataService.incomePerMinute(data),
+		daily = DataService.dailyStatus(data),
 	}
 end
 
@@ -210,9 +221,18 @@ function DataService.Start()
 	Players.PlayerAdded:Connect(onPlayerAdded)
 
 	-- Batch snapshot pushes so many changes in one frame send one message.
+	local lastDay = math.floor(DataService.now() / 86400)
 	local state = Remotes.get("State")
 	while true do
 		task.wait(GameConfig.stateFlushInterval)
+		-- When the UTC day rolls over, resend everyone's state so the daily reward lights up.
+		local day = math.floor(DataService.now() / 86400)
+		if day ~= lastDay then
+			lastDay = day
+			for player in profiles do
+				dirty[player] = true
+			end
+		end
 		for player in dirty do
 			dirty[player] = nil
 			local data = DataService.get(player)
