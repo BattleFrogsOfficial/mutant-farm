@@ -85,12 +85,12 @@ None of this has been exercised in a real Roblox client; the headless preview on
    reproduced headlessly. Click every part of the open shop (card faces, side cards, title row,
    empty panel space, dots) and confirm only the X and the backdrop close it. Also check other
    panels still work with the Blocker.
-1. **Drag feel:** 1:1 follow, flick distance (`EggShopUI.flickSeconds` 0.12), tap slop (8 px),
+2. **Drag feel:** 1:1 follow, flick distance (`EggShopUI.flickSeconds` 0.12), tap slop (8 px),
    overshoot at the ends (0.35 cards). Does `InputBegan` on the Strip fire when the press starts on
    a card or a buy button? (Tap-to-focus and drag rely on it.)
-2. **Wheel direction:** `Carousel.wheel` treats `Position.Z > 0` (wheel up) as left. Confirm it feels
+3. **Wheel direction:** `Carousel.wheel` treats `Position.Z > 0` (wheel up) as left. Confirm it feels
    right, and that the wheel no longer zooms the camera while the shop is open.
-3. **Left/Right camera sink:** with the shop open, Left/Right must step the carousel and must not
+4. **Left/Right camera sink:** with the shop open, Left/Right must step the carousel and must not
    turn the camera; Enter buys x1. After closing, arrow keys and the wheel behave normally again
    (unbind).
 5. Edge-hover auto-scroll: only on mouse devices, only on the strip's outer edges, pauses after a
@@ -117,11 +117,11 @@ None of this has been exercised in a real Roblox client; the headless preview on
 
 ## Next tasks, in order
 
-2. **Studio pass on the Egg Shop** (items 1-6 above). Fix anything found; tune feel only through
+1. **Studio pass on the Egg Shop** (items 1-6 above). Fix anything found; tune feel only through
    `Config/EggShopUI.lua`.
-3. **Studio pass on the economy** (items 7-9): time a real first rebirth; record it in CLAUDE.md
+2. **Studio pass on the economy** (items 7-9): time a real first rebirth; record it in CLAUDE.md
    next to the sim number.
-4. **Decide the rebirth tail** (x5 vs ~x4.45); if it changes, re-run
+3. **Decide the rebirth tail** (x5 vs ~x4.45); if it changes, re-run
    `lune run tools/sim -- --runs 60` and update the table in CLAUDE.md.
 4. **Creator Hub setup:** create the game passes, the Gem pack developer products, the Starter
    Bundle and the group; fill the ids in `Config/Passes.lua`, `Config/Products.lua` and
