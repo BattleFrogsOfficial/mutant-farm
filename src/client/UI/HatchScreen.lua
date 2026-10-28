@@ -18,6 +18,8 @@ export type Screen = {
 	titleGradient: UIGradient,
 	titleScale: UIScale,
 	value: TextLabel,
+	valueScale: UIScale,
+	fast: TextButton,
 	newRibbon: Frame,
 	name: TextLabel,
 	chips: Frame,
@@ -68,13 +70,12 @@ local function text(props: { [string]: any }): TextLabel
 end
 
 local function button(name: string, label: string, props: { [string]: any }): TextButton
+	-- The button's own Text stays empty: children draw above their parent, so the bevel and lip
+	-- would cover it. The label is a child on top of them instead.
 	local b = Instance.new("TextButton")
 	b.Name = name
 	b.AutoButtonColor = true
-	b.Font = Theme.font
-	b.TextScaled = true
-	b.Text = label
-	b.TextColor3 = Theme.colors.white
+	b.Text = ""
 	b.BackgroundColor3 = Theme.colors.panelHi
 	b.BorderSizePixel = 0
 	for k, v in props do
@@ -82,10 +83,6 @@ local function button(name: string, label: string, props: { [string]: any }): Te
 	end
 	-- Boxy: ink outline, a light bevel on top and a dark lip along the bottom.
 	stroke(b, Theme.colors.ink, 3, true)
-	local inner = Instance.new("UIStroke")
-	inner.Color = Theme.colors.ink
-	inner.Thickness = 2
-	inner.Parent = b
 	frame({
 		Name = "Bevel",
 		Size = UDim2.new(1, 0, 0, 3),
@@ -104,10 +101,16 @@ local function button(name: string, label: string, props: { [string]: any }): Te
 		ZIndex = b.ZIndex,
 		Parent = b,
 	})
-	local pad = Instance.new("UIPadding")
-	pad.PaddingTop = UDim.new(0, 8)
-	pad.PaddingBottom = UDim.new(0, 12)
-	pad.Parent = b
+	text({
+		Name = "Label",
+		Text = label,
+		Position = UDim2.fromOffset(8, 7),
+		Size = UDim2.new(1, -16, 1, -18),
+		Max = 26,
+		Stroke = 2,
+		ZIndex = b.ZIndex + 1,
+		Parent = b,
+	})
 	return b
 end
 
@@ -173,6 +176,9 @@ function HatchScreen.new(): Screen
 		Parent = root,
 	})
 
+	local valueScale = Instance.new("UIScale")
+	valueScale.Parent = value
+
 	local newRibbon = frame({
 		Name = "New",
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -197,7 +203,7 @@ function HatchScreen.new(): Screen
 	local name = text({
 		Name = "Name",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -76),
+		Position = UDim2.new(0.5, 0, 1, -112),
 		Size = UDim2.fromOffset(640, 52),
 		Text = "",
 		Max = 48,
@@ -209,7 +215,7 @@ function HatchScreen.new(): Screen
 	local chips = frame({
 		Name = "Chips",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -42),
+		Position = UDim2.new(0.5, 0, 1, -76),
 		Size = UDim2.fromOffset(700, 30),
 		BackgroundTransparency = 1,
 		ZIndex = 7,
@@ -225,7 +231,8 @@ function HatchScreen.new(): Screen
 	local hint = text({
 		Name = "Hint",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -10),
+		-- Kept well above the bottom edge: phones' home indicator and the chat bar live there.
+		Position = UDim2.new(0.5, 0, 1, -40),
 		Size = UDim2.fromOffset(360, 26),
 		Text = "Tap anywhere to continue",
 		TextColor3 = Theme.colors.cream,
@@ -249,6 +256,16 @@ function HatchScreen.new(): Screen
 		Position = UDim2.new(1, -16, 0.5, -30),
 		Size = UDim2.fromOffset(130, 48),
 		ZIndex = 10,
+		Parent = root,
+	})
+	-- Veterans (20+ hatches) can turn on Fast Hatch: short cutscene for everything below Epic.
+	local fast = button("Fast", "⚡ FAST: OFF", {
+		-- In the Skip column (the top-left corner belongs to Roblox's buttons).
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -16, 0.5, 90),
+		Size = UDim2.fromOffset(130, 48),
+		ZIndex = 10,
+		Visible = false,
 		Parent = root,
 	})
 	local skipAll = button("SkipAll", "Skip all", {
@@ -289,6 +306,8 @@ function HatchScreen.new(): Screen
 		titleGradient = titleGradient,
 		titleScale = titleScale,
 		value = value,
+		valueScale = valueScale,
+		fast = fast,
 		newRibbon = newRibbon,
 		name = name,
 		chips = chips,

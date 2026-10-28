@@ -2,7 +2,7 @@
 -- Egg Shop: a grid of egg cards with live 3D eggs. Three clear states per card:
 --   available  - full color, green Buy buttons
 --   too pricey - full color, grey Buy buttons and "Earn $X more" in gold (never red)
---   locked     - black silhouette, padlock, "Rebirth N to unlock", no Buy buttons
+--   locked     - a small card in the row underneath: padlock, name, "REBIRTH N"
 -- Every card has an Odds view (required for paid random items once Gem eggs exist).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -54,17 +54,26 @@ local function oddsList(tierId: string)
 	return rows
 end
 
-local function eggCard(tierId: string, order: number)
+local function eggCard(tierId: string, order: number, visible: any)
 	local tier = Eggs.tiers[tierId]
 	local showOdds = Value(false)
-	local locked = Computed(function()
-		local snap = State.snapshot:get()
-		return not snap or snap.rebirths < tier.unlockRebirth
-	end)
+	-- `locked` and the shortfalls read State.snapshot directly inside whichever Computed calls them,
+	-- not through intermediate Computeds. Fusion 0.2 can't order a dependency it first discovers
+	-- mid-update: the card's text first read only `locked` (no snapshot yet), then read a stale
+	-- shortfall when the snapshot arrived, and kept showing "Earn $50 more" with plenty of Cash.
+	local locked = {
+		get = function(_self): boolean
+			local snap = State.snapshot:get()
+			return not snap or snap.rebirths < tier.unlockRebirth
+		end,
+	}
 	local function short(quantity: number)
-		return Computed(function()
-			return math.max(0, tier.cost * quantity - State.cash:get())
-		end)
+		return {
+			get = function(_self): number
+				local snap = State.snapshot:get()
+				return math.max(0, tier.cost * quantity - (if snap then snap.cash else 0))
+			end,
+		}
 	end
 	local short1 = short(1)
 	local short5 = short(5)
@@ -72,6 +81,7 @@ local function eggCard(tierId: string, order: number)
 	return New("Frame")({
 		Name = tierId,
 		LayoutOrder = order,
+		Visible = visible,
 		Size = UDim2.fromOffset(186, 228),
 		BackgroundColor3 = Computed(function()
 			return if locked:get() then Theme.colors.slate else Theme.colors.slateLight
@@ -83,25 +93,25 @@ local function eggCard(tierId: string, order: number)
 				end),
 				3
 			),
-			-- Egg preview (black silhouette while locked).
-			Computed(function()
-				return Viewport.new({
-					Build = function()
-						return MutantModel.buildEgg(tierId, 1, {})
-					end,
-					Spin = not locked:get(),
-					Silhouette = locked:get(),
-					Size = UDim2.fromOffset(110, 104),
-					Position = UDim2.new(0.5, 0, 0, 8),
-					AnchorPoint = Vector2.new(0.5, 0),
-					ZIndex = 11,
-				})
-			end, Fusion.cleanup),
+			-- Egg preview, built once (big cards only show unlocked tiers; locked ones use the small
+			-- row). Not a Computed: it would rebuild on every snapshot.
+			Viewport.new({
+				Build = function()
+					return MutantModel.buildEgg(tierId, 1, {})
+				end,
+				Spin = true,
+				Size = UDim2.fromOffset(110, 104),
+				Position = UDim2.new(0.5, 0, 0, 8),
+				AnchorPoint = Vector2.new(0.5, 0),
+				ZIndex = 11,
+			}),
 			New("Frame")({
 				Name = "LockLayer",
 				BackgroundTransparency = 1,
 				Size = UDim2.fromScale(1, 1),
-				Visible = locked,
+				Visible = Computed(function()
+					return locked:get()
+				end),
 				ZIndex = 12,
 				[Children] = C.padlock({
 					Size = UDim2.fromOffset(40, 48),
@@ -128,7 +138,7 @@ local function eggCard(tierId: string, order: number)
 				TextColor3 = Computed(function()
 					if locked:get() then
 						return Theme.colors.gold
-					elseif short1:get() > 0 then
+					elseif short1:get() > 0 or short5:get() > 0 then
 						return Theme.colors.gold
 					end
 					return Theme.colors.muted
@@ -138,6 +148,8 @@ local function eggCard(tierId: string, order: number)
 						return string.format("🔒 Rebirth %d to unlock", tier.unlockRebirth)
 					elseif short1:get() > 0 then
 						return "Earn " .. Format.cash(short1:get()) .. " more"
+					elseif short5:get() > 0 then
+						return "Earn " .. Format.cash(short5:get()) .. " more for x5"
 					end
 					return string.format(
 						"Grows %s · sells %s+",
@@ -222,19 +234,125 @@ local function eggCard(tierId: string, order: number)
 	})
 end
 
+-- Small card for a tier you can't buy yet: padlock, name, what unlocks it.
+local function lockedCard(tierId: string, order: number, visible: any)
+	local tier = Eggs.tiers[tierId]
+	return New("Frame")({
+		Name = tierId,
+		LayoutOrder = order,
+		Visible = visible,
+		BackgroundColor3 = Theme.colors.slate,
+		BorderSizePixel = 0,
+		[Children] = {
+			C.stroke(Theme.colors.locked, 3),
+			C.padlock({
+				Size = UDim2.fromOffset(24, 30),
+				Position = UDim2.new(0, 10, 0.5, 0),
+				AnchorPoint = Vector2.new(0, 0.5),
+				Color = Theme.colors.muted,
+				ZIndex = 11,
+			}),
+			C.label({
+				Text = string.upper(tier.name),
+				Position = UDim2.fromOffset(42, 8),
+				Size = UDim2.new(1, -50, 0, 20),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextColor3 = Theme.colors.muted,
+				MaxTextSize = 16,
+				ZIndex = 11,
+			}),
+			C.label({
+				Text = "REBIRTH " .. tier.unlockRebirth,
+				Position = UDim2.fromOffset(42, 30),
+				Size = UDim2.new(1, -50, 0, 16),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextColor3 = Theme.colors.gold,
+				StrokeThickness = 0,
+				MaxTextSize = 13,
+				ZIndex = 11,
+			}),
+		},
+	})
+end
+
+-- Unlocked eggs get the big cards on top; locked tiers shrink to a row underneath.
 return function()
-	local cards: { any } = {
-		New("UIGridLayout")({
-			CellSize = UDim2.fromOffset(186, 228),
-			CellPadding = UDim2.fromOffset(12, 14),
-			SortOrder = Enum.SortOrder.LayoutOrder,
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		}),
-		C.padding(4), -- room for card outlines inside the scroll clip
-	}
-	for i, tierId in Eggs.order do
-		table.insert(cards, eggCard(tierId, i))
+	local rebirths = Computed(function()
+		local snap = State.snapshot:get()
+		return if snap then snap.rebirths else 0
+	end)
+	local function isUnlocked(tierId: string): boolean
+		return Eggs.tiers[tierId].unlockRebirth <= rebirths:get()
 	end
+	local BIG = Vector2.new(186, 228)
+	local SMALL = Vector2.new(186, 56)
+	local GAP = 12
+	local function count(unlocked: boolean): number
+		local n = 0
+		for _, tierId in Eggs.order do
+			if isUnlocked(tierId) == unlocked then
+				n += 1
+			end
+		end
+		return n
+	end
+	local function grid(
+		name: string,
+		order: number,
+		cell: Vector2,
+		unlocked: boolean,
+		build: (string, number, any) -> any
+	)
+		local children: { any } = {
+			New("UIGridLayout")({
+				CellSize = UDim2.fromOffset(cell.X, cell.Y),
+				CellPadding = UDim2.fromOffset(GAP, GAP),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+			}),
+		}
+		for i, tierId in Eggs.order do
+			table.insert(
+				children,
+				build(
+					tierId,
+					i,
+					Computed(function()
+						return isUnlocked(tierId) == unlocked
+					end)
+				)
+			)
+		end
+		return New("Frame")({
+			Name = name,
+			LayoutOrder = order,
+			BackgroundTransparency = 1,
+			Visible = Computed(function()
+				return count(unlocked) > 0
+			end),
+			Size = Computed(function()
+				local rows = math.ceil(count(unlocked) / 3)
+				return UDim2.new(1, 0, 0, rows * cell.Y + math.max(rows - 1, 0) * GAP)
+			end),
+			[Children] = children,
+		})
+	end
+	local cards: { any } = {
+		New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 12) }),
+		C.padding(4), -- room for card outlines inside the scroll clip
+		grid("Available", 1, BIG, true, eggCard),
+		C.label({
+			LayoutOrder = 2,
+			Text = "🔒 REBIRTH TO UNLOCK",
+			Size = UDim2.new(1, 0, 0, 20),
+			MaxTextSize = 15,
+			TextColor3 = Theme.colors.muted,
+			Visible = Computed(function()
+				return count(false) > 0
+			end),
+		}),
+		grid("Locked", 3, SMALL, false, lockedCard),
+	}
 
 	return C.panel({
 		Title = "🥚 Egg Shop",

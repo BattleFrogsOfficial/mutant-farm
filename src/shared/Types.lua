@@ -59,6 +59,7 @@ export type Profile = {
 	nextItemId: number,
 	bundleOfferEndsAt: number, -- Starter Bundle offer window (set on first join)
 	bundleBought: boolean,
+	fastHatch: boolean, -- player setting: short hatch cutscene below Epic
 }
 
 export type SlotView = {
@@ -92,6 +93,7 @@ export type Snapshot = {
 	ownedPasses: { [string]: boolean },
 	rebirthCost: number,
 	bundleOfferEndsAt: number, -- 0 when not on offer
+	fastHatch: boolean,
 }
 
 return {}

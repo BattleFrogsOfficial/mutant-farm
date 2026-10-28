@@ -152,7 +152,7 @@ return function()
 				Text = Computed(function()
 					local s = status()
 					return if s.streak > 0
-						then string.format("🔥 %d day streak! Come back tomorrow to keep it going.", s.streak)
+						then string.format("🔥 %d day streak! Claim the next one to keep it going.", s.streak)
 						else "Log in every day for bigger rewards. Missing a day resets your streak!"
 				end),
 				Size = UDim2.new(1, 0, 0, 26),
@@ -182,7 +182,12 @@ return function()
 					return not status().canClaim
 				end),
 				Text = Computed(function()
-					return if status().canClaim then "🎁 CLAIM DAY " .. status().day else "Come back tomorrow!"
+					if status().canClaim then
+						return "🎁 CLAIM DAY " .. status().day
+					end
+					-- Rewards roll over at UTC midnight (DataService.dailyStatus): count down to it.
+					local left = 86400 - (State.now:get() % 86400)
+					return string.format("NEXT REWARD IN %dH %02dM", left // 3600, (left % 3600) // 60)
 				end),
 				OnClick = function()
 					Remotes.get("ClaimDaily"):FireServer()

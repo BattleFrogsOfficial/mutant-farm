@@ -12,6 +12,27 @@ local StateController = {}
 function StateController.Init() end
 
 function StateController.Start()
+	local UserInputService = game:GetService("UserInputService")
+	State.touch:set(UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
+	-- Touch switches to the touch layout; only real mouse/keyboard/gamepad input switches back
+	-- (focus, on-screen keyboard text, gyro etc. must not flip a phone to the desktop layout).
+	local DESKTOP_INPUT = {
+		[Enum.UserInputType.Keyboard] = true,
+		[Enum.UserInputType.MouseButton1] = true,
+		[Enum.UserInputType.MouseButton2] = true,
+		[Enum.UserInputType.MouseButton3] = true,
+		[Enum.UserInputType.MouseMovement] = true,
+		[Enum.UserInputType.MouseWheel] = true,
+		[Enum.UserInputType.Gamepad1] = true,
+	}
+	UserInputService.LastInputTypeChanged:Connect(function(inputType)
+		if inputType == Enum.UserInputType.Touch then
+			State.touch:set(true)
+		elseif DESKTOP_INPUT[inputType] and (UserInputService.KeyboardEnabled or UserInputService.MouseEnabled) then
+			State.touch:set(false)
+		end
+	end)
+
 	Remotes.get("State").OnClientEvent:Connect(function(snapshot)
 		State.snapshot:set(snapshot)
 		-- Keep the selected egg valid: fall back to any egg the player owns.

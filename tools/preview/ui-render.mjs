@@ -201,8 +201,8 @@ window.render = (sceneIndex, W, H) => {
   screen.style.backgroundImage = ${JSON.stringify(bg ? `url(${bg})` : "none")};
   document.getElementById("topbar").style.height = ${TOPBAR} + "px";
   for (const old of screen.querySelectorAll(".gui")) old.remove();
-  // Both ScreenGuis (HUD and hatch) ignore the top-bar inset and cover the full screen.
-  const full = true;
+  // The HUD sits below Roblox's top bar (IgnoreGuiInset off); only the hatch cutscene is full screen.
+  const full = data.scenes[sceneIndex].name === "hatch";
   const inset = full ? 0 : ${TOPBAR};
   const usableH = H - inset;
   const scale = Math.min(Math.max(Math.min(W / ${DESIGN.w}, usableH / ${DESIGN.h}), 0.5), 1.4);
@@ -241,7 +241,7 @@ function paintedRect(el) {
   return r;
 }
 
-window.checkOverlaps = (W, H) => {
+window.checkOverlaps = (W, H, touch) => {
   const problems = [];
   const rects = [];
   for (const name of ${JSON.stringify(ZONES)}) {
@@ -268,14 +268,23 @@ window.checkOverlaps = (W, H) => {
     const r = b.getBoundingClientRect();
     rects.push({ name: "RobloxButton", r: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } });
   }
+  // Roblox's own UI the HUD must keep clear of (approximate footprints, in screen px):
+  //   the chat window, moved to the bottom-left and shrunk (UIController.placeChat), and on touch
+  //   screens the thumbstick (bottom-left) and jump button (bottom-right).
+  const robloxUi = [["Chat", 8, H - 8 - Math.min(190, H * 0.42), 8 + Math.min(215, W * 0.3), H - 8]];
+  if (touch) {
+    robloxUi.push(["Thumbstick", 30, H - 160, 160, H - 30]);
+    robloxUi.push(["JumpButton", W - 120, H - 120, W - 20, H - 20]);
+  }
+  for (const [name, left, top, right, bottom] of robloxUi) rects.push({ name: "Roblox" + name, r: { left, top, right, bottom } });
   for (let i = 0; i < rects.length; i++) {
     const a = rects[i];
-    if (a.name !== "RobloxButton" && (a.r.left < 0 || a.r.top < 0 || a.r.right > W || a.r.bottom > H)) {
+    if (!a.name.startsWith("Roblox") && (a.r.left < 0 || a.r.top < 0 || a.r.right > W || a.r.bottom > H)) {
       problems.push(\`\${a.name} goes off screen\`);
     }
     for (let j = i + 1; j < rects.length; j++) {
       const b = rects[j];
-      if (a.name === "RobloxButton" && b.name === "RobloxButton") continue;
+      if (a.name.startsWith("Roblox") && b.name.startsWith("Roblox")) continue;
       const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
       const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
       if (w > 0.5 && h > 0.5) problems.push(\`\${a.name} overlaps \${b.name} (\${w.toFixed(0)}x\${h.toFixed(0)}px)\`);
@@ -302,13 +311,13 @@ for (let i = 0; i < count; i++) {
 }
 // Overlap check on every HUD state (hub, plot) at every screen size.
 let issues = 0, checked = 0;
-const hudScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n === "hud" || n === "hud-plot"));
+const hudScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("hud")));
 for (const [sceneName, hudIndex] of hudScenes) {
   for (const [label, W, H] of [...sizes, ...checkSizes]) {
     checked++;
     await page.setViewportSize({ width: W, height: H });
     await page.evaluate(([i, W, H]) => window.render(i, W, H), [hudIndex, W, H]);
-    const problems = await page.evaluate(([W, H]) => window.checkOverlaps(W, H), [W, H]);
+    const problems = await page.evaluate(([W, H, t]) => window.checkOverlaps(W, H, t), [W, H, sceneName.endsWith("touch")]);
     for (const p of problems) console.log(`[overlap] ${sceneName} ${label} ${W}x${H}: ${p}`);
     issues += problems.length;
   }

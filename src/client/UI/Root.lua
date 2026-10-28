@@ -28,7 +28,16 @@ return function()
 			return not State.hatching:get()
 		end),
 		[Children] = {
-			Hud(),
+			-- The HUD hides while any panel is open, so panels never fight HUD buttons.
+			New("Frame")({
+				Name = "Hud",
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				Visible = Computed(function()
+					return State.panel:get() == "none"
+				end),
+				[Children] = Hud(),
+			}),
 			New("TextButton")({
 				Name = "Dim",
 				Text = "",

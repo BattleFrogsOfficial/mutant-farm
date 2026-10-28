@@ -17,15 +17,40 @@ local DESIGN_SIZE = Vector2.new(900, 540)
 
 function UIController.Init() end
 
+-- Chat goes to the bottom-left, smaller, out of the top-left corner and the hatch framing.
+local function placeChat()
+	local ok, config = pcall(function()
+		return game:GetService("TextChatService"):WaitForChild("ChatWindowConfiguration", 10)
+	end)
+	if not ok or not config then
+		return
+	end
+	-- One pcall per property, so one rejected value can't skip the rest. Both scales accept
+	-- 0.5-2; 0.5 is the smallest, which keeps the window clear of the egg tray.
+	for prop, value in
+		{
+			WidthScale = 0.5,
+			HeightScale = 0.5,
+			VerticalAlignment = Enum.VerticalAlignment.Bottom,
+			HorizontalAlignment = Enum.HorizontalAlignment.Left,
+		}
+	do
+		pcall(function()
+			(config :: any)[prop] = value
+		end)
+	end
+end
+
 function UIController.Start()
+	task.spawn(placeChat)
 	local scale = Value(1)
 
 	local gui = New("ScreenGui")({
 		Name = "MutantFarm",
 		ResetOnSpawn = false,
-		-- Use the whole screen: the currency bar sits in the top strip, centered, clear of
-		-- Roblox's own buttons at the top-left.
-		IgnoreGuiInset = true,
+		-- Respect Roblox's top bar: the HUD starts below it (the hatch cutscene is the only
+		-- full-screen GUI).
+		IgnoreGuiInset = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
 		[Children] = New("Frame")({
@@ -43,7 +68,7 @@ function UIController.Start()
 		}),
 	})
 
-	-- Scale from the area the GUI actually covers (the full screen, with IgnoreGuiInset).
+	-- Scale from the area the GUI actually covers (below the top bar).
 	local function updateScale()
 		local size = gui.AbsoluteSize
 		if size.X < 1 or size.Y < 1 then

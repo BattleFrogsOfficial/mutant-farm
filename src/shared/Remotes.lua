@@ -19,6 +19,7 @@ Remotes.ClientToServer = {
 	"BuySlot", -- ()
 	"ClaimDaily", -- ()
 	"Rebirth", -- ()
+	"SetFastHatch", -- (on: boolean) player setting
 }
 
 -- server -> client

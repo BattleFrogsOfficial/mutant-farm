@@ -1,13 +1,14 @@
 --!strict
 -- The HUD has two states (State.zone, set by ZoneController) so the game stays visible:
 --
---   always        top-left cluster (right of Roblox's buttons): Cash + income rate with a thin
---                 payout bar, a Rebirth strip under it, Gems with the pink +, a Daily icon (red dot
---                 when claimable), and an Almanac icon (red dot for new species). SHOP bottom-right. One toast lane.
+--   always        top-center: Cash + income rate with a thin payout bar, a Rebirth strip under it
+--                 (after your first sale), Gems with the pink +. Top-right: Daily and Almanac icons
+--                 (red dots). SHOP bottom-right (mid-right on touch screens). One toast lane.
+--   (the HUD sits below Roblox's top bar, and the whole HUD hides while a panel is open)
 --   plot          egg tray (the biggest thing: eggs, next locked tier, 2x Luck, HATCH), WATER with
---                 its drain ring, the Next Up line above the tray, bag count bottom-left.
+--                 its drain ring, the Next Up line above the tray, bag count top-left.
 --   hub           SHOP grows to the biggest button; weather countdown as plain text and the Starter
---                 Bundle ribbon top-right; bag worth floats over the Sell pad (ZoneController).
+--                 Bundle ribbon under the top-right icons; bag worth floats over the Sell pad (ZoneController).
 --
 -- Color rule: pink (Theme.colors.spend) is only for spending, rarity colors only for rarity,
 -- navy for everything else. Size equals priority.
@@ -34,9 +35,11 @@ local New, Children, Computed, ForPairs, Observer, Spring, OnEvent =
 
 local NAVY = Theme.colors.navy
 local SPEND = Theme.colors.spend
--- The top-left cluster starts right of Roblox's own buttons (they reach ~92px; on the smallest
--- phones that's ~133 design px).
-local CLUSTER_X = 146
+-- The HUD starts below Roblox's top bar (IgnoreGuiInset off), and the top-left corner is left to
+-- Roblox: currencies sit top-center, Daily and Almanac top-right. Cash is centered CASH_X off the
+-- middle, Gems right after it.
+local CASH_X = -70
+local CASH_W = 236
 
 local TOTAL_SPECIES = (function()
 	local n = 0
@@ -138,8 +141,9 @@ local function cashBox()
 	local bumpSpring = Spring(bump, 30, 0.45)
 	local box = C.pill({
 		Name = "Cash",
-		Position = UDim2.fromOffset(CLUSTER_X, 8),
-		Size = UDim2.fromOffset(236, 58),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, CASH_X, 0, 8),
+		Size = UDim2.fromOffset(CASH_W, 58),
 		Rim = NAVY,
 		Children = {
 			New("UIScale")({
@@ -242,7 +246,8 @@ local function cashBox()
 	return box
 end
 
--- Thin rebirth progress strip directly under the Cash panel. Tap: Rebirth panel.
+-- Rebirth progress strip directly under the Cash panel, shown from your first sale (before that
+-- it's a number that means nothing yet). Tap: Rebirth panel.
 local function rebirthStrip()
 	local progress = Computed(function()
 		local snap = State.snapshot:get()
@@ -253,10 +258,15 @@ local function rebirthStrip()
 	end)
 	return New("Frame")({
 		Name = "RebirthStrip",
-		Position = UDim2.fromOffset(CLUSTER_X, 72),
-		Size = UDim2.fromOffset(236, 18),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, CASH_X, 0, 72),
+		Size = UDim2.fromOffset(CASH_W, 22),
 		BackgroundColor3 = Theme.colors.ink,
 		BorderSizePixel = 0,
+		Visible = Computed(function()
+			local snap = State.snapshot:get()
+			return snap ~= nil and snap.stats ~= nil and (snap.stats.sold or 0) > 0
+		end),
 		[Children] = {
 			C.pulse(
 				Computed(function()
@@ -275,7 +285,7 @@ local function rebirthStrip()
 			C.label({
 				Size = UDim2.new(1, -10, 1, -4),
 				Position = UDim2.fromOffset(5, 2),
-				MaxTextSize = 11,
+				MaxTextSize = 15,
 				StrokeThickness = 1.5,
 				ZIndex = 3,
 				Text = Computed(function()
@@ -296,7 +306,8 @@ end
 local function gemsBox()
 	return C.pill({
 		Name = "Gems",
-		Position = UDim2.fromOffset(CLUSTER_X + 244, 8),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, CASH_X + CASH_W / 2 + 8 + 66, 0, 8),
 		Size = UDim2.fromOffset(132, 58),
 		Rim = NAVY,
 		Children = {
@@ -346,10 +357,12 @@ local function gemsBox()
 	})
 end
 
-local function iconButton(name: string, icon: string, x: number, alert: any, onClick: () -> ())
+-- Small square icon in the top-right row; `fromRight` = its right edge's distance from the edge.
+local function iconButton(name: string, icon: string, fromRight: number, alert: any, onClick: () -> ())
 	return New("Frame")({
 		Name = name,
-		Position = UDim2.fromOffset(x, 8),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -fromRight, 0, 8),
 		Size = UDim2.fromOffset(52, 58),
 		BackgroundTransparency = 1,
 		[Children] = {
@@ -371,14 +384,14 @@ local function dailyButton()
 		local snap = State.snapshot:get()
 		return snap ~= nil and snap.daily ~= nil and snap.daily.canClaim
 	end)
-	return iconButton("Daily", "🎁", CLUSTER_X + 384, ready, function()
+	return iconButton("Daily", "🎁", 74, ready, function()
 		openPanel("daily")
 	end)
 end
 
 -- Almanac: a small icon like Daily, with a red dot when new species are waiting.
 local function almanacButton()
-	return iconButton("Almanac", "📖", CLUSTER_X + 444, almanacNew, function()
+	return iconButton("Almanac", "📖", 14, almanacNew, function()
 		State.almanacSeen:set(almanacCount:get(false))
 		openPanel("almanac")
 	end)
@@ -391,8 +404,13 @@ end
 local function shopButton()
 	return C.button({
 		Name = "Shop",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -14, 1, -14),
+		-- On touch screens the jump button owns the bottom-right corner: Shop moves to mid-right.
+		AnchorPoint = Computed(function()
+			return if State.touch:get() then Vector2.new(1, 0.5) else Vector2.new(1, 1)
+		end),
+		Position = Computed(function()
+			return if State.touch:get() then UDim2.new(1, -14, 0.5, 0) else UDim2.new(1, -14, 1, -14)
+		end),
 		Size = Computed(function()
 			return if inHub:get() then UDim2.fromOffset(230, 88) else UDim2.fromOffset(150, 62)
 		end),
@@ -429,7 +447,7 @@ local function weatherText()
 	return C.label({
 		Name = "Weather",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 14),
+		Position = UDim2.new(1, -16, 0, 74),
 		Size = UDim2.fromOffset(250, 22),
 		TextXAlignment = Enum.TextXAlignment.Right,
 		MaxTextSize = 17,
@@ -458,7 +476,7 @@ local function bundleRibbon()
 	return New("Frame")({
 		Name = "Bundle",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -14, 0, 44),
+		Position = UDim2.new(1, -14, 0, 104),
 		Size = UDim2.fromOffset(176, 54),
 		BackgroundTransparency = 1,
 		Visible = Computed(function()
@@ -666,7 +684,7 @@ local function luckBadge()
 	})
 end
 
--- HATCH inside the tray: "HATCH 3" when eggs are ready, otherwise the next one's countdown.
+-- HATCH inside the tray: "HATCH 3" when eggs are ready, dimmed otherwise.
 local function hatchButton()
 	local ready = Computed(function()
 		return State.readyCount:get() > 0
@@ -678,6 +696,9 @@ local function hatchButton()
 		Size = UDim2.fromOffset(108, 104),
 		Color = NAVY,
 		Text = "",
+		Disabled = Computed(function()
+			return not ready:get()
+		end),
 		Pulse = ready,
 		Selected = ready,
 		OnClick = function()
@@ -687,9 +708,7 @@ local function hatchButton()
 		end,
 		Children = {
 			C.label({
-				Text = Computed(function()
-					return if ready:get() then "🥚" else "⏳"
-				end),
+				Text = "🥚",
 				Position = UDim2.fromOffset(0, 8),
 				Size = UDim2.new(1, 0, 0, 36),
 				MaxTextSize = 30,
@@ -698,7 +717,7 @@ local function hatchButton()
 			C.label({
 				Text = Computed(function()
 					local n = State.readyCount:get()
-					return if n > 0 then string.format("HATCH %d", n) else "NEXT EGG"
+					return if n > 0 then string.format("HATCH %d", n) else "HATCH"
 				end),
 				Position = UDim2.fromOffset(6, 48),
 				Size = UDim2.new(1, -12, 0, 20),
@@ -706,12 +725,9 @@ local function hatchButton()
 				ZIndex = 4,
 			}),
 			C.label({
+				-- No countdown here: each egg already shows its own timer above it.
 				Text = Computed(function()
-					if ready:get() then
-						return "TAP!"
-					end
-					local left = State.nextReadyIn:get()
-					return if left then clock(left) else "PLANT ONE"
+					return if ready:get() then "TAP!" else "GROWING"
 				end),
 				Position = UDim2.fromOffset(6, 70),
 				Size = UDim2.new(1, -12, 0, 16),
@@ -735,7 +751,7 @@ local function eggTray()
 		Name = "EggTray",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -12),
-		Size = UDim2.fromOffset(470, 146),
+		Size = UDim2.fromOffset(424, 146),
 		BackgroundTransparency = 1,
 		Visible = atPlot,
 		[Children] = {
@@ -778,7 +794,7 @@ local function eggTray()
 				BackgroundTransparency = 1,
 				BorderSizePixel = 0,
 				Position = UDim2.fromOffset(10, 24),
-				Size = UDim2.new(1, -140, 1, -30),
+				Size = UDim2.new(1, -132, 1, -30),
 				ScrollBarThickness = 4,
 				ScrollingDirection = Enum.ScrollingDirection.X,
 				CanvasSize = UDim2.new(),
@@ -844,7 +860,10 @@ local function waterButton()
 	return New("Frame")({
 		Name = "Water",
 		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -14, 1, -92),
+		-- Right above Shop (which sits mid-right on touch screens, bottom-right otherwise).
+		Position = Computed(function()
+			return if State.touch:get() then UDim2.new(1, -14, 0.5, -43) else UDim2.new(1, -14, 1, -92)
+		end),
 		Size = UDim2.fromOffset(86, 86),
 		BackgroundTransparency = 1,
 		Visible = atPlot,
@@ -926,7 +945,7 @@ local function nextUp()
 		Name = "NextUp",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -190),
-		Size = UDim2.fromOffset(420, 32),
+		Size = UDim2.fromOffset(400, 32),
 		BackgroundColor3 = Theme.colors.panel,
 		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,
@@ -980,8 +999,9 @@ local function bagChip()
 	end)
 	return New("Frame")({
 		Name = "BagChip",
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 14, 1, -14),
+		-- Top-left, below Roblox's buttons: the chat window sits bottom-left and on touch screens
+		-- the thumbstick owns that corner.
+		Position = UDim2.fromOffset(14, 8),
 		Size = UDim2.fromOffset(130, 44),
 		BackgroundTransparency = 1,
 		Visible = atPlot,

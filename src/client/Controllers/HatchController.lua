@@ -40,7 +40,9 @@ local TITLE_COLORS = {
 local ORIGIN = CFrame.new(0, 0, 20000)
 local STAGE = ORIGIN * CFrame.new(0, HatchIsland.STUMP_TOP, 0)
 local FOV = 50
-local MAX_CAMERA_DISTANCE = 120 -- bigger mutants are shown scaled down to fit the set
+local MAX_CAMERA_DISTANCE = 120
+local FAST_HATCH_AFTER = 20 -- hatches before the Fast Hatch toggle shows
+local fastHatchOn = false -- local copy of the Fast Hatch setting (flips instantly on tap) -- bigger mutants are shown scaled down to fit the set
 
 type Hatch = { item: any, value: number, slotIndex: number?, isNew: boolean }
 local queue: { Hatch } = {}
@@ -101,6 +103,9 @@ end
 
 -- Effects started for one hatch stop writing once `hatchId` moves on (next hatch or scene exit).
 local function flash(id: number, color: Color3, peak: number, up: number, down: number)
+	if hatchId ~= id then
+		return
+	end
 	screen.flash.BackgroundColor3 = color
 	tween(up, function(k)
 		if hatchId == id then
@@ -422,6 +427,13 @@ local function burst(color: Color3, scale: number, amount: number)
 	end)
 end
 
+local function setFastLabel(on: boolean)
+	local label = screen.fast:FindFirstChild("Label") :: TextLabel?
+	if label then
+		label.Text = if on then "⚡ FAST: ON" else "⚡ FAST: OFF"
+	end
+end
+
 local function setRevealVisible(visible: boolean)
 	screen.title.Visible = visible
 	screen.value.Visible = visible
@@ -441,7 +453,11 @@ local function play(h: Hatch)
 	local rarityColor = Color3.fromHex(Rarities.info[item.rarity].color)
 	local species = MutantModel.species(item)
 	local design = Eggs.tiers[item.tier].design
-	local quick = #queue > 0 and rank <= 2 -- Commons in a long Hatch All get a short version
+	local snap = State.get()
+	fastHatchOn = snap ~= nil and snap.fastHatch == true
+	local fast = fastHatchOn
+	-- Short version: Commons/Uncommons in a long Hatch All, or anything below Epic with Fast Hatch on.
+	local quick = (#queue > 0 and rank <= 2) or (fast and rank <= 3)
 	skip = false
 	advance = false
 	revealedAt = math.huge
@@ -450,6 +466,8 @@ local function play(h: Hatch)
 
 	clearStage()
 	setRevealVisible(false)
+	screen.fast.Visible = snap ~= nil and (snap.stats.harvested or 0) >= FAST_HATCH_AFTER
+	setFastLabel(fast)
 
 	-- The egg drops onto the stump while the camera settles in front of it.
 	local egg = MutantModel.buildEgg(item.tier, 1, item.mutations)
@@ -539,17 +557,31 @@ local function play(h: Hatch)
 	screen.title.Text = item.rarity:upper() .. "!"
 	screen.name.Text = species.name
 	screen.name.TextColor3 = rarityColor:Lerp(Color3.new(1, 1, 1), 0.3)
+	-- Two beats: first the rarity and its base value, then each mutation slams in and the number
+	-- multiplies, so players see exactly what a mutation (and luck) is worth.
 	local chips = {
 		{ text = string.format("x%.2f size", item.size), color = Theme.colors.slateLight },
 		{ text = string.format("%.0f studs tall", height), color = Theme.colors.slateLight },
 	}
-	for _, m in MutantModel.sortedMutations(item.mutations) do
-		table.insert(chips, {
+	local mutations = MutantModel.sortedMutations(item.mutations)
+	local totalMultiplier = 1
+	for _, m in mutations do
+		totalMultiplier *= Mutations.info[m].multiplier
+	end
+	local baseValue = math.floor(h.value / totalMultiplier + 0.5)
+	local function mutationChip(m: string)
+		return {
 			text = string.format("%s x%d", m:upper(), Mutations.info[m].multiplier),
 			color = Color3.fromHex(Mutations.info[m].color):Lerp(Theme.colors.slate, 0.35),
-		})
+		}
+	end
+	if quick then
+		for _, m in mutations do
+			table.insert(chips, mutationChip(m))
+		end
 	end
 	HatchScreen.setChips(screen, chips)
+	screen.valueScale.Scale = 1
 	setRevealVisible(true)
 	screen.newRibbon.Visible = h.isNew
 	screen.titleScale.Scale = 1.8
@@ -558,11 +590,46 @@ local function play(h: Hatch)
 			screen.titleScale.Scale = 1.8 - 0.8 * backOut(k)
 		end
 	end)
-	task.spawn(tween, 0.7, function(k)
+	local firstValue = if quick then h.value else baseValue
+	task.spawn(tween, 0.6, function(k)
 		if hatchId == myId then
-			screen.value.Text = "Worth " .. Format.cash(math.floor(h.value * quadOut(k)))
+			screen.value.Text = "Worth " .. Format.cash(math.floor(firstValue * quadOut(k)))
 		end
 	end)
+	if not quick and #mutations > 0 then
+		task.spawn(function()
+			local current = baseValue
+			task.wait(0.9)
+			for i, m in mutations do
+				if hatchId ~= myId then
+					return
+				end
+				local info = Mutations.info[m]
+				local target = if i == #mutations then h.value else current * info.multiplier
+				table.insert(chips, mutationChip(m))
+				HatchScreen.setChips(screen, chips)
+				Sfx.play("mutate", 0.7, 1.1 + i * 0.1)
+				task.spawn(flash, myId, Color3.fromHex(info.color), 0.35, 0.04, 0.25)
+				local from = current
+				task.spawn(tween, 0.35, function(k)
+					if hatchId == myId then
+						screen.valueScale.Scale = 1.7 - 0.7 * backOut(k)
+						screen.value.Text = string.format(
+							"%s x%d → %s",
+							m:upper(),
+							info.multiplier,
+							Format.cash(math.floor(from + (target - from) * quadOut(k)))
+						)
+					end
+				end)
+				current = target
+				task.wait(0.9)
+			end
+			if hatchId == myId then
+				screen.value.Text = "Worth " .. Format.cash(h.value)
+			end
+		end)
+	end
 	if rank >= 4 then
 		-- Screen shake for Epic and Legendary.
 		task.spawn(function()
@@ -599,6 +666,7 @@ local function play(h: Hatch)
 	end
 	mutant:Destroy()
 	revealedAt = math.huge
+	hatchId += 1 -- stop this hatch's mutation beats, flashes and tweens right away
 end
 
 local function run()
@@ -855,6 +923,12 @@ function HatchController.Init()
 	end)
 	screen.skipAll.Activated:Connect(function()
 		skipAll = true
+	end)
+	screen.fast.Activated:Connect(function()
+		-- Flip the local value (the snapshot lags a round trip; quick double taps must toggle).
+		fastHatchOn = not fastHatchOn
+		setFastLabel(fastHatchOn)
+		Remotes.get("SetFastHatch"):FireServer(fastHatchOn)
 	end)
 
 	-- The island is built once and parented to workspace only during a hatch.

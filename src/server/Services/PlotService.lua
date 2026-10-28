@@ -51,6 +51,15 @@ local function priceLabel(slot: BasePart): TextLabel
 	return (gui :: SurfaceGui):FindFirstChildOfClass("TextLabel") :: TextLabel
 end
 
+-- Shows or hides the sign board a SurfaceGui label sits on (label -> SurfaceGui -> board part).
+local function setBoardVisible(label: TextLabel, visible: boolean)
+	local gui = label.Parent
+	local board = gui and gui.Parent
+	if board and board:IsA("BasePart") then
+		board.Transparency = if visible then 0 else 1
+	end
+end
+
 -- The owner's best mutants (by sell value) for the pen, as JSON.
 -- The pen's mutants (DataService.penItems) as JSON for clients to draw.
 local function penJson(data: Types.Profile): string
@@ -77,7 +86,13 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 	plot.model:SetAttribute("WateredUntil", data.wateredUntil)
 	plot.model:SetAttribute("Speed", DataService.speed(data))
 	local income = DataService.incomePerMinute(data)
-	plot.income.Text = if income > 0 then Format.cash(income) .. " / min" else "Hatch mutants!"
+	-- First-session hint until the first hatch; after that the board shows pen income, or hides.
+	local incomeText = if income > 0
+		then Format.cash(income) .. " / min"
+		elseif data.stats.harvested == 0 then "Hatch mutants!"
+		else ""
+	plot.income.Text = incomeText
+	setBoardVisible(plot.income, incomeText ~= "")
 	local pen = penJson(data)
 	if plot.model:GetAttribute("Pen") ~= pen then
 		plot.model:SetAttribute("Pen", pen)
@@ -129,6 +144,7 @@ local function clear(plot: World.Plot)
 	plot.model:SetAttribute("Pen", "[]")
 	plot.sign.Text = "Empty Plot"
 	plot.income.Text = ""
+	setBoardVisible(plot.income, false)
 	for _, part in plot.slots do
 		part:SetAttribute("State", "locked")
 		part:SetAttribute("EggId", "")

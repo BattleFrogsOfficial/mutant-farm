@@ -57,6 +57,7 @@ local TEMPLATE: Types.Profile = {
 	nextItemId = 1,
 	bundleOfferEndsAt = 0,
 	bundleBought = false,
+	fastHatch = false,
 }
 
 local store = ProfileStore.New("PlayerData_v1", TEMPLATE)
@@ -198,6 +199,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		payoutSeconds = GameConfig.payoutSeconds,
 		daily = DataService.dailyStatus(data),
 		totalSlots = DataService.totalSlots(data),
+		fastHatch = data.fastHatch,
 		ownedPasses = data.ownedPasses,
 		rebirthCost = Costs.rebirth(data.rebirths),
 		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt
@@ -285,6 +287,13 @@ end
 
 function DataService.Start()
 	Players.PlayerRemoving:Connect(release)
+	-- Player setting: Fast Hatch (offered after FAST_HATCH_AFTER hatches).
+	Net.on("SetFastHatch", function(player, data, on)
+		if typeof(on) == "boolean" then
+			data.fastHatch = on
+			DataService.changed(player)
+		end
+	end)
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)
 	end
