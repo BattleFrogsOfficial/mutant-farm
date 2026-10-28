@@ -57,7 +57,8 @@ env = {
 }
 
 local World = requireModule(game.ServerScriptService.Server.Util.World)
-local plots = World.build()
+-- LIMITED_AT=<unix seconds> builds the hub as at that time (limited-egg decor on or off).
+local plots = World.build(tonumber(process.env.LIMITED_AT))
 local MutantModel = requireModule(game.ReplicatedStorage.Shared.MutantModel)
 
 -- Parts that are ground/walkable layers: other things may stand on them.

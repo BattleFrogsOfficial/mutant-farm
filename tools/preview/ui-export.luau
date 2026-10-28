@@ -263,6 +263,7 @@ for i, it in
 		item(3, "Swamp", "Epic", 3, 2.1, { "Golden" }),
 		item(4, "Swamp", "Common", 4, 0.9),
 		item(5, "Starter", "Uncommon", 5, 1.2),
+		item(6, "Pumpkin", "Rare", 1, 1.3),
 	}
 do
 	inventory[tostring(i)] = it
@@ -278,7 +279,7 @@ local snapshot = {
 	cashMultiplier = 1,
 	speed = 1,
 	wateredUntil = 1_800_000_012,
-	eggs = { Starter = 3, Swamp = 2 },
+	eggs = { Starter = 3, Swamp = 2, Pumpkin = 1 },
 	slots = {},
 	inventory = inventory,
 	inventoryCap = 200,
@@ -501,6 +502,33 @@ do
 	set(State.snapshot, snapshot)
 	set(State.shopFocus, 2)
 	set(State.shopOffset, pitch)
+end
+-- A limited egg on sale (inside the Pumpkin Egg's window), never seen: the shop opens on it, at
+-- the left end, in Cash and Gem mode; a restricted player never sees it.
+do
+	local LIMITED_NOW = 1_793_500_000 -- 2026-11-01, inside the Pumpkin window
+	local lim = table.clone(snapshot)
+	lim.serverTime = LIMITED_NOW
+	lim.seenLimited = {}
+	lim.gems = 650
+	set(State.panel, "none")
+	set(State.now, LIMITED_NOW)
+	set(State.snapshot, lim)
+	set(State.panel, "shop")
+	set(State.clock, (State.clock:get() or 0) + 1) -- past the first-open flash
+	captureHud("shop-limited")
+	set(State.shopMode, "Gems")
+	captureHud("shop-limited-gems")
+	set(State.shopMode, "Cash")
+	set(State.panel, "none")
+	local restrictedLim = table.clone(lim)
+	restrictedLim.paidRandomRestricted = true
+	set(State.snapshot, restrictedLim)
+	set(State.panel, "shop")
+	captureHud("shop-limited-restricted")
+	set(State.panel, "none")
+	set(State.snapshot, snapshot)
+	set(State.now, 1_800_000_000)
 end
 set(State.panel, "sell")
 capture("sell")

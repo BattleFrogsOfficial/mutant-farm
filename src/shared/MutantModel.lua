@@ -167,7 +167,10 @@ end
 function MutantModel.visualScale(data: MutantData): number
 	local v = Sizes.visual
 	local species = MutantModel.species(data)
-	return v.tierScale[data.tier] * v.rarityScale[data.rarity] * species.scale * data.size ^ v.sizeExponent
+	return v.tierScale[Eggs.sizeTier(data.tier)]
+		* v.rarityScale[data.rarity]
+		* species.scale
+		* data.size ^ v.sizeExponent
 end
 
 type Head = { cf: CFrame, r: Vector3 } -- where the face goes
@@ -474,6 +477,53 @@ local function buildAccessory(model: Model, kind: string, head: Head, s: number,
 			)
 			wing.Transparency = 0.15
 		end
+	elseif kind == "witchHat" then
+		-- A wide brim and a tall cone, tipped a little to one side.
+		local hat = top * CFrame.new(0, 0.05 * s, 0) * CFrame.Angles(0, 0, math.rad(-8))
+		newPart(
+			model,
+			"HatBrim",
+			Vector3.new(0.12, 2.3, 2.3) * s,
+			hat * CFrame.Angles(0, 0, math.rad(90)),
+			accent,
+			"cylinder"
+		)
+		for i, w in { 1.25, 0.95, 0.65, 0.35 } do
+			newPart(
+				model,
+				"HatCone",
+				Vector3.new(w, 0.45, w) * s,
+				hat * CFrame.new(0, (0.2 + (i - 1) * 0.38) * s, 0),
+				accent,
+				"ellipsoid"
+			)
+		end
+		newPart(
+			model,
+			"HatBand",
+			Vector3.new(0.14, 1.32, 1.32) * s,
+			hat * CFrame.new(0, 0.22 * s, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color3.fromHex("#FF8A1F"),
+			"cylinder"
+		)
+	elseif kind == "stem" then
+		-- A pumpkin's stem with one curly leaf.
+		newPart(
+			model,
+			"Stem",
+			Vector3.new(0.7, 0.35, 0.35) * s, -- cylinders run along X: stood up below
+			top * CFrame.new(0, 0.25 * s, 0) * CFrame.Angles(0, 0, math.rad(102)),
+			Color3.fromHex("#5B3A24"),
+			"cylinder"
+		)
+		newPart(
+			model,
+			"Leaf",
+			Vector3.new(0.9, 0.12, 0.6) * s,
+			top * CFrame.new(0.45 * s, 0.35 * s, 0) * CFrame.Angles(0, 0, math.rad(-20)),
+			Color3.fromHex("#3FA34D"),
+			"ellipsoid"
+		)
 	end
 	local _ = color
 end
@@ -589,7 +639,7 @@ function MutantModel.buildEgg(eggId: string, progress: number, mutations: { stri
 	local tier = Eggs.tiers[eggId]
 	local design = tier.design
 	local set = mutationSet(mutations)
-	local s = (0.6 + 0.4 * math.clamp(progress, 0, 1)) * (Sizes.visual.tierScale[Eggs.baseOf(eggId)] ^ 0.5)
+	local s = (0.6 + 0.4 * math.clamp(progress, 0, 1)) * (Sizes.visual.tierScale[Eggs.sizeTier(eggId)] ^ 0.5)
 
 	local model = Instance.new("Model")
 	model.Name = "Egg"
@@ -708,6 +758,53 @@ function MutantModel.buildEgg(eggId: string, progress: number, mutations: { stri
 			).Material =
 				Enum.Material.Neon
 		end
+	elseif pattern == "jack" then
+		-- Jack-o'-lantern: darker ridges down the shell, a carved face on the front (dark, not
+		-- Neon: no glow on a big surface) and a stem on top.
+		local ridge = shellColor:Lerp(DARK, 0.22)
+		for i = 0, 5 do
+			newPart(
+				model,
+				"Ridge",
+				Vector3.new(0.14, 1.9, 0.1) * s,
+				onShell(i / 6 * math.pi * 2 + math.pi / 6, 1.05),
+				ridge,
+				"ellipsoid"
+			)
+		end
+		for _, side in { -1, 1 } do
+			newPart(
+				model,
+				"JackEye",
+				Vector3.new(0.34, 0.34, 0.1) * s,
+				onShell(side * 0.42, 1.5) * CFrame.Angles(0, 0, math.rad(45)),
+				accent
+			)
+		end
+		newPart(
+			model,
+			"JackNose",
+			Vector3.new(0.2, 0.2, 0.1) * s,
+			onShell(0, 1.18) * CFrame.Angles(0, 0, math.rad(45)),
+			accent
+		)
+		for k = -3, 3 do
+			newPart(
+				model,
+				"JackGrin",
+				Vector3.new(0.17, 0.2, 0.1) * s,
+				onShell(k * 0.16, 0.82 + (if k % 2 == 0 then 0.05 else -0.05) + math.abs(k) * 0.04),
+				accent
+			)
+		end
+		newPart(
+			model,
+			"JackStem",
+			Vector3.new(0.55, 0.32, 0.32) * s, -- cylinders run along X: stood up
+			CFrame.new(0.05 * s, 2.42 * s, 0) * CFrame.Angles(0, 0, math.rad(100)),
+			Color3.fromHex("#5B3A24"),
+			"cylinder"
+		)
 	end
 	if design.gem then
 		-- Gem variant: a band of faceted cyan crystals around the middle and one crowning the top.

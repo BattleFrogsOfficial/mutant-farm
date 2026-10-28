@@ -151,17 +151,25 @@ local function onBuyEgg(player: Player, data: Types.Profile, eggId: any, quantit
 		cash = data.cash,
 		gems = data.gems,
 		paidRandomRestricted = DataService.paidRandomRestricted[player] ~= false,
+		now = DataService.now(),
 	})
 	if not ok then
 		if reason == "funds" then
 			Net.notify(player, "Not enough " .. (ShopRules.price(eggId, quantity)), "info")
 		elseif reason == "restricted" then
 			Net.notify(player, "Gem eggs aren't available in your region", "info")
+		elseif reason == "ended" then
+			Net.notify(player, "The " .. tier.name .. " isn't on sale anymore", "info")
 		end
 		return
 	end
 	local currency, amount = ShopRules.price(eggId, quantity)
-	if currency == "Gems" then
+	if tier.limited then
+		if not EconomyService.spendGems(player, data, amount, "Shop", "LimitedEgg_" .. eggId) then
+			return
+		end
+		Analytics.funnel(player, data, "FirstLimitedEgg")
+	elseif currency == "Gems" then
 		if not EconomyService.spendGems(player, data, amount, "Shop", "GemEgg_" .. Eggs.baseOf(eggId)) then
 			return
 		end

@@ -9,6 +9,7 @@ local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Shared = ReplicatedStorage.Shared
 local Rarities = require(Shared.Config.Rarities)
 local GameConfig = require(Shared.Config.Game)
+local Eggs = require(Shared.Config.Eggs)
 local Pen = require(Shared.Pen)
 local Valuation = require(Shared.Valuation)
 local Format = require(Shared.Format)
@@ -39,6 +40,10 @@ local function itemRow(itemId: string, order: any)
 	local value = valueOf(item)
 	local rarityColor = Color3.fromHex(Rarities.info[item.rarity].color)
 	local details = { item.rarity, string.format("x%.2f size", item.size) }
+	local tierInfo = Eggs.tiers[item.tier]
+	if tierInfo and tierInfo.icon then
+		table.insert(details, 1, tierInfo.icon) -- limited egg: "🎃 · Rare · ..."
+	end
 	for _, mutation in MutantModel.sortedMutations(item.mutations) do
 		table.insert(details, mutation:upper())
 	end

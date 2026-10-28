@@ -23,6 +23,13 @@
 --
 -- Title row: "Egg Shop", the Cash | Gems switch, the Luck Potion button, close. The switch and the
 -- potion aren't rendered where PolicyService restricts paid random items (the server refuses both).
+--
+-- Limited eggs (Config/LimitedEggs.lua) on sale when the shop opens take the left-most slots, in
+-- both modes: always priced in Gems (pink), an "ENDS IN 3d 4h" ribbon, no Gem badge. The first
+-- time a player opens the shop while one is on sale, the strip opens on it (saved server-side as
+-- seenLimited via the SeenLimited intent) with a NEW ribbon like an unlock; after that the usual
+-- best-affordable rule. Restricted players never see them. Cards sit in "slots": slot 1.. #shown
+-- are the limited eggs, then the base tiers; State.shopFocus is a slot.
 
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
@@ -51,7 +58,7 @@ local Viewport = require(script.Parent.Viewport)
 local New, Children, Computed, Value, Observer, OnEvent, Ref =
 	Fusion.New, Fusion.Children, Fusion.Computed, Fusion.Value, Fusion.Observer, Fusion.OnEvent, Fusion.Ref
 
-local N = #Eggs.order
+local BASE_N = #Eggs.order
 local PINK = Theme.colors.spend
 local W, H = UI.cardWidth, UI.cardHeight
 local STRIP_WIDTH = UI.panelWidth - 32 - 2 * (UI.arrowSize + 8)
@@ -65,7 +72,8 @@ local function earnedOf(sn: any): number
 	return if sn and sn.stats then sn.stats.totalCashEarned or 0 else 0
 end
 
-local function kindOfSnap(sn: any, i: number): string
+-- Base tier i (1..BASE_N): "buyable" | "next" | "further".
+local function tierKind(sn: any, i: number): string
 	if not sn then
 		return if i == 1 then "buyable" else "further"
 	end
@@ -78,6 +86,25 @@ local function kindOfSnap(sn: any, i: number): string
 	return "further"
 end
 
+-- Limited eggs on show this visit (set when the shop opens, so one ending mid-visit stays until
+-- the next open). They fill slots 1..#shown; base tier i is slot #shown + i.
+local shownLimited = Value({} :: { string })
+local function limitedCount(): number
+	return #shownLimited:get(false)
+end
+local function slotCount(): number
+	return limitedCount() + BASE_N
+end
+
+-- Slot s: "buyable" for a limited egg, else its base tier's kind.
+local function kindOfSnap(sn: any, s: number): string
+	local l = limitedCount()
+	if s <= l then
+		return "buyable"
+	end
+	return tierKind(sn, s - l)
+end
+
 -- Cash or Gems for display: Gems only when the player may buy paid random items.
 local mode = Computed(function()
 	local sn = State.snapshot:get()
@@ -88,16 +115,21 @@ local gemsAllowed = Computed(function()
 	local sn = State.snapshot:get()
 	return sn ~= nil and sn.paidRandomRestricted == false
 end)
--- Per card: "buyable" | "next" | "further". Computeds only notify when the value changes.
+-- Per base tier: "buyable" | "next" | "further". Computeds only notify when the value changes.
 local kinds = {}
-for i = 1, N do
+for i = 1, BASE_N do
 	kinds[i] = Computed(function()
-		return kindOfSnap(State.snapshot:get(), i)
+		return tierKind(State.snapshot:get(), i)
 	end)
 end
 
-local function eggIdOf(i: number, m: string): string
-	local base = Eggs.order[i]
+-- The egg a slot sells in mode m (a limited egg ignores the mode: always its own, for Gems).
+local function eggIdOf(s: number, m: string): string
+	local l = limitedCount()
+	if s <= l then
+		return shownLimited:get(false)[s]
+	end
+	local base = Eggs.order[s - l]
 	return if m == "Gems" then base .. "Gem" else base
 end
 
@@ -126,7 +158,7 @@ end
 
 -- One step from where the strip is heading (not from where it currently is mid-glide).
 local function step(dir: number)
-	goTo(Carousel.step(State.shopFocus:get(false), dir, N, focusable))
+	goTo(Carousel.step(State.shopFocus:get(false), dir, slotCount(), focusable))
 end
 
 local function buyFocused()
@@ -146,22 +178,23 @@ local function buyFocused()
 	end
 end
 
--- On open: the best egg the player can afford right now (in the current mode), else Starter.
+-- On open: the best base egg the player can afford right now (in the current mode), else Starter.
 local function bestFocus(): number
 	local sn = State.snapshot:get(false)
+	local l = limitedCount()
 	if not sn then
-		return 1
+		return l + 1
 	end
 	local m = mode:get(false)
-	for i = N, 1, -1 do
-		if kindOfSnap(sn, i) == "buyable" then
-			local currency, amount = ShopRules.price(eggIdOf(i, m), 1)
+	for i = BASE_N, 1, -1 do
+		if tierKind(sn, i) == "buyable" then
+			local currency, amount = ShopRules.price(eggIdOf(l + i, m), 1)
 			if (if currency == "Gems" then sn.gems else sn.cash) >= amount then
-				return i
+				return l + i
 			end
 		end
 	end
-	return 1
+	return l + 1
 end
 
 ---------------------------------------------------------------------------- NEW ribbons
@@ -201,7 +234,28 @@ do
 	Observer(State.panel):onChange(function()
 		local panel = State.panel:get(false)
 		if panel == "shop" and lastPanel ~= "shop" then
-			goTo(bestFocus(), true)
+			-- Limited eggs on sale right now (never for policy-restricted players).
+			local sn = State.snapshot:get(false)
+			local restricted = sn == nil or sn.paidRandomRestricted ~= false
+			local shown = ShopRules.shownLimited(State.now:get(false), restricted)
+			shownLimited:set(shown)
+			-- First open while one is on sale: open on it, NEW ribbon + flash like an unlock.
+			local unseen = nil
+			for s, id in shown do
+				if not (sn and sn.seenLimited and sn.seenLimited[id]) and not unseen then
+					unseen = s
+					local r = table.clone(ribbons:get(false))
+					r[id] = UI.newRibbonVisits
+					ribbons:set(r)
+					Sfx.play("hatchRare", 0.7)
+					task.spawn(function()
+						pcall(function()
+							Remotes.get("SeenLimited"):FireServer(id)
+						end)
+					end)
+				end
+			end
+			goTo(unseen or bestFocus(), true)
 			-- First visit after an unlock that happened while the shop was closed: flash now.
 			local f = table.clone(flashes:get(false))
 			for base, left in ribbons:get(false) do
@@ -290,16 +344,44 @@ local function progressOf(sn: any, base: string): (number, string)
 	return math.clamp(sn.cash / cost, 0, 1), string.format("%s · Rebirth %d", tier.name, tier.unlockRebirth)
 end
 
-local function card(i: number)
-	local base = Eggs.order[i]
-	local kind = kinds[i]
+-- "ENDS IN 3d 4h" for a limited egg's ribbon.
+local function endsIn(endsAt: number, now: number): string
+	return "ENDS IN " .. Format.timeLeft(endsAt - now)
+end
+
+-- One card. spec: a base tier (i = its index) or a limited egg (limited = its id).
+local function card(spec: { i: number?, limited: string? })
+	local limited = spec.limited
+	local base = limited or Eggs.order[spec.i :: number]
+	local tier = Eggs.tiers[base]
+	local kind = if limited
+		then Computed(function()
+			return "buyable"
+		end)
+		else kinds[spec.i :: number]
 	local showOdds = Value(false)
 	local x5Hover = Value(false)
 	local pulseAt = Value(-10)
 
+	-- This card's slot right now (nil: a limited egg not on show this visit).
+	local function slot(): number?
+		local shown = shownLimited:get()
+		if limited then
+			return table.find(shown, limited)
+		end
+		return #shown + (spec.i :: number)
+	end
+	-- The egg it sells in mode m.
+	local function eggOf(m: string): string
+		return if limited then limited elseif m == "Gems" then base .. "Gem" else base
+	end
+	local function currencyOf(m: string): string
+		return (ShopRules.price(eggOf(m), 1))
+	end
+
 	-- Signed distance (design px) of this card's center from the strip center.
 	local function distance(): number
-		return Carousel.offsetOf(i, UI.pitch) - State.shopOffset:get()
+		return Carousel.offsetOf(slot() or 1, UI.pitch) - State.shopOffset:get()
 	end
 	-- The card nearest the center shows its details (live, so they follow a drag).
 	local near = Computed(function()
@@ -315,11 +397,11 @@ local function card(i: number)
 		if not sn then
 			return math.huge
 		end
-		local currency, amount = ShopRules.price(eggIdOf(i, m), quantity)
+		local currency, amount = ShopRules.price(eggOf(m), quantity)
 		return math.max(0, amount - (if currency == "Gems" then sn.gems else sn.cash))
 	end
 	local function priceText(m: string, quantity: number): string
-		local currency, amount = ShopRules.price(eggIdOf(i, m), quantity)
+		local currency, amount = ShopRules.price(eggOf(m), quantity)
 		return if currency == "Gems" then Format.number(amount) .. " 💎" else Format.cash(amount)
 	end
 	local function buy(quantity: number)
@@ -327,12 +409,12 @@ local function card(i: number)
 		if kind:get(false) ~= "buyable" then
 			return
 		end
-		if m == "Gems" and short(State.snapshot:get(false), m, quantity) > 0 then
+		if currencyOf(m) == "Gems" and short(State.snapshot:get(false), m, quantity) > 0 then
 			-- Short on Gems: straight to the Gem packs, no error.
 			State.panel:set("store")
 			return
 		end
-		Remotes.get("BuyEgg"):FireServer(eggIdOf(i, m), quantity)
+		Remotes.get("BuyEgg"):FireServer(eggOf(m), quantity)
 		pulseAt:set(State.clock:get(false))
 	end
 
@@ -358,11 +440,11 @@ local function card(i: number)
 					end),
 					-- Gems: pink, and short on Gems opens the Gem shop. Cash: green, grey when short.
 					Color = Computed(function()
-						return if mode:get() == "Gems" then PINK else Theme.colors.toxic
+						return if currencyOf(mode:get()) == "Gems" then PINK else Theme.colors.toxic
 					end),
 					Disabled = Computed(function()
 						local m, sn = mode:get(), State.snapshot:get()
-						return m == "Cash" and short(sn, m, quantity) > 0
+						return currencyOf(m) == "Cash" and short(sn, m, quantity) > 0
 					end),
 					MaxTextSize = 30,
 					ZIndex = 12,
@@ -383,6 +465,9 @@ local function card(i: number)
 		Name = base,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.fromOffset(W, H),
+		Visible = Computed(function()
+			return slot() ~= nil
+		end),
 		Position = Computed(function()
 			return UDim2.new(0.5, distance(), 0.5, 0)
 		end),
@@ -418,7 +503,7 @@ local function card(i: number)
 					if k == "further" then
 						return Theme.colors.muted
 					end
-					return if m == "Gems" then PINK else Color3.fromHex(Eggs.tiers[base].color)
+					return if m == "Gems" and not limited then PINK else Color3.fromHex(tier.color)
 				end),
 			}),
 			-- Egg art: the variant for the current mode (Gem eggs carry the gem crystal); a
@@ -427,12 +512,12 @@ local function card(i: number)
 				local m, k = mode:get(), kind:get()
 				return Viewport.new({
 					Build = function()
-						return MutantModel.buildEgg(eggIdOf(i, m), 1, {})
+						return MutantModel.buildEgg(eggOf(m), 1, {})
 					end,
 					Spin = k ~= "further",
 					Silhouette = k == "further",
-					Size = UDim2.fromOffset(150, 140),
-					Position = UDim2.new(0.5, 0, 0, 34),
+					Size = if limited then UDim2.fromOffset(150, 86) else UDim2.fromOffset(150, 140),
+					Position = UDim2.new(0.5, 0, 0, if limited then 90 else 34),
 					AnchorPoint = Vector2.new(0.5, 0),
 					ZIndex = 11,
 				})
@@ -441,7 +526,7 @@ local function card(i: number)
 			-- and a longer "Swamp Gem Egg" would fall under the readable size on phones.
 			C.label({
 				Name = "Title",
-				Text = Eggs.tiers[base].name,
+				Text = tier.name,
 				Position = UDim2.fromOffset(8, 178),
 				Size = UDim2.new(1, -16, 0, 34),
 				MaxTextSize = 30,
@@ -479,11 +564,10 @@ local function card(i: number)
 					local s = short(sn, m, quantity)
 					local suffix = if quantity == 5 then " for x5" else ""
 					if s > 0 then
-						return if m == "Gems"
+						return if currencyOf(m) == "Gems"
 							then "Need " .. Format.number(s) .. " more Gems" .. suffix
 							else "Earn " .. Format.cash(s) .. " more" .. suffix
 					end
-					local tier = Eggs.tiers[base]
 					return string.format(
 						"Grows %s · sells %s+",
 						Format.duration(tier.growTime),
@@ -494,7 +578,7 @@ local function card(i: number)
 			-- Further locked: the tagline.
 			C.label({
 				Name = "Tagline",
-				Text = Eggs.tiers[base].tagline,
+				Text = tier.tagline,
 				Position = UDim2.fromOffset(12, 240),
 				Size = UDim2.new(1, -24, 0, 66),
 				TextWrapped = true,
@@ -565,7 +649,7 @@ local function card(i: number)
 				BorderSizePixel = 0,
 				Visible = Computed(function()
 					local m, n, k = mode:get(), near:get(), kind:get()
-					return m == "Gems" and n and k == "buyable"
+					return m == "Gems" and n and k == "buyable" and not limited
 				end),
 				ZIndex = 13,
 				[Children] = C.label({
@@ -577,6 +661,32 @@ local function card(i: number)
 					ZIndex = 14,
 				}),
 			}),
+			-- Limited: "🎃 ENDS IN 3d 4h", live, full width under the odds button (the egg art is
+			-- shorter on these cards to make room), so it stays readable on phones.
+			if limited
+				then New("Frame")({
+					Name = "Ends",
+					Position = UDim2.fromOffset(8, 50),
+					Size = UDim2.new(1, -16, 0, 36),
+					BackgroundColor3 = Color3.fromHex(tier.color),
+					BorderSizePixel = 0,
+					ZIndex = 13,
+					[Children] = {
+						C.stroke(Theme.colors.ink, 2.5),
+						C.label({
+							Name = "Text",
+							Text = Computed(function()
+								return (tier.icon or "") .. " " .. endsIn(tier.endsAt, State.now:get())
+							end),
+							Size = UDim2.new(1, -8, 1, -6),
+							Position = UDim2.fromOffset(4, 3),
+							MaxTextSize = 26,
+							StrokeThickness = 2,
+							ZIndex = 14,
+						}),
+					},
+				})
+				else nil,
 			-- Odds for the variant on display (near, not further locked).
 			C.button({
 				Name = "Odds",
@@ -610,7 +720,7 @@ local function card(i: number)
 					C.padding(9),
 					C.label({
 						Text = Computed(function()
-							return if mode:get() == "Gems" then "GEM ODDS" else "HATCH ODDS"
+							return if mode:get() == "Gems" and not limited then "GEM ODDS" else "HATCH ODDS"
 						end),
 						Size = UDim2.new(1, 0, 0, 24),
 						MaxTextSize = 19,
@@ -623,7 +733,7 @@ local function card(i: number)
 							Position = UDim2.fromOffset(0, 30),
 							Size = UDim2.new(1, 0, 1, -30),
 							ZIndex = 21,
-							[Children] = oddsList(eggIdOf(i, m)),
+							[Children] = oddsList(eggOf(m)),
 						})
 					end, Fusion.cleanup),
 				},
@@ -632,7 +742,7 @@ local function card(i: number)
 			New("Frame")({
 				Name = "New",
 				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.fromOffset(-10, 46),
+				Position = UDim2.fromOffset(-10, if limited then 104 else 46),
 				Size = UDim2.fromOffset(80, 32),
 				Rotation = -10,
 				BackgroundColor3 = Theme.colors.toxic,
@@ -788,7 +898,7 @@ local function wireInput(stripRef: any)
 		if input.UserInputType == Enum.UserInputType.MouseWheel then
 			if inputState == Enum.UserInputState.Change and input.Position.Z ~= 0 then
 				motion.armed = false
-				goTo(Carousel.wheel(State.shopFocus:get(false), input.Position.Z, N, focusable))
+				goTo(Carousel.wheel(State.shopFocus:get(false), input.Position.Z, slotCount(), focusable))
 			end
 		elseif inputState == Enum.UserInputState.Begin then
 			motion.armed = false
@@ -848,7 +958,7 @@ local function wireInput(stripRef: any)
 			d.lastX, d.lastT = x, now
 			if d.moved then
 				local offset = d.startOffset - (x - d.startX) * designPerPixel()
-				offset = Carousel.clampDrag(offset, UI.pitch, N, UI.dragOvershoot)
+				offset = Carousel.clampDrag(offset, UI.pitch, slotCount(), UI.dragOvershoot)
 				motion.target = offset
 				State.shopOffset:set(offset)
 			end
@@ -871,7 +981,7 @@ local function wireInput(stripRef: any)
 			if strip then
 				local center = strip.AbsolutePosition.X + strip.AbsoluteSize.X / 2
 				local at = State.shopOffset:get(false) + (input.Position.X - center) * designPerPixel()
-				local i = Carousel.nearest(at, UI.pitch, N)
+				local i = Carousel.nearest(at, UI.pitch, slotCount())
 				if i ~= State.shopFocus:get(false) and focusable(i) then
 					goTo(i)
 				end
@@ -881,7 +991,7 @@ local function wireInput(stripRef: any)
 		local velocity = if os.clock() - d.lastT < 0.1 then d.velocity else 0
 		local projected = State.shopOffset:get(false) + velocity * UI.flickSeconds
 		local dir = if velocity > 1 then 1 elseif velocity < -1 then -1 else 0
-		goTo(Carousel.settle(projected, UI.pitch, N, focusable, dir))
+		goTo(Carousel.settle(projected, UI.pitch, slotCount(), focusable, dir))
 	end)
 
 	local stripApi = {
@@ -953,9 +1063,14 @@ return function()
 		api = wireInput(stripRef)
 	end)
 
+	-- Every limited egg in the config gets a card (shown only while it's on show this visit),
+	-- then the base tiers.
 	local cards: { any } = {}
-	for i = 1, N do
-		table.insert(cards, card(i))
+	for _, id in Eggs.limitedOrder do
+		table.insert(cards, card({ limited = id }))
+	end
+	for i = 1, BASE_N do
+		table.insert(cards, card({ i = i }))
 	end
 
 	local function arrow(dir: number)
@@ -970,9 +1085,9 @@ return function()
 			ZIndex = 12,
 			-- Hidden at an end (nothing focusable further that way).
 			Visible = Computed(function()
-				local f, sn = State.shopFocus:get(), State.snapshot:get()
-				local _ = sn
-				return Carousel.step(f, dir, N, focusable) ~= f
+				local f, sn, shown = State.shopFocus:get(), State.snapshot:get(), shownLimited:get()
+				local _, _ = sn, shown
+				return Carousel.step(f, dir, slotCount(), focusable) ~= f
 			end),
 			OnClick = function()
 				motion.armed = false
@@ -990,25 +1105,45 @@ return function()
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
 	}
-	for i = 1, N do
+	-- One dot per slot: limited eggs on show (their own color), then the base tiers.
+	local function dot(name: string, slotOf: () -> number?, color: () -> Color3)
+		return New("Frame")({
+			Name = name,
+			LayoutOrder = Computed(function()
+				return slotOf() or 0
+			end),
+			Visible = Computed(function()
+				return slotOf() ~= nil
+			end),
+			BorderSizePixel = 0,
+			Size = Computed(function()
+				return if State.shopFocus:get() == slotOf() then UDim2.fromOffset(16, 16) else UDim2.fromOffset(11, 11)
+			end),
+			BackgroundColor3 = Computed(function()
+				local c = color()
+				return if State.shopFocus:get() == slotOf() then Theme.colors.gold else c
+			end),
+			[Children] = C.stroke(Theme.colors.muted, 1.5),
+		})
+	end
+	for _, id in Eggs.limitedOrder do
 		table.insert(
 			dots,
-			New("Frame")({
-				Name = "Dot" .. i,
-				LayoutOrder = i,
-				BorderSizePixel = 0,
-				Size = Computed(function()
-					return if State.shopFocus:get() == i then UDim2.fromOffset(16, 16) else UDim2.fromOffset(11, 11)
-				end),
-				BackgroundColor3 = Computed(function()
-					local k = kinds[i]:get()
-					if State.shopFocus:get() == i then
-						return Theme.colors.gold
-					end
-					return if k == "buyable" then Theme.colors.cream else Theme.colors.ink
-				end),
-				[Children] = C.stroke(Theme.colors.muted, 1.5),
-			})
+			dot("Dot" .. id, function()
+				return table.find(shownLimited:get(), id)
+			end, function()
+				return Color3.fromHex(Eggs.tiers[id].color)
+			end)
+		)
+	end
+	for i = 1, BASE_N do
+		table.insert(
+			dots,
+			dot("Dot" .. i, function()
+				return #shownLimited:get() + i
+			end, function()
+				return if kinds[i]:get() == "buyable" then Theme.colors.cream else Theme.colors.ink
+			end)
 		)
 	end
 
@@ -1055,7 +1190,9 @@ return function()
 					Name = "Dots",
 					AnchorPoint = Vector2.new(0.5, 0),
 					Position = UDim2.new(0.5, 0, 0, STRIP_HEIGHT + 10),
-					Size = UDim2.fromOffset(N * 26, 18),
+					Size = Computed(function()
+						return UDim2.fromOffset((#shownLimited:get() + BASE_N) * 26, 18)
+					end),
 					BackgroundTransparency = 1,
 					ZIndex = 10,
 					[Children] = dots,

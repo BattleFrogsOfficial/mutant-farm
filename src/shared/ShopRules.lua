@@ -13,6 +13,8 @@ export type Buyer = {
 	gems: number,
 	-- PolicyService: true (or unknown) = paid random items are restricted for this player.
 	paidRandomRestricted: boolean,
+	-- Server time, for limited eggs' sale windows (omitted = limited eggs aren't on sale).
+	now: number?,
 }
 
 -- Is this egg tier (or its Gem variant) unlocked?
@@ -31,7 +33,29 @@ function ShopRules.isUnlocked(eggId: string, rebirths: number, totalCashEarned: 
 	return true
 end
 
--- Gem variants are paid random items (bought with Robux-bought Gems).
+-- Is a limited egg on sale at server time `now`? (window inclusive: startsAt <= now <= endsAt)
+function ShopRules.isLimitedActive(eggId: string, now: number): boolean
+	local tier = Eggs.tiers[eggId]
+	return tier ~= nil and tier.limited == true and now >= tier.startsAt and now <= tier.endsAt
+end
+
+-- The limited eggs on sale at `now`, in config order.
+function ShopRules.activeLimited(now: number): { string }
+	local out = {}
+	for _, id in Eggs.limitedOrder do
+		if ShopRules.isLimitedActive(id, now) then
+			table.insert(out, id)
+		end
+	end
+	return out
+end
+
+-- The limited eggs a buyer sees in the shop: on sale, and not policy-restricted.
+function ShopRules.shownLimited(now: number, paidRandomRestricted: boolean): { string }
+	return if paidRandomRestricted then {} else ShopRules.activeLimited(now)
+end
+
+-- Gem variants and limited eggs are paid random items (bought with Robux-bought Gems).
 function ShopRules.isGemEgg(eggId: string): boolean
 	local tier = Eggs.tiers[eggId]
 	return tier ~= nil and tier.gemCost ~= nil
@@ -47,7 +71,7 @@ function ShopRules.price(eggId: string, quantity: number): (string, number)
 end
 
 -- Can this buyer buy `quantity` of `eggId`? Returns ok, and a reason when not:
--- "unknown" | "locked" | "restricted" | "funds".
+-- "unknown" | "locked" | "restricted" | "ended" | "funds".
 function ShopRules.canBuy(eggId: string, quantity: number, buyer: Buyer): (boolean, string?)
 	if not Eggs.tiers[eggId] then
 		return false, "unknown"
@@ -57,6 +81,9 @@ function ShopRules.canBuy(eggId: string, quantity: number, buyer: Buyer): (boole
 	end
 	if not ShopRules.isUnlocked(eggId, buyer.rebirths, buyer.totalCashEarned) then
 		return false, "locked"
+	end
+	if Eggs.tiers[eggId].limited and not (buyer.now and ShopRules.isLimitedActive(eggId, buyer.now)) then
+		return false, "ended"
 	end
 	local currency, amount = ShopRules.price(eggId, quantity)
 	local have = if currency == "Gems" then buyer.gems else buyer.cash

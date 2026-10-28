@@ -54,4 +54,16 @@ function Format.percent(p: number): string
 	return text .. "%"
 end
 
+-- Time left on a limited offer, two units at most: "3d 4h", "4h 12m", "12m", "0m".
+function Format.timeLeft(seconds: number): string
+	local s = math.max(0, math.floor(seconds))
+	local d, h, m = s // 86400, (s % 86400) // 3600, (s % 3600) // 60
+	if d > 0 then
+		return string.format("%dd %dh", d, h)
+	elseif h > 0 then
+		return string.format("%dh %dm", h, m)
+	end
+	return string.format("%dm", m)
+end
+
 return Format

@@ -323,6 +323,23 @@ window.checkShop = (W, H) => {
     arrows: ["ArrowLeft", "ArrowRight"].filter((n) => vis(panel.querySelector(\`[title="\${n}"]\`))),
     // Cards showing the "2x RARITY ODDS" badge (Gem mode: only the focused card).
     gemBadges: cards.filter((c) => vis(c.querySelector('[title="GemBadge"]'))).map((c) => c.title),
+    // Limited eggs (cards with the ENDS ribbon): titles, the left-most card, the ribbon's text and
+    // on-screen font size, and the price button color (must be pink: always Gems).
+    limited: cards.filter((c) => vis(c.querySelector('[title="Ends"]'))).map((c) => c.title),
+    leftmost: cards.reduce((best, c) => (!best || c.getBoundingClientRect().left < best.getBoundingClientRect().left ? c : best), null)?.title,
+    ends: (() => {
+      const e = [...strip.querySelectorAll('[title="Ends"] [title="Text"] span')].find((x) => vis(x.parentElement));
+      if (!e) return null;
+      const cardEl = e.closest('.g[title]') && [...cards].find((c) => c.contains(e));
+      const scale = cardEl ? cardEl.getBoundingClientRect().width / cardEl.offsetWidth : 1;
+      return { text: e.textContent, font: parseFloat(getComputedStyle(e.parentElement).fontSize) * scale };
+    })(),
+    limitedBuyColor: (() => {
+      const b = strip.querySelector('[title="Pumpkin"] [title="Buy1"] [title="Face"]');
+      if (!b) return null;
+      const cs = getComputedStyle(b);
+      return cs.backgroundImage + " " + cs.backgroundColor; // the face color is a UIGradient
+    })(),
   };
 };
 
@@ -387,7 +404,7 @@ window.checkOverlaps = (W, H, touch) => {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on("pageerror", (e) => console.error("page error:", e.message));
-await page.setContent(html);
+await page.setContent(html, { timeout: 300_000 }); // the scene JSON is tens of MB: give it time to load
 const count = await page.evaluate(() => window.sceneCount);
 // Scenes named "name@WxH" were exported for one screen size: render only at that size, saved
 // as name-<label>.png.
@@ -434,10 +451,10 @@ for (const [sceneName, index] of shopScenes) {
   await page.evaluate(([i, W, H]) => window.render(i, W, H), [index, W, H]);
   const r = await page.evaluate(([W, H]) => window.checkShop(W, H), [W, H]);
   const problems = r.problems;
-  if (kind === "shop") cashRects[`${W}x${H}`] = r;
-  if (kind === "shop-gems") {
-    // Switch test: same focused tier, same card positions.
-    const c = cashRects[`${W}x${H}`];
+  if (!kind.endsWith("-gems")) cashRects[`${kind}@${W}x${H}`] = r;
+  if (kind.endsWith("-gems")) {
+    // Switch test: same focused tier, same card positions as the Cash scene.
+    const c = cashRects[`${kind.replace(/-gems$/, "")}@${W}x${H}`];
     if (!c) problems.push("no Cash scene to compare");
     else {
       if (c.focused !== r.focused) problems.push(`switch moved focus ${c.focused} -> ${r.focused}`);
@@ -447,12 +464,24 @@ for (const [sceneName, index] of shopScenes) {
       }
     }
   }
-  if (kind === "shop-restricted" && (r.switchVisible || r.potionVisible)) problems.push("restricted player sees the Gems switch or the Luck Potion");
-  if (kind !== "shop-restricted" && !r.switchVisible) problems.push("switch missing");
+  const restricted = kind.endsWith("restricted");
+  if (restricted && (r.switchVisible || r.potionVisible)) problems.push("restricted player sees the Gems switch or the Luck Potion");
+  if (!restricted && !r.switchVisible) problems.push("switch missing");
+  // Limited eggs: on sale, first open = focused, left end, Gems price (pink), readable ribbon; never
+  // for restricted players; absent outside the window.
+  if (kind.startsWith("shop-limited") && !restricted) {
+    if (r.limited.length !== 1 || r.limited[0] !== "Pumpkin") problems.push(`limited cards: ${r.limited.join("+") || "none"} (want Pumpkin)`);
+    if (r.focused !== "Pumpkin") problems.push(`first open focused ${r.focused}, not the unseen Pumpkin Egg`);
+    if (r.leftmost !== "Pumpkin") problems.push(`left end is ${r.leftmost}, not Pumpkin`);
+    if (!r.ends || !/ENDS IN \d+d \d+h/.test(r.ends.text)) problems.push(`ribbon text "${r.ends && r.ends.text}"`);
+    else if (r.ends.font < 12) problems.push(`ribbon only ${r.ends.font.toFixed(1)}px`);
+    if (!(r.limitedBuyColor || "").includes("255, 79, 163")) problems.push(`Pumpkin buy button ${r.limitedBuyColor}, not pink`);
+  } else if (r.limited.length > 0) problems.push(`limited card shown: ${r.limited.join("+")}`);
   if (kind === "shop-unlock" && !(r.labBuy && r.labNew)) problems.push("Lab isn't buyable with NEW after crossing $25K");
   // Side cards show only egg art and name: the Gem badge is on the focused card alone, in Gem mode.
-  if (kind === "shop-gems" && !(r.gemBadges.length === 1 && r.gemBadges[0] === r.focused)) problems.push(`Gem badge on ${r.gemBadges.join("+") || "no card"} (want only the focused ${r.focused})`);
-  if (kind !== "shop-gems" && r.gemBadges.length > 0) problems.push(`Gem badge in Cash mode on ${r.gemBadges.join("+")}`);
+  // Gem badge: only on the focused card in Gem mode, never on a limited egg; none in Cash mode.
+  const wantBadges = kind.endsWith("-gems") && !r.limited.includes(r.focused) ? [r.focused] : [];
+  if (r.gemBadges.join("+") !== wantBadges.join("+")) problems.push(`Gem badge on ${r.gemBadges.join("+") || "no card"} (want ${wantBadges.join("+") || "none"})`);
   if (r.font < 12) problems.push(`focused name only ${r.font.toFixed(1)}px`);
   shopChecked++;
   for (const p of problems) console.log(`[shop] ${sceneName}: ${p}`);

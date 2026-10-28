@@ -1,5 +1,6 @@
 --!strict
--- The Almanac: every one of the 400 species, Pokedex-style. Undiscovered species are black
+-- The Almanac: every species (400, plus each limited egg's), Pokedex-style. Limited eggs get their
+-- own tab after the tiers, and their species say "LIMITED · <event>". Undiscovered species are black
 -- silhouettes marked "???". Discovered ones open a detail page with a spinning 3D model,
 -- description, traits, size range, your biggest one, hatch count, first-hatch date and a fun fact.
 
@@ -25,12 +26,16 @@ for _ in Mutants.species do
 	TOTAL += 1
 end
 
--- Species ids per tier, ordered Common -> Legendary, then by id.
+-- Tabs: the tiers, then the limited eggs. Species ids per tab, Common -> Legendary, then by id.
+local TABS = table.clone(Eggs.order)
+for _, id in Eggs.limitedOrder do
+	table.insert(TABS, id)
+end
 local byTier: { [string]: { string } } = {}
-for _, tier in Eggs.order do
+for _, tier in TABS do
 	local list = {}
 	for _, rarity in Rarities.order do
-		for _, id in Mutants.buckets[tier][rarity] do
+		for _, id in (Mutants.buckets[tier] or {})[rarity] or {} do
 			table.insert(list, id)
 		end
 	end
@@ -173,6 +178,9 @@ local function detailPage(id: string, entry: { n: number, first: number, best: n
 							Color3.fromHex(Eggs.tiers[e.tier].color):Lerp(Theme.colors.slate, 0.35),
 							2
 						),
+						if Eggs.tiers[e.tier].limited
+							then chip("LIMITED · " .. Eggs.tiers[e.tier].event, Theme.colors.purpleDark, 3)
+							else nil,
 					},
 				}),
 				New("TextLabel")({
@@ -281,6 +289,19 @@ local function card(id: string, order: number, entry: any, onOpen: (string) -> (
 					BackgroundColor3 = rarityColor,
 					ZIndex = 3,
 				}),
+				-- Limited species: "LIMITED · Halloween 2026" across the top of the card.
+				if Eggs.tiers[e.tier].limited
+					then C.label({
+						Name = "Limited",
+						Text = "LIMITED · " .. Eggs.tiers[e.tier].event,
+						Position = UDim2.fromOffset(4, 3),
+						Size = UDim2.new(1, -48, 0, 14), -- clear of the "x3" count on the right
+						TextXAlignment = Enum.TextXAlignment.Left,
+						MaxTextSize = 11,
+						TextColor3 = Color3.fromHex(Eggs.tiers[e.tier].color),
+						ZIndex = 4,
+					})
+					else nil,
 				found and C.label({
 					Text = "x" .. entry.n,
 					AnchorPoint = Vector2.new(1, 0),
@@ -318,13 +339,16 @@ return function()
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
 	}
-	for i, tierId in Eggs.order do
+	-- Tabs share the content width (728): 6 tiers fit at 112, more get narrower.
+	local tabWidth = math.min(112, math.floor((728 - 6 * (#TABS - 1)) / #TABS))
+	for i, tierId in TABS do
+		local limitedIcon = Eggs.tiers[tierId].limited and Eggs.tiers[tierId].icon
 		table.insert(
 			tabs,
 			C.button({
 				Name = tierId,
 				LayoutOrder = i,
-				Size = UDim2.fromOffset(112, 46),
+				Size = UDim2.fromOffset(tabWidth, 46),
 				Color = Color3.fromHex(Eggs.tiers[tierId].color):Lerp(Theme.colors.slateLight, 0.4),
 				MaxTextSize = 17,
 				Selected = Computed(function()
@@ -338,7 +362,7 @@ return function()
 							n += 1
 						end
 					end
-					return string.format("%s %d/%d", tierId, n, #byTier[tierId])
+					return string.format("%s %d/%d", limitedIcon or tierId, n, #byTier[tierId])
 				end),
 				OnClick = function()
 					tab:set(tierId)

@@ -90,6 +90,9 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 	self.ordered = {} -- OrderedDataStore name -> { key -> value }
 	self.chat = {} -- system chat lines
 	self.warnings = {}
+	self.restricted = {} -- userId -> true: PolicyService restricts paid random items
+	self.economy = {} -- Analytics economy events
+	self.funnels = {} -- Analytics single-step funnel events
 	local world = self
 	local rng = Rng.new(opts.seed or 12345)
 
@@ -248,8 +251,9 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 			end,
 		},
 		PolicyService = {
-			GetPolicyInfoForPlayerAsync = function()
-				return { ArePaidRandomItemsRestricted = false }
+			-- world.restricted[userId] = true: paid random items restricted for that player.
+			GetPolicyInfoForPlayerAsync = function(_, player)
+				return { ArePaidRandomItemsRestricted = world.restricted[player.UserId] == true }
 			end,
 		},
 		GroupService = {
@@ -262,9 +266,14 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 			end,
 		},
 		AnalyticsService = {
-			LogEconomyEvent = function() end,
+			-- world.economy: { flow, currency, amount, sku } per logged economy event.
+			LogEconomyEvent = function(_, _player, flow, currency, amount, _ending, _kind, sku)
+				table.insert(world.economy, { flow = flow.Name, currency = currency, amount = amount, sku = sku })
+			end,
 			LogOnboardingFunnelStepEvent = function() end,
-			LogFunnelStepEvent = function() end,
+			LogFunnelStepEvent = function(_, _player, funnel, _session, _step, stepName)
+				table.insert(world.funnels, { funnel = funnel, step = stepName })
+			end,
 		},
 		DataStoreService = {
 			GetOrderedDataStore = function(_, name)

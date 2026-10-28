@@ -19,16 +19,28 @@ return function(t)
 			wings = true,
 			halo = true,
 			crown = true,
+			witchHat = true,
+			stem = true,
 		},
 	}
 
 	return {
-		["there are exactly 400 species"] = function()
-			local n = 0
-			for _ in Mutants.species do
-				n += 1
+		["there are exactly 400 regular species, plus 2 per rarity for each limited egg"] = function()
+			local regular, limited = 0, {}
+			for _, e in Mutants.species do
+				if Eggs.tiers[e.tier] and Eggs.tiers[e.tier].limited then
+					limited[e.tier] = (limited[e.tier] or 0) + 1
+				else
+					regular += 1
+				end
 			end
-			t.eq(n, 400)
+			t.eq(regular, 400)
+			for _, id in Eggs.limitedOrder do
+				t.eq(limited[id], 10, id .. " species")
+				for _, rarity in Rarities.order do
+					t.eq(#Mutants.buckets[id][rarity], 2, id .. " " .. rarity)
+				end
+			end
 		end,
 		["every tier and rarity has species to hatch"] = function()
 			for _, tier in Eggs.order do

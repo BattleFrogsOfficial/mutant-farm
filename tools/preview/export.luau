@@ -94,7 +94,9 @@ if mode == "hatch" then
 	egg.Parent = workspace
 	fog = { color = "#6d8f8c", near = 40, far = 170, sky = "#7f9c98" }
 end
-local plots = if mode == "hatch" then {} else requireModule(game.ServerScriptService.Server.Util.World).build()
+local plots = if mode == "hatch"
+	then {}
+	else requireModule(game.ServerScriptService.Server.Util.World).build(tonumber(process.env.LIMITED_AT))
 
 -- Showcase: a player's plot in mid-game so mutants and eggs show up in screenshots.
 local MutantModel = game.ReplicatedStorage.Shared:FindFirstChild("MutantModel")

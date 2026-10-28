@@ -26,6 +26,7 @@ Remotes.ClientToServer = {
 	"ClaimGroupReward", -- ()
 	"Pin", -- (itemId: string, on: boolean) keep a bag mutant in the pen
 	"ClaimVipGems", -- () VIP pass: the daily Gems
+	"SeenLimited", -- (eggId: string) the shop opened on this limited egg once (don't again)
 }
 
 -- server -> client

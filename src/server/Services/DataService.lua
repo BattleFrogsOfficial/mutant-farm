@@ -10,6 +10,7 @@ local ProfileStore = require(ReplicatedStorage.Packages.ProfileStore)
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
+local Eggs = require(Shared.Config.Eggs)
 local Growth = require(Shared.Growth)
 local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
@@ -75,6 +76,7 @@ local TEMPLATE: Types.Profile = {
 	almanacLuck = 0,
 	groupOffered = false, -- the group offer was shown (once, at the first sale)
 	vipGemsDay = 0, -- UTC day of the last VIP daily Gems claim
+	seenLimited = {}, -- limited egg id -> true once the shop has opened on it
 }
 
 local store = ProfileStore.New("PlayerData_v1", TEMPLATE)
@@ -235,6 +237,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		ownedPasses = data.ownedPasses,
 		rebirthCost = Costs.rebirth(data.rebirths),
 		vipGemsReady = DataService.vipGemsReady(data),
+		seenLimited = data.seenLimited,
 		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt
 			then 0
 			else data.bundleOfferEndsAt,
@@ -349,6 +352,13 @@ function DataService.Start()
 		end
 		item.pinned = if on then true else nil
 		DataService.changed(player)
+	end)
+	-- The shop opened on a limited egg for the first time: remember it (once per egg).
+	Net.on("SeenLimited", function(player, data, eggId)
+		if Validate.string(eggId, 32) and Eggs.tiers[eggId] and Eggs.tiers[eggId].limited then
+			data.seenLimited[eggId] = true
+			DataService.changed(player)
+		end
 	end)
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)

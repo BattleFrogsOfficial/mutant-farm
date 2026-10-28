@@ -12,6 +12,12 @@
 -- weights doubled, then renormalized to 100 (a separate base table, not luck: the 2x Luck pass and
 -- the Luck Potion still apply on top, and the 6x luck cap is unaffected). Paid random items: hidden
 -- and refused where PolicyService restricts them.
+--
+-- Limited eggs (Config/LimitedEggs.lua) are generated here too, as tiers outside Eggs.order:
+-- Gem-priced, no unlock gate, their own species bucket (their id), values and sizes of their
+-- valueTier. `limited = true`; ShopRules.activeLimited(now) decides when they're on sale.
+
+local LimitedEggs = require(script.Parent.LimitedEggs)
 
 local Eggs = {}
 
@@ -99,19 +105,25 @@ Eggs.tiers = {
 Eggs.gemCosts = { Starter = 15, Swamp = 40, Lab = 120, Toxic = 300, Void = 800, Cosmic = 2_000 }
 Eggs.gemOddsMultiplier = 2 -- Uncommon-and-above weights x this, then renormalized
 
+-- A tier's odds with Uncommon-and-above weights x `boost`, renormalized to 100.
+function Eggs.boostedOdds(odds: { [string]: number }, boost: number): { [string]: number }
+	local out = {}
+	local total = 0
+	for rarity, weight in odds do
+		local w = if rarity == "Common" then weight else weight * boost
+		out[rarity] = w
+		total += w
+	end
+	for rarity, w in out do
+		out[rarity] = w / total * 100
+	end
+	return out
+end
+
 Eggs.gemOrder = {}
 for i, baseId in Eggs.order do
 	local base = Eggs.tiers[baseId]
-	local odds = {}
-	local total = 0
-	for rarity, weight in base.odds do
-		local w = if rarity == "Common" then weight else weight * Eggs.gemOddsMultiplier
-		odds[rarity] = w
-		total += w
-	end
-	for rarity, w in odds do
-		odds[rarity] = w / total * 100
-	end
+	local odds = Eggs.boostedOdds(base.odds, Eggs.gemOddsMultiplier)
 	local id = baseId .. "Gem"
 	local design = table.clone(base.design)
 	design.gem = true
@@ -133,10 +145,45 @@ for i, baseId in Eggs.order do
 	Eggs.gemOrder[i] = id
 end
 
+-- Limited eggs, in config order.
+Eggs.limitedOrder = {}
+for _, entry in LimitedEggs do
+	local valueTier = Eggs.tiers[entry.valueTier]
+	Eggs.tiers[entry.id] = {
+		id = entry.id,
+		limited = true,
+		gemCost = entry.priceGems,
+		design = entry.design,
+		name = entry.name,
+		tagline = entry.tagline,
+		icon = entry.icon,
+		event = entry.event,
+		unlockRebirth = 0,
+		cost = 0, -- never sold for Cash
+		growTime = entry.growSeconds,
+		baseValue = valueTier.baseValue,
+		valueTier = entry.valueTier,
+		color = entry.color,
+		odds = entry.odds or Eggs.boostedOdds(Eggs.tiers[entry.rarityFrom].odds, entry.rarityBoost),
+		startsAt = entry.startsAt,
+		endsAt = entry.endsAt,
+		banner = entry.banner,
+		decor = entry.decor,
+	}
+	table.insert(Eggs.limitedOrder, entry.id)
+end
+
 -- The tier an egg belongs to (Gem variants -> their base tier): species, values and the Almanac.
+-- A limited egg is its own tier (its species bucket is its id).
 function Eggs.baseOf(eggId: string): string
 	local tier = Eggs.tiers[eggId]
 	return if tier and tier.base then tier.base else eggId
+end
+
+-- The base tier whose visual size scale a tier's eggs and mutants use (limited: their valueTier).
+function Eggs.sizeTier(tierId: string): string
+	local tier = Eggs.tiers[Eggs.baseOf(tierId)]
+	return if tier and tier.valueTier then tier.valueTier else Eggs.baseOf(tierId)
 end
 
 return Eggs

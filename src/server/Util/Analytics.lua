@@ -19,6 +19,7 @@ Analytics.Funnel = {
 -- once per player as its own single-step funnel: name -> funnel name.
 Analytics.OtherFunnels = {
 	FirstGemEgg = "GemEggs",
+	FirstLimitedEgg = "LimitedEggs",
 }
 
 function Analytics.funnel(player: Player, data: any, stepName: string)

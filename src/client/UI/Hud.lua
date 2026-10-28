@@ -632,8 +632,10 @@ local function eggCard(eggId: string, count: number)
 	)
 	return New("Frame")({
 		Name = eggId,
-		-- Cash eggs first, then Gem eggs, each in tier order.
-		LayoutOrder = (table.find(Eggs.order, eggId) or ((table.find(Eggs.gemOrder, eggId) or 0) + 10)),
+		-- Cash eggs first, then Gem eggs, each in tier order, then limited eggs.
+		LayoutOrder = table.find(Eggs.order, eggId) or (if table.find(Eggs.gemOrder, eggId)
+			then (table.find(Eggs.gemOrder, eggId) :: number) + 10
+			else nil) or ((table.find(Eggs.limitedOrder, eggId) or 0) + 20),
 		Size = UDim2.fromOffset(88, 104),
 		BackgroundTransparency = 1,
 		[Children] = New("Frame")({
@@ -662,7 +664,9 @@ local function eggCard(eggId: string, count: number)
 						ZIndex = 4,
 					}),
 					C.label({
-						Text = string.upper((tier.name:gsub(" Egg", ""))),
+						-- Limited eggs carry their icon ("🎃 PUMPKIN").
+						Text = (if tier.icon then tier.icon .. " " else "")
+							.. string.upper((tier.name:gsub(" Egg", ""))),
 						AnchorPoint = Vector2.new(0.5, 1),
 						Position = UDim2.new(0.5, 0, 1, -5),
 						Size = UDim2.new(1, -8, 0, 20),

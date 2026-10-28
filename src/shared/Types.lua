@@ -69,6 +69,7 @@ export type Profile = {
 	almanacLuck: number, -- permanent luck bonus from Almanac milestones (0.1 = +10%)
 	groupOffered: boolean, -- the group offer was shown (once, at the first sale)
 	vipGemsDay: number, -- UTC day of the last VIP daily Gems claim
+	seenLimited: { [string]: boolean }, -- limited egg id -> the shop has opened on it once
 }
 
 export type SlotView = {
@@ -112,6 +113,7 @@ export type Snapshot = {
 	inGroup: boolean,
 	almanacLuck: number,
 	vipGemsReady: boolean, -- VIP pass: today's Gems can be claimed
+	seenLimited: { [string]: boolean },
 }
 
 return {}

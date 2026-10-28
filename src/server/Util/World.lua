@@ -18,6 +18,8 @@ local Upgrades = require(ReplicatedStorage.Shared.Config.Upgrades)
 local Rng = require(ReplicatedStorage.Shared.Rng)
 local MutantModel = require(ReplicatedStorage.Shared.MutantModel)
 local Mutants = require(ReplicatedStorage.Shared.Config.Mutants)
+local Eggs = require(ReplicatedStorage.Shared.Config.Eggs)
+local ShopRules = require(ReplicatedStorage.Shared.ShopRules)
 
 local World = {}
 
@@ -826,7 +828,78 @@ local function rebirthAltar(hub: Instance)
 	gui.Parent = board
 end
 
-local function buildHub(parent: Instance)
+-- A carved pumpkin on the plaza, its face toward the fountain (dark carving, no Neon).
+local function carvedPumpkin(parent: Instance, pos: Vector3, scale: number)
+	local m = group("Pumpkin", parent)
+	local face = CFrame.lookAt(Vector3.new(pos.X, 0, pos.Z), Vector3.new(0, 0, 0))
+	local h = 1.9 * scale
+	local mid = Y.plaza + h / 2 - 0.05
+	blob({
+		Name = "PumpkinBody",
+		Size = Vector3.new(2.5, 1.9, 2.5) * scale,
+		CFrame = CFrame.new(pos.X, mid, pos.Z),
+		Color = Color3.fromHex("#FF8A1F"),
+		Parent = m,
+	})
+	local carve = Color3.fromHex("#3A1A06")
+	local front = face * CFrame.new(0, mid, -1.2 * scale)
+	for _, side in { -1, 1 } do
+		part({
+			Name = "PumpkinEye",
+			Size = Vector3.new(0.42, 0.42, 0.12) * scale,
+			CFrame = front * CFrame.new(side * 0.45 * scale, 0.3 * scale, 0) * CFrame.Angles(0, 0, math.rad(45)),
+			Color = carve,
+			CanCollide = false,
+			Parent = m,
+		})
+	end
+	part({
+		Name = "PumpkinGrin",
+		Size = Vector3.new(1.1, 0.22, 0.12) * scale,
+		CFrame = front * CFrame.new(0, -0.3 * scale, 0.05 * scale),
+		Color = carve,
+		CanCollide = false,
+		Parent = m,
+	})
+	part({
+		Name = "PumpkinStem",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.6, 0.35, 0.35) * scale,
+		CFrame = CFrame.new(pos.X, Y.plaza + h + 0.2 * scale, pos.Z) * CFrame.Angles(0, 0, math.rad(95)),
+		Color = COLORS.darkWood,
+		CanCollide = false,
+		Parent = m,
+	})
+end
+
+-- Limited eggs on sale when the server starts dress the hub: a banner on the Egg Shop's roof sign
+-- (config `banner`) and their decor around the fountain (config `decor`: "pumpkins").
+local function limitedDecor(hub: Instance, shop: Model, shopAt: (number, number, number) -> CFrame, now: number)
+	for _, id in ShopRules.activeLimited(now) do
+		local tier = Eggs.tiers[id]
+		if tier.banner then
+			-- Sits on top of the roof sign's frame (the stall's sign: H 8 + 1.4 + 2.8 center, 5.6 tall).
+			local banner = part({
+				Name = "LimitedBanner",
+				Size = Vector3.new(16, 1.8, 0.4),
+				CFrame = shopAt(0, 8 + 1.4 + 2.8 + 2.8 + 0.9, -10 / 2 + 1.9),
+				Color = Color3.fromHex(tier.color),
+				Parent = shop,
+			})
+			banner:SetAttribute("Limited", id)
+			signText(banner, Enum.NormalId.Front, tier.banner)
+		end
+		if tier.decor == "pumpkins" then
+			-- On the plaza ring between the lawn (r 11) and the benches (r 19), clear of the pads.
+			for k, a in { 90, 210, 330 } do
+				local r = math.rad(a)
+				carvedPumpkin(hub, Vector3.new(math.cos(r) * 14, 0, math.sin(r) * 14), if k == 1 then 1.2 else 1)
+			end
+		end
+	end
+end
+
+local function buildHub(parent: Instance, now: number)
 	local hub = group("Hub", parent)
 
 	disc(
@@ -1031,6 +1104,7 @@ local function buildHub(parent: Instance)
 
 	leaderboards(hub)
 	rebirthAltar(hub)
+	limitedDecor(hub, shop, shopAt, now)
 end
 
 ---------------------------------------------------------------------------- plots
@@ -1240,14 +1314,16 @@ local function buildDecor(parent: Instance)
 	end
 end
 
-function World.build(): { Plot }
+-- Builds the map. `now` (unix seconds, default os.time()) decides which limited eggs dress the
+-- hub; the preview tools pass LIMITED_AT to force it.
+function World.build(now: number?): { Plot }
 	setLighting()
 
 	local map = Instance.new("Folder")
 	map.Name = "Map"
 
 	buildTerrain(map)
-	buildHub(map)
+	buildHub(map, now or os.time())
 	buildDecor(map)
 
 	local plotsFolder = Instance.new("Folder")
