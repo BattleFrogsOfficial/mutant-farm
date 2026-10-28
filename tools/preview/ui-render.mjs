@@ -26,7 +26,7 @@ const checkSizes = [
   ["hd", 1920, 1080],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
-const ZONES = ["Cash", "RebirthStrip", "Gems", "Daily", "MenuButton", "Shop", "Weather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip", "MenuList"];
+const ZONES = ["Cash", "RebirthStrip", "Gems", "Daily", "Almanac", "Shop", "Weather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
 
 const html = `<!doctype html><html><head><style>
 * { box-sizing: border-box; }
@@ -302,7 +302,7 @@ for (let i = 0; i < count; i++) {
 }
 // Overlap check on every HUD state (hub, plot) at every screen size.
 let issues = 0, checked = 0;
-const hudScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n === "hud" || n === "hud-plot" || n === "hud-menu"));
+const hudScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n === "hud" || n === "hud-plot"));
 for (const [sceneName, hudIndex] of hudScenes) {
   for (const [label, W, H] of [...sizes, ...checkSizes]) {
     checked++;

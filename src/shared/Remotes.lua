@@ -19,7 +19,6 @@ Remotes.ClientToServer = {
 	"BuySlot", -- ()
 	"ClaimDaily", -- ()
 	"Rebirth", -- ()
-	"RedeemCode", -- (code: string)
 }
 
 -- server -> client

@@ -24,10 +24,7 @@ return function()
 		Name = "Toast",
 		ZIndex = 20, -- above open panels
 		AnchorPoint = Vector2.new(0.5, 0),
-		-- Drops below the ☰ dropdown while it's open, so the two never cover each other.
-		Position = Computed(function()
-			return UDim2.new(0.5, 0, 0, if State.menuOpen:get() then 196 else 100)
-		end),
+		Position = UDim2.new(0.5, 0, 0, 100),
 		Size = UDim2.fromOffset(400, 48),
 		BackgroundTransparency = 1,
 		[Children] = ForPairs(byId, function(id: number, encoded: string)

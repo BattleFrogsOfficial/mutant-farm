@@ -115,7 +115,7 @@ Slot part: `Index`, `State` (owned | buy | locked), `EggId`, `Mutations` (comma 
 - **Boxy style** (players asked for it): no rounded corners anywhere, 3px ink (`Theme.colors.ink`) outlines, hard offset shadows (`Theme.shadow` = 4px), flat faces with a light top bevel and a darker bottom lip, `GothamBlack`, short labels in CAPS. `C.corner`/`C.round` return nothing on purpose; never add a `UICorner`.
 - Design canvas is **900x540**; both ScreenGuis use `IgnoreGuiInset`, so the canvas covers the full screen and `UIController` scales it to fit. Panels stay <= 480 tall.
 - **HUD states** (`State.zone`, set by `ZoneController` from whether you stand on your own plot): each state shows only what that place needs, so the game stays visible.
-  - **Always:** top-left cluster starting at x 146 (right of Roblox's buttons): Cash with income rate and a thin payout bar, a thin Rebirth strip under it (tap: Rebirth panel), Gems with the pink +, a small Daily icon (red dot when claimable), ☰ (dropdown: Almanac, Codes). SHOP bottom-right. One toast lane at the top center (y 100; drops below the ☰ dropdown while it's open), one message at a time, queued in `State.toast`.
+  - **Always:** top-left cluster starting at x 146 (right of Roblox's buttons): Cash with income rate and a thin payout bar, a thin Rebirth strip under it (tap: Rebirth panel), Gems with the pink +, a small Daily icon (red dot when claimable), a small Almanac icon (red dot for new species). SHOP bottom-right. One toast lane at the top center (y 100), one message at a time, queued in `State.toast`.
   - **Plot:** the egg tray (the biggest thing: eggs, the next locked tier, 2x Luck badge, HATCH / next-egg countdown), WATER with a square drain ring, a one-line Next Up above the tray (`⭐ NEXT SOIL PATCH: $675 ▮▮▮▯`), bag count bottom-left.
   - **Hub:** SHOP grows to the biggest button; the weather countdown as plain text and the Starter Bundle ribbon (the only promo, gone when its timer ends) top-right; bag worth floats over the Sell pad (BillboardGui from `ZoneController`). Tutorial steps marked `hub = true` also show Next Up here.
 - **Color rule:** pink (`Theme.colors.spend`) only for spending (SHOP, Gems +, 2x Luck badge, bundle, every R$ button); rarity colors only for rarity; navy (`Theme.colors.navy`) for every other button. Notification dots are red. **Size equals priority.**
@@ -136,7 +136,7 @@ rojo build default.project.json -o build/preview.rbxl
 lune run tools/preview/ui-export -- build/preview.rbxl build/ui.json
 node tools/preview/ui-render.mjs build/ui.json build/ui-shots build/shots/spawn-view.png
 ```
-Runs the real Fusion UI headlessly (events, springs, sounds and viewports stubbed), sets mock game states (HUD, each panel, the hatch reveal), and lays each out in Chromium at desktop and phone sizes with the Roblox top bar. It also runs a **HUD overlap check** on every HUD state (hub, plot, ☰ open) at 6 screen sizes (desktop, phones, tablet, 1080p): every element against every other, Roblox's top-left buttons and the screen edge, plus the items on the egg tray. Keep it at 0 issues after any UI change. Gradient text and 3D previews are approximations.
+Runs the real Fusion UI headlessly (events, springs, sounds and viewports stubbed), sets mock game states (HUD, each panel, the hatch reveal), and lays each out in Chromium at desktop and phone sizes with the Roblox top bar. It also runs a **HUD overlap check** on every HUD state (hub, plot) at 6 screen sizes (desktop, phones, tablet, 1080p): every element against every other, Roblox's top-left buttons and the screen edge, plus the items on the egg tray. Keep it at 0 issues after any UI change. Gradient text and 3D previews are approximations.
 
 ## Seeing the world without Studio
 
@@ -180,10 +180,10 @@ Then playtest in Studio (Rojo serve + Play). There is no way to run the Roblox s
 - **M1.6 Polish (done):** softer lighting, solid hedge wall, rebuilt hub, HUD overhaul, locked egg cards, hatch cutscene, Almanac, income signs.
 - **M1.7 HUD + hatch (done):** zoned HUD, full-screen hatch cinematic, daily streak, welcome back, UI preview tool.
 - **M1.8 Boxy + island (done):** boxy HUD with currencies in the top strip, swamp-island 3D hatch cutscene, market-stall shops with step-on pads, layered ground with no z-fighting, overlap checker.
-- **M2.5 Spending (done, needs product ids):** Gems, Shop panel (bundle, Gem packs, passes), pass effects incl. Auto-Harvest and +10 slots, slot offer instead of errors, mutation celebrations with worth, weather events, rebirth, two-lane toasts.
+- **M2.5 Spending (done, needs product ids):** Gems, Shop panel (bundle, Gem packs, passes), pass effects incl. Auto-Harvest and +10 slots, slot offer instead of errors, mutation celebrations with worth, weather events, rebirth.
 - **M2 The hook (remaining):** Keep-in-pen choice + pen income, Almanac completion rewards, final sounds.
 - **M3 Monetize:** passes, Gem products, Luck Potion, Skip Timer, Starter Bundle, purchase effects, friction-only prompt placement, PolicyService paid-random-item check.
-- **M4 Return loops:** rebirth, Lab + Toxic, weather, daily streak, leaderboards, codes, slot/upgrade purchases.
+- **M4 Return loops:** rebirth, Lab + Toxic, weather, daily streak, leaderboards, slot/upgrade purchases.
 - **M5 Scale:** Void + Cosmic, Instant Weather, Rebirth Now, limited egg, Discord relay (Cloudflare Worker).
 
 Scope rule: no cosmetics, quests, separate pets, or map beyond the hub ring in v1.

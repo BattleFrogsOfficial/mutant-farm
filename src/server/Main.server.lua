@@ -17,7 +17,6 @@ local order = {
 	require(Services.IncomeService),
 	require(Services.MonetizationService),
 	require(Services.RebirthService),
-	require(Services.CodesService),
 	require(Services.WeatherService),
 }
 

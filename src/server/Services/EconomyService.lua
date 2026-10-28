@@ -65,7 +65,7 @@ function EconomyService.spendCash(
 	return true
 end
 
--- Gems come only from Robux purchases, codes and rewards, so there is no tier cap; just sanity.
+-- Gems come only from Robux purchases and rewards, so there is no tier cap; just sanity.
 local MAX_GEMS_PER_GRANT = 100_000
 
 function EconomyService.addGems(

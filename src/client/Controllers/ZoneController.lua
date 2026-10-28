@@ -97,7 +97,6 @@ function ZoneController.Start()
 		local zone = zoneNow()
 		if zone ~= State.zone:get(false) then
 			State.zone:set(zone)
-			State.menuOpen:set(false)
 		end
 		task.wait(0.25)
 	end

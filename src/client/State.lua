@@ -23,7 +23,7 @@ State.welcome = Value(nil :: { away: number, ready: number, mutations: number, c
 State.almanacSeen = Value(-1)
 -- Last pen payout from the server: amount and client clock time it arrived (for the flash/pop).
 State.lastPayout = Value({ amount = 0, at = -10 })
--- "none" | "shop" | "sell" | "almanac" | "daily" | "welcome" | "store" | "slotOffer" | "rebirth" | "codes"
+-- "none" | "shop" | "sell" | "almanac" | "daily" | "welcome" | "store" | "slotOffer" | "rebirth"
 State.panel = Value("none")
 -- Weather from Workspace attributes (WeatherService): the next event and the one running now.
 State.weather = Value({ nextId = "", nextAt = 0, id = "", endsAt = 0 })
@@ -35,8 +35,6 @@ State.almanac = Value({} :: { [string]: { n: number, first: number, best: number
 -- Where the player is: "hub" (the plaza and paths) or "plot" (on their own island). The HUD
 -- shows only what that place needs (ZoneController sets it).
 State.zone = Value("hub")
--- The ☰ menu (Almanac, Codes) is open.
-State.menuOpen = Value(false)
 -- True while the hatch cutscene owns the camera (pens hold their update until it ends).
 State.hatching = Value(false)
 

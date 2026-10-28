@@ -3,7 +3,7 @@
 --
 --   always        top-left cluster (right of Roblox's buttons): Cash + income rate with a thin
 --                 payout bar, a Rebirth strip under it, Gems with the pink +, a Daily icon (red dot
---                 when claimable), and ☰ (Almanac, Codes). SHOP bottom-right. One toast lane.
+--                 when claimable), and an Almanac icon (red dot for new species). SHOP bottom-right. One toast lane.
 --   plot          egg tray (the biggest thing: eggs, next locked tier, 2x Luck, HATCH), WATER with
 --                 its drain ring, the Next Up line above the tray, bag count bottom-left.
 --   hub           SHOP grows to the biggest button; weather countdown as plain text and the Starter
@@ -76,7 +76,6 @@ local function clock(seconds: number): string
 end
 
 local function openPanel(name: string)
-	State.menuOpen:set(false)
 	State.panel:set(if State.panel:get(false) == name then "none" else name)
 end
 
@@ -377,59 +376,12 @@ local function dailyButton()
 	end)
 end
 
--- ☰: Almanac and Codes live here (not daily actions).
-local function menu()
-	local x = CLUSTER_X + 444
-	local function item(order: number, icon: string, text: any, onClick: () -> (), alert: any?)
-		return New("Frame")({
-			Name = "Item" .. order,
-			LayoutOrder = order,
-			Size = UDim2.fromOffset(180, 48),
-			BackgroundTransparency = 1,
-			[Children] = {
-				C.button({
-					Size = UDim2.fromScale(1, 1),
-					Color = NAVY,
-					Icon = icon,
-					Text = text,
-					MaxTextSize = 18,
-					OnClick = onClick,
-				}),
-				if alert then dot(alert) else nil,
-			},
-		})
-	end
-	return {
-		iconButton("MenuButton", "☰", x, almanacNew, function()
-			State.menuOpen:set(not State.menuOpen:get(false))
-		end),
-		New("Frame")({
-			Name = "MenuList",
-			Position = UDim2.fromOffset(x, 72),
-			Size = UDim2.fromOffset(180, 108),
-			BackgroundTransparency = 1,
-			Visible = State.menuOpen,
-			ZIndex = 30,
-			[Children] = {
-				New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 10) }),
-				item(
-					1,
-					"📖",
-					Computed(function()
-						return string.format("ALMANAC %d/%d", almanacCount:get(), TOTAL_SPECIES)
-					end),
-					function()
-						State.almanacSeen:set(almanacCount:get(false))
-						openPanel("almanac")
-					end,
-					almanacNew
-				),
-				item(2, "🐦", "CODES", function()
-					openPanel("codes")
-				end),
-			},
-		}),
-	}
+-- Almanac: a small icon like Daily, with a red dot when new species are waiting.
+local function almanacButton()
+	return iconButton("Almanac", "📖", CLUSTER_X + 444, almanacNew, function()
+		State.almanacSeen:set(almanacCount:get(false))
+		openPanel("almanac")
+	end)
 end
 
 ---------------------------------------------------------------------------- always: Shop
@@ -1054,15 +1006,13 @@ local function bagChip()
 end
 
 return function()
-	local menuParts = menu()
 	return {
 		-- always
 		cashBox(),
 		rebirthStrip(),
 		gemsBox(),
 		dailyButton(),
-		menuParts[1],
-		menuParts[2],
+		almanacButton(),
 		shopButton(),
 		-- hub
 		weatherText(),

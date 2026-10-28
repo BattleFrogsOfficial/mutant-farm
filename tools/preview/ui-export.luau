@@ -432,9 +432,7 @@ set(State.zone, "hub")
 capture("hud")
 set(State.zone, "plot")
 capture("hud-plot")
-set(State.menuOpen, true)
-capture("hud-menu")
-set(State.menuOpen, false)
+
 set(State.toasts, {})
 set(State.panel, "shop")
 capture("shop")
@@ -453,8 +451,7 @@ set(State.panel, "slotOffer")
 capture("slotOffer")
 set(State.panel, "rebirth")
 capture("rebirth")
-set(State.panel, "codes")
-capture("codes")
+
 set(State.panel, "none")
 
 -- The hatch cinematic is plain Instances (HatchScreen), shown here at the reveal.
