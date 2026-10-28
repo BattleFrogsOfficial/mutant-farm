@@ -76,9 +76,18 @@ function GrowthService.settle(data: Types.Profile, now: number, rollsAllowed: bo
 	return events
 end
 
-local function announce(player: Player, events: { MutationEvent })
+-- What a growing egg would sell for right now (size is rolled at harvest, so size 1).
+local function worthNow(data: Types.Profile, slot: Types.Slot): number
+	return Valuation.sellValue(
+		{ tier = slot.eggId, rarity = slot.rarity, mutations = slot.mutations, size = 1 },
+		DataService.cashMultiplier(data)
+	)
+end
+
+local function announce(player: Player, data: Types.Profile, events: { MutationEvent })
 	for _, e in events do
-		Net.fire(player, "Mutated", e.slotIndex, e.eggId, e.mutation)
+		local slot = data.slots[tostring(e.slotIndex)]
+		Net.fire(player, "Mutated", e.slotIndex, e.eggId, e.mutation, if slot then worthNow(data, slot) else 0)
 	end
 end
 
@@ -95,23 +104,48 @@ local function inventoryCount(data: Types.Profile): number
 end
 
 local function settleNow(player: Player, data: Types.Profile)
-	announce(player, GrowthService.settle(data, DataService.now()))
+	announce(player, data, GrowthService.settle(data, DataService.now()))
 end
 
-local function onPlant(player: Player, data: Types.Profile, slotIndex: any, eggId: any)
-	if not Validate.integer(slotIndex, 1, data.slotCount) or not Validate.string(eggId, 32) then
-		return
+-- For other services that change speed or luck (passes): settle, announce, mark changed.
+function GrowthService.settleAndAnnounce(player: Player, data: Types.Profile)
+	local events = GrowthService.settle(data, DataService.now())
+	announce(player, data, events)
+	if #events > 0 then
+		DataService.changed(player)
 	end
-	local key = tostring(slotIndex)
-	if data.slots[key] or not Eggs.tiers[eggId] then
-		return
+end
+
+-- Weather: gives a still-growing egg `mutation` (once) with `chance` x luck. Returns true if it did.
+function GrowthService.weatherRoll(player: Player, data: Types.Profile, mutation: string, chance: number): boolean
+	local events = GrowthService.settle(data, DataService.now())
+	announce(player, data, events)
+	local any = #events > 0
+	for key, slot in data.slots do
+		if not isMature(slot) and not table.find(slot.mutations, mutation) then
+			if rng:next() < math.min(chance * luck(data), 0.9) then
+				table.insert(slot.mutations, mutation)
+				any = true
+				announce(
+					player,
+					data,
+					{ { slotIndex = tonumber(key) :: number, eggId = slot.eggId, mutation = mutation } }
+				)
+			end
+		end
 	end
-	if (data.eggs[eggId] or 0) < 1 then
-		Net.notify(player, "You're out of that egg. Buy more at the Egg Shop!", "error")
-		return
+	if any then
+		DataService.changed(player)
+	end
+	return any
+end
+
+-- Plants one egg in an empty slot. Returns false (with no change) if it can't.
+local function plant(player: Player, data: Types.Profile, key: string, eggId: string): boolean
+	if data.slots[key] or not Eggs.tiers[eggId] or (data.eggs[eggId] or 0) < 1 then
+		return false
 	end
 	local now = DataService.now()
-	settleNow(player, data)
 	data.eggs[eggId] -= 1
 	if data.eggs[eggId] <= 0 then
 		data.eggs[eggId] = nil
@@ -134,10 +168,23 @@ local function onPlant(player: Player, data: Types.Profile, slotIndex: any, eggI
 	}
 	Analytics.funnel(player, data, "FirstPlant")
 	DataService.changed(player)
+	return true
+end
+
+local function onPlant(player: Player, data: Types.Profile, slotIndex: any, eggId: any)
+	if not Validate.integer(slotIndex, 1, DataService.totalSlots(data)) or not Validate.string(eggId, 32) then
+		return
+	end
+	if Eggs.tiers[eggId] and (data.eggs[eggId] or 0) < 1 then
+		Net.notify(player, "You're out of that egg. Buy more at the Egg Shop!", "info")
+		return
+	end
+	settleNow(player, data)
+	plant(player, data, tostring(slotIndex), eggId)
 end
 
 -- Returns the harvested item, or nil (and a reason) if the slot can't be harvested.
-local function harvest(player: Player, data: Types.Profile, key: string): (Types.Item?, string?)
+local function harvest(player: Player, data: Types.Profile, key: string, auto: boolean?): (Types.Item?, string?)
 	local slot = data.slots[key]
 	if not slot or not isMature(slot) then
 		return nil, nil
@@ -179,13 +226,14 @@ local function harvest(player: Player, data: Types.Profile, key: string): (Types
 		item,
 		Valuation.sellValue(item, DataService.cashMultiplier(data)),
 		tonumber(key),
-		isNew
+		isNew,
+		auto == true
 	)
 	return item, nil
 end
 
 local function onHarvest(player: Player, data: Types.Profile, slotIndex: any)
-	if not Validate.integer(slotIndex, 1, data.slotCount) then
+	if not Validate.integer(slotIndex, 1, DataService.totalSlots(data)) then
 		return
 	end
 	settleNow(player, data)
@@ -194,6 +242,26 @@ local function onHarvest(player: Player, data: Types.Profile, slotIndex: any)
 		Net.notify(player, reason, "error")
 	end
 	DataService.changed(player)
+end
+
+-- Auto-Harvest pass: hatch every mature egg (no cutscene, just a toast) and replant the same egg
+-- if you still have one. Stops quietly when the bag is full.
+local function autoHarvest(player: Player, data: Types.Profile)
+	local changed = false
+	for key, slot in table.clone(data.slots) do
+		if isMature(slot) then
+			local eggId = slot.eggId
+			local item = harvest(player, data, key, true)
+			if not item then
+				break
+			end
+			changed = true
+			plant(player, data, key, eggId)
+		end
+	end
+	if changed then
+		DataService.changed(player)
+	end
 end
 
 local function onHarvestAll(player: Player, data: Types.Profile)
@@ -303,8 +371,11 @@ function GrowthService.Start()
 				-- Clients compute growth from the last attributes; only resend when something mutated.
 				local events = GrowthService.settle(data, DataService.now())
 				if #events > 0 then
-					announce(player, events)
+					announce(player, data, events)
 					DataService.changed(player)
+				end
+				if data.ownedPasses.AutoHarvest then
+					autoHarvest(player, data)
 				end
 			end
 		end

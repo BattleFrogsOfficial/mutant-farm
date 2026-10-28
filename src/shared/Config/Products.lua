@@ -11,7 +11,8 @@ return {
 		StarterBundle = {
 			id = 0,
 			price = 599,
-			grants = { passes = { "Luck2x", "AutoHarvest" }, gems = 500, luckPotions = 2 },
+			-- Luck Potions arrive with the potion system; until then the bundle grants their Gem value.
+			grants = { passes = { "Luck2x", "AutoHarvest" }, gems = 550 },
 			offerSeconds = 10 * 60, -- shown once, in the first 10 minutes, never again
 		},
 	},

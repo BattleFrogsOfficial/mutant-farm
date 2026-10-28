@@ -64,6 +64,22 @@ function StateController.Start()
 		end
 	end)
 
+	-- Weather schedule from the server's Workspace attributes.
+	local function readWeather()
+		State.weather:set({
+			nextId = (workspace:GetAttribute("WeatherNextId") or "") :: string,
+			nextAt = (workspace:GetAttribute("WeatherNextAt") or 0) :: number,
+			id = (workspace:GetAttribute("WeatherId") or "") :: string,
+			endsAt = (workspace:GetAttribute("WeatherEndsAt") or 0) :: number,
+		})
+	end
+	workspace.AttributeChanged:Connect(function(name)
+		if string.sub(name, 1, 7) == "Weather" then
+			readWeather()
+		end
+	end)
+	readWeather()
+
 	-- ~30 updates a second is plenty for pulses and glows.
 	local start, last = os.clock(), 0
 	game:GetService("RunService").Heartbeat:Connect(function()

@@ -9,7 +9,6 @@ local HttpService = game:GetService("HttpService")
 
 local Shared = ReplicatedStorage.Shared
 local Growth = require(Shared.Growth)
-local Costs = require(Shared.Costs)
 local Format = require(Shared.Format)
 local Valuation = require(Shared.Valuation)
 local GameConfig = require(Shared.Config.Game)
@@ -38,7 +37,7 @@ local function priceLabel(slot: BasePart): TextLabel
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.fromScale(1, 1)
 		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.FredokaOne
+		label.Font = Enum.Font.GothamBlack
 		label.TextScaled = true
 		label.TextColor3 = Color3.new(1, 1, 1)
 		label.Rotation = 180 -- readable from the gate side
@@ -84,7 +83,8 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 		plot.model:SetAttribute("Pen", pen)
 	end
 	for i, part in plot.slots do
-		local state = if i <= data.slotCount then "owned" elseif i == data.slotCount + 1 then "buy" else "locked"
+		local total = DataService.totalSlots(data)
+		local state = if i <= total then "owned" elseif i == total + 1 then "buy" else "locked"
 		part:SetAttribute("State", state)
 		local click = part:FindFirstChildOfClass("ClickDetector")
 		if click then
@@ -98,9 +98,9 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 			part.Transparency = 0.3
 			part.Color = World.colors.buy
 			part.Material = Enum.Material.SmoothPlastic
-			local price = Costs.slot(i, data.rebirths) or 0
+			local price = DataService.nextSlotCost(data) or 0
 			part:SetAttribute("Price", price)
-			priceLabel(part).Text = "+\n" .. Format.cash(price)
+			priceLabel(part).Text = "🔒\n" .. Format.cash(price)
 		else
 			part.Transparency = 1
 		end

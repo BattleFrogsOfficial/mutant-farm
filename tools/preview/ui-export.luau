@@ -290,6 +290,11 @@ local snapshot = {
 	incomePerMinute = 3_400,
 	nextPayoutAt = 1_800_000_000 + 21,
 	payoutSeconds = 60,
+	totalSlots = 8,
+	ownedPasses = {},
+	rebirthCost = 800_000,
+	bundleOfferEndsAt = 1_800_000_000 + 581,
+	daily = { day = 2, canClaim = true, streak = 1 },
 }
 
 local almanac = {}
@@ -415,11 +420,13 @@ local function set(value, v)
 end
 
 set(State.snapshot, snapshot)
+set(State.now, 1_800_000_000)
+set(State.weather, { nextId = "AcidRain", nextAt = 1_800_000_000 + 252, id = "", endsAt = 0 })
 set(State.almanac, almanac)
 set(State.objective, { text = "Next soil patch: $675", progress = 0.62 })
 set(State.toasts, {
-	{ id = 1, text = "Swamp Egg mutated: GOLDEN! (x5)", kind = "success" },
-	{ id = 2, text = "Need $675 for this patch", kind = "error" },
+	{ id = 1, text = "GOLDEN x5 on your Swamp Egg · worth $4.5K now", kind = "success" },
+	{ id = 2, text = "No eggs! Step on the Egg Shop pad in the middle.", kind = "info" },
 })
 set(State.panel, "none")
 capture("hud")
@@ -435,6 +442,14 @@ capture("daily")
 set(State.welcome, { away = 3 * 3600 + 720, ready = 6, mutations = 4, capped = true, earned = 128_400 })
 set(State.panel, "welcome")
 capture("welcome")
+set(State.panel, "store")
+capture("store")
+set(State.panel, "slotOffer")
+capture("slotOffer")
+set(State.panel, "rebirth")
+capture("rebirth")
+set(State.panel, "codes")
+capture("codes")
 set(State.panel, "none")
 
 -- The hatch cinematic is plain Instances (HatchScreen), shown here at the reveal.
@@ -446,7 +461,8 @@ do
 	local screen = HatchScreen.new()
 	local gold = roblox.Color3.fromHex(Rarities.info.Legendary.color)
 
-	screen.titleGradient.Color = roblox.ColorSequence.new(roblox.Color3.fromHex("#FFF3A8"), roblox.Color3.fromHex("#FF9A1F"))
+	screen.titleGradient.Color =
+		roblox.ColorSequence.new(roblox.Color3.fromHex("#FFF3A8"), roblox.Color3.fromHex("#FF9A1F"))
 	screen.title.Text = "LEGENDARY!"
 	screen.value.Text = "Worth $1.62M"
 	screen.name.Text = "Duchess Froibby"

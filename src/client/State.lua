@@ -23,7 +23,10 @@ State.welcome = Value(nil :: { away: number, ready: number, mutations: number, c
 State.almanacSeen = Value(-1)
 -- Last pen payout from the server: amount and client clock time it arrived (for the flash/pop).
 State.lastPayout = Value({ amount = 0, at = -10 })
-State.panel = Value("none") -- "none" | "shop" | "sell" | "almanac" | "daily" | "welcome"
+-- "none" | "shop" | "sell" | "almanac" | "daily" | "welcome" | "store" | "slotOffer" | "rebirth" | "codes"
+State.panel = Value("none")
+-- Weather from Workspace attributes (WeatherService): the next event and the one running now.
+State.weather = Value({ nextId = "", nextAt = 0, id = "", endsAt = 0 })
 State.toasts = Value({} :: { { id: number, text: string, kind: string } })
 -- "Next up" panel: { text, progress?, ui? } where ui names a HUD button to pulse.
 State.objective = Value({ text = "", progress = nil :: number?, ui = nil :: string? })
@@ -39,6 +42,34 @@ end
 State.cash = Computed(function()
 	local snap = State.snapshot:get()
 	return if snap then snap.cash else 0
+end)
+
+State.gems = Computed(function()
+	local snap = State.snapshot:get()
+	return if snap then snap.gems else 0
+end)
+
+-- Seconds until the soonest growing egg is ready (nil if nothing is growing).
+State.nextReadyIn = Computed(function()
+	local snap = State.snapshot:get()
+	local now = State.now:get()
+	if not snap then
+		return nil
+	end
+	local best: number? = nil
+	for _, slot in snap.slots do
+		local left = Growth.secondsRemaining(
+			State.slotGrowth(snap, slot, now),
+			slot.required,
+			now,
+			snap.wateredUntil,
+			snap.speed
+		)
+		if left > 0 and (best == nil or left < best) then
+			best = left
+		end
+	end
+	return best
 end)
 
 -- Growth of a slot right now, using the same math as the server.

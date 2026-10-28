@@ -219,8 +219,8 @@ local function onSlotClicked(plot: Model, slot: BasePart)
 		local snap = State.get()
 		local price = (slot:GetAttribute("Price") or 0) :: number
 		if snap and snap.cash < price then
-			State.toast("Need " .. Format.cash(price) .. " for this patch", "error")
-			Sfx.play("error")
+			-- Friction -> offer: earn it, or +10 patches. Never an error.
+			State.panel:set("slotOffer")
 			return
 		end
 		Remotes.get("BuySlot"):FireServer()
@@ -237,8 +237,7 @@ local function onSlotClicked(plot: Model, slot: BasePart)
 			return
 		end
 		if (snap.eggs[selected] or 0) < 1 then
-			State.toast("No eggs! Buy some at the Egg Shop in the middle.", "error")
-			Sfx.play("error")
+			State.toast("No eggs! Step on the Egg Shop pad in the middle.", "info")
 			return
 		end
 		Remotes.get("Plant"):FireServer(index, selected)

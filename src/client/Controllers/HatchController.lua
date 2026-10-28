@@ -680,7 +680,22 @@ local function run()
 	end
 end
 
-local function onHarvested(item: any, value: number, slotIndex: number?, isNew: boolean?)
+local function onHarvested(item: any, value: number, slotIndex: number?, isNew: boolean?, auto: boolean?)
+	if auto then
+		-- Auto-Harvest pass: no cutscene (it would interrupt you all the time), just good news.
+		-- The slot was replanted in the same step, so its egg isn't hidden.
+		State.toast(
+			string.format(
+				"🤖 %s%s %s · %s",
+				if isNew then "NEW! " else "",
+				item.rarity,
+				MutantModel.species(item).name,
+				Format.cash(value)
+			),
+			"success"
+		)
+		return
+	end
 	if slotIndex then
 		PlotController.hideSlotEgg(slotIndex)
 	end
@@ -692,35 +707,109 @@ local function onHarvested(item: any, value: number, slotIndex: number?, isNew: 
 	task.spawn(run)
 end
 
-local function onMutated(slotIndex: number, eggId: string, mutation: string)
+-- Rank of a mutation by its multiplier: 1 Shiny .. 5 Cosmic. Drives how big the celebration is.
+local function mutationRank(mutation: string): number
+	return table.find(Mutations.order, mutation) or 1
+end
+
+-- The slot-machine payoff: a burst in the mutation's color on the egg, a ring rolling out over the
+-- soil, a beam for the rare ones, a fanfare, and a toast with the new worth.
+local function onMutated(slotIndex: number, eggId: string, mutation: string, worth: number?)
 	local info = Mutations.info[mutation]
 	local tier = Eggs.tiers[eggId]
-	State.toast(string.format("%s mutated: %s! (x%d)", tier.name, mutation:upper(), info.multiplier), "success")
-	Sfx.play("mutate", 0.7, 1.3)
-	local slot = PlotController.slotPart(slotIndex)
-	if slot then
-		local anchor = Instance.new("Part")
-		anchor.Anchored = true
-		anchor.CanCollide = false
-		anchor.CanQuery = false
-		anchor.Transparency = 1
-		anchor.Size = Vector3.one
-		anchor.Position = slot.Position + Vector3.new(0, 1.5, 0)
-		local e = Instance.new("ParticleEmitter")
-		e.Color = ColorSequence.new(Color3.fromHex(info.color))
-		e.LightEmission = 0.3
-		e.Lifetime = NumberRange.new(0.6, 1.1)
-		e.Speed = NumberRange.new(6, 12)
-		e.SpreadAngle = Vector2.new(180, 180)
-		e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 0) })
-		e.Rate = 0
-		e.Parent = anchor
-		anchor.Parent = workspace
-		e:Emit(30)
-		task.delay(2, function()
-			anchor:Destroy()
-		end)
+	local rank = mutationRank(mutation)
+	local color = Color3.fromHex(info.color)
+	-- Cosmic's config color is a deep purple; use a bright one for light effects.
+	local glow = if mutation == "Cosmic" then Color3.fromHex("#B98CFF") else color
+	local worthText = if worth and worth > 0 then " · worth " .. Format.cash(worth) .. " now" else ""
+	State.toast(
+		string.format("%s x%d on your %s%s", mutation:upper(), info.multiplier, tier.name, worthText),
+		"success"
+	)
+	Sfx.play("mutate", 0.6 + rank * 0.08, 1.4 - rank * 0.1)
+	if rank >= 4 then
+		Sfx.play("hatchLegendary", 0.7, 1)
 	end
+	local slot = PlotController.slotPart(slotIndex)
+	if not slot then
+		return
+	end
+	local scale = 1 + (rank - 1) * 0.6 -- Shiny 1x .. Cosmic 3.4x
+	local base = slot.CFrame * CFrame.new(0, slot.Size.Y / 2, 0)
+
+	local anchor = Instance.new("Part")
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.one
+	anchor.CFrame = base * CFrame.new(0, 1.5, 0)
+	local e = Instance.new("ParticleEmitter")
+	e.Color = ColorSequence.new(glow, Color3.new(1, 1, 1))
+	e.LightEmission = 0.5
+	e.Lifetime = NumberRange.new(0.6, 1.2)
+	e.Speed = NumberRange.new(8 * scale, 16 * scale)
+	e.Drag = 2
+	e.SpreadAngle = Vector2.new(180, 180)
+	e.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.45 * scale), NumberSequenceKeypoint.new(1, 0) })
+	e.Rate = 0
+	e.Parent = anchor
+	anchor.Parent = workspace
+	e:Emit(math.floor(25 + 25 * rank))
+
+	-- A ring rolling out across the soil.
+	local ring = Instance.new("Part")
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.CanQuery = false
+	ring.Material = Enum.Material.SmoothPlastic -- art rule: no Neon on big surfaces
+	ring.Color = glow
+	ring.Parent = workspace
+	-- A beam of light for Radioactive and up.
+	local beam: Part? = nil
+	if rank >= 3 then
+		local b = Instance.new("Part")
+		b.Anchored = true
+		b.CanCollide = false
+		b.CanQuery = false
+		b.Material = Enum.Material.SmoothPlastic
+		b.Color = glow
+		b.CastShadow = false
+		b.Size = Vector3.new(1.2 * scale, 60, 1.2 * scale)
+		b.CFrame = base * CFrame.new(0, 30, 0)
+		b.Transparency = 0.5
+		b.Parent = workspace
+		beam = b
+	end
+	task.spawn(function()
+		local t0 = os.clock()
+		local duration = 0.7 + rank * 0.15
+		while os.clock() - t0 < duration do
+			local k = (os.clock() - t0) / duration
+			local d = (2 + 10 * scale) * (1 - (1 - k) ^ 2)
+			ring.Size = Vector3.new(0.2, d, d)
+			ring.CFrame = base * CFrame.new(0, 0.1, 0) * CFrame.Angles(0, 0, math.rad(90))
+			ring.Transparency = 0.2 + 0.8 * k
+			if beam then
+				beam.Transparency = 0.5 + 0.5 * k
+				beam.Size = Vector3.new(1.2 * scale * (1 - k * 0.7), 60, 1.2 * scale * (1 - k * 0.7))
+			end
+			task.wait()
+		end
+		ring:Destroy()
+		if beam then
+			beam:Destroy()
+		end
+	end)
+	task.delay(2, function()
+		anchor:Destroy()
+	end)
+end
+
+local function onRebirthed(rebirths: number)
+	Sfx.play("hatchLegendary", 0.8, 0.9)
+	State.toast(string.format("♻ Welcome to Rebirth %d!", rebirths), "success")
 end
 
 function HatchController.Init()
@@ -781,6 +870,7 @@ function HatchController.Start()
 	HatchController.rescale()
 	Remotes.get("Harvested").OnClientEvent:Connect(onHarvested)
 	Remotes.get("Mutated").OnClientEvent:Connect(onMutated)
+	Remotes.get("Rebirthed").OnClientEvent:Connect(onRebirthed)
 end
 
 return HatchController

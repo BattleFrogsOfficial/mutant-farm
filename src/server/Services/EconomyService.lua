@@ -8,7 +8,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Eggs = require(Shared.Config.Eggs)
 local Valuation = require(Shared.Valuation)
-local Costs = require(Shared.Costs)
 local Format = require(Shared.Format)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
@@ -64,6 +63,52 @@ function EconomyService.spendCash(
 	Analytics.economy(player, "Sink", "Cash", amount, data.cash, transactionType, sku)
 	DataService.changed(player)
 	return true
+end
+
+-- Gems come only from Robux purchases, codes and rewards, so there is no tier cap; just sanity.
+local MAX_GEMS_PER_GRANT = 100_000
+
+function EconomyService.addGems(
+	player: Player,
+	data: Types.Profile,
+	amount: number,
+	transactionType: string,
+	sku: string?
+): boolean
+	if not isFinitePositive(amount) or amount > MAX_GEMS_PER_GRANT then
+		return false
+	end
+	amount = math.floor(amount)
+	data.gems += amount
+	Analytics.economy(player, "Source", "Gems", amount, data.gems, transactionType, sku)
+	DataService.changed(player)
+	return true
+end
+
+function EconomyService.spendGems(
+	player: Player,
+	data: Types.Profile,
+	amount: number,
+	transactionType: string,
+	sku: string?
+): boolean
+	if not isFinitePositive(amount) or data.gems < amount then
+		return false
+	end
+	data.gems -= amount
+	Analytics.economy(player, "Sink", "Gems", amount, data.gems, transactionType, sku)
+	DataService.changed(player)
+	return true
+end
+
+-- Rebirth: takes all Cash and leaves the starting amount. Logged as one sink and one source.
+function EconomyService.resetCash(player: Player, data: Types.Profile, startingCash: number)
+	if data.cash > 0 then
+		Analytics.economy(player, "Sink", "Cash", data.cash, 0, "Gameplay", "Rebirth")
+	end
+	data.cash = startingCash
+	Analytics.economy(player, "Source", "Cash", startingCash, data.cash, "Gameplay", "RebirthStart")
+	DataService.changed(player)
 end
 
 local function itemValue(data: Types.Profile, item: Types.Item): number
@@ -130,13 +175,12 @@ local function onSellAll(player: Player, data: Types.Profile)
 end
 
 local function onBuySlot(player: Player, data: Types.Profile)
-	local cost = Costs.slot(data.slotCount + 1, data.rebirths)
+	local cost = DataService.nextSlotCost(data)
 	if not cost then
 		return
 	end
 	if not EconomyService.spendCash(player, data, cost, "Shop", "Slot_" .. (data.slotCount + 1)) then
-		Net.notify(player, "Need " .. Format.cash(cost) .. " for a new patch", "error")
-		return
+		return -- the client shows the earn-it / +10 slots offer instead of an error
 	end
 	data.slotCount += 1
 	data.stats.slotsBought += 1

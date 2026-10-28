@@ -12,6 +12,7 @@ local order = {
 	require(Controllers.PlotController),
 	require(Controllers.HatchController),
 	require(Controllers.TutorialController),
+	require(Controllers.WeatherController),
 	require(Controllers.UIController),
 }
 

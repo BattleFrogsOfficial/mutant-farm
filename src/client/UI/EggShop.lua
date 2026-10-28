@@ -1,7 +1,7 @@
 --!strict
 -- Egg Shop: a grid of egg cards with live 3D eggs. Three clear states per card:
 --   available  - full color, green Buy buttons
---   too pricey - full color, grey Buy buttons and "Need $X more" in red
+--   too pricey - full color, grey Buy buttons and "Earn $X more" in gold (never red)
 --   locked     - black silhouette, padlock, "Rebirth N to unlock", no Buy buttons
 -- Every card has an Odds view (required for paid random items once Gem eggs exist).
 
@@ -129,7 +129,7 @@ local function eggCard(tierId: string, order: number)
 					if locked:get() then
 						return Theme.colors.gold
 					elseif short1:get() > 0 then
-						return Theme.colors.danger
+						return Theme.colors.gold
 					end
 					return Theme.colors.muted
 				end),
@@ -137,7 +137,7 @@ local function eggCard(tierId: string, order: number)
 					if locked:get() then
 						return string.format("🔒 Rebirth %d to unlock", tier.unlockRebirth)
 					elseif short1:get() > 0 then
-						return "Need " .. Format.cash(short1:get()) .. " more"
+						return "Earn " .. Format.cash(short1:get()) .. " more"
 					end
 					return string.format(
 						"Grows %s · sells %s+",

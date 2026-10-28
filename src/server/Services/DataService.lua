@@ -15,6 +15,7 @@ local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
 local Streak = require(Shared.Streak)
 local Daily = require(Shared.Config.Daily)
+local Products = require(Shared.Config.Products)
 local Signal = require(Shared.Signal)
 local Types = require(Shared.Types)
 local Remotes = require(Shared.Remotes)
@@ -54,6 +55,8 @@ local TEMPLATE: Types.Profile = {
 	almanac = {},
 	stats = { eggsBought = 0, eggsPlanted = 0, harvested = 0, sold = 0, cashEarned = 0, waters = 0, slotsBought = 0 },
 	nextItemId = 1,
+	bundleOfferEndsAt = 0,
+	bundleBought = false,
 }
 
 local store = ProfileStore.New("PlayerData_v1", TEMPLATE)
@@ -64,6 +67,26 @@ local dirty: { [Player]: boolean } = {}
 function DataService.get(player: Player): Types.Profile?
 	local profile = profiles[player]
 	return profile and profile.Data
+end
+
+-- Saves now and waits (up to `timeout` s) for it to finish. Returns false if the session ended
+-- or the save didn't land in time. Used before telling Roblox a Robux purchase was granted.
+function DataService.saveNow(player: Player, timeout: number?): boolean
+	local profile = profiles[player]
+	if not profile or not profile:IsActive() then
+		return false
+	end
+	local saved = false
+	local connection = profile.OnAfterSave:Connect(function()
+		saved = true
+	end)
+	profile:Save()
+	local deadline = os.clock() + (timeout or 15)
+	while not saved and os.clock() < deadline and profile:IsActive() do
+		task.wait(0.1)
+	end
+	connection:Disconnect()
+	return saved and profiles[player] == profile
 end
 
 function DataService.onRelease(fn: (Player, Types.Profile) -> ())
@@ -84,6 +107,20 @@ end
 
 function DataService.cashMultiplier(data: Types.Profile): number
 	return Valuation.cashMultiplier(data.rebirths, data.ownedPasses.VIP == true)
+end
+
+-- Slots you can plant in: bought ones plus 10 from the +10 Plot Slots pass, up to the plot's 40.
+function DataService.totalSlots(data: Types.Profile): number
+	local bonus = if data.ownedPasses.PlotSlots10 then 10 else 0
+	return math.min(Upgrades.slots.max, data.slotCount + bonus)
+end
+
+-- Cash price of the next patch (priced by how many you've bought), or nil when the plot is full.
+function DataService.nextSlotCost(data: Types.Profile): number?
+	if DataService.totalSlots(data) >= Upgrades.slots.max then
+		return nil
+	end
+	return Costs.slot(data.slotCount + 1, data.rebirths)
 end
 
 -- The mutants standing in the pen: the owner's most valuable bag items, up to penDisplayCount.
@@ -154,12 +191,18 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		slots = slots,
 		inventory = data.inventory,
 		inventoryCap = GameConfig.inventoryCap,
-		nextSlotCost = Costs.slot(data.slotCount + 1, data.rebirths),
+		nextSlotCost = DataService.nextSlotCost(data),
 		stats = data.stats,
 		incomePerMinute = DataService.incomePerMinute(data),
 		nextPayoutAt = DataService.nextPayoutAt[player] or 0,
 		payoutSeconds = GameConfig.payoutSeconds,
 		daily = DataService.dailyStatus(data),
+		totalSlots = DataService.totalSlots(data),
+		ownedPasses = data.ownedPasses,
+		rebirthCost = Costs.rebirth(data.rebirths),
+		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt
+			then 0
+			else data.bundleOfferEndsAt,
 	}
 end
 
@@ -204,6 +247,12 @@ local function onPlayerAdded(player: Player)
 	end
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
+	-- The Starter Bundle is for new players: profiles from before it existed never get the window.
+	if profile.Data.bundleOfferEndsAt == 0 and profile.Data.grantedStarterEggs then
+		profile.Data.bundleOfferEndsAt = -1
+	elseif profile.Data.bundleOfferEndsAt == 0 then
+		profile.Data.bundleOfferEndsAt = DataService.now() + Products.robux.StarterBundle.offerSeconds
+	end
 	if not profile.Data.grantedStarterEggs then
 		profile.Data.grantedStarterEggs = true
 		for eggId, count in GameConfig.startingEggs do

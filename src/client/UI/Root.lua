@@ -13,6 +13,10 @@ local SellPanel = require(script.Parent.SellPanel)
 local Almanac = require(script.Parent.Almanac)
 local DailyPanel = require(script.Parent.DailyPanel)
 local WelcomePanel = require(script.Parent.WelcomePanel)
+local StorePanel = require(script.Parent.StorePanel)
+local SlotOfferPanel = require(script.Parent.SlotOfferPanel)
+local RebirthPanel = require(script.Parent.RebirthPanel)
+local CodesPanel = require(script.Parent.CodesPanel)
 
 local New, Children, Computed, OnEvent = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.OnEvent
 
@@ -46,6 +50,10 @@ return function()
 			Almanac(),
 			DailyPanel(),
 			WelcomePanel(),
+			StorePanel(),
+			SlotOfferPanel(),
+			RebirthPanel(),
+			CodesPanel(),
 			Toasts(),
 		},
 	})

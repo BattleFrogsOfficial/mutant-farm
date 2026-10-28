@@ -57,6 +57,8 @@ export type Profile = {
 		slotsBought: number,
 	},
 	nextItemId: number,
+	bundleOfferEndsAt: number, -- Starter Bundle offer window (set on first join)
+	bundleBought: boolean,
 }
 
 export type SlotView = {
@@ -86,6 +88,10 @@ export type Snapshot = {
 	nextPayoutAt: number,
 	payoutSeconds: number,
 	daily: { day: number, canClaim: boolean, streak: number },
+	totalSlots: number, -- bought slots + pass slots (slotCount is bought only)
+	ownedPasses: { [string]: boolean },
+	rebirthCost: number,
+	bundleOfferEndsAt: number, -- 0 when not on offer
 }
 
 return {}

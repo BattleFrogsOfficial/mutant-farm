@@ -15,6 +15,10 @@ local order = {
 	require(Services.GrowthService),
 	require(Services.DailyService),
 	require(Services.IncomeService),
+	require(Services.MonetizationService),
+	require(Services.RebirthService),
+	require(Services.CodesService),
+	require(Services.WeatherService),
 }
 
 for _, service in order do

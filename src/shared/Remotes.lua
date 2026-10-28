@@ -18,16 +18,19 @@ Remotes.ClientToServer = {
 	"SellAll", -- ()
 	"BuySlot", -- ()
 	"ClaimDaily", -- ()
+	"Rebirth", -- ()
+	"RedeemCode", -- (code: string)
 }
 
 -- server -> client
 Remotes.ServerToClient = {
 	"State", -- (snapshot: Types.Snapshot)
 	"Notify", -- (message: string, kind: "info" | "error" | "success")
-	"Harvested", -- (item: Types.Item, valueNow: number, slotIndex: number, isNewSpecies: boolean)
-	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string)
+	"Harvested", -- (item, valueNow, slotIndex, isNewSpecies, auto: boolean) auto = Auto-Harvest pass
+	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string, worthNow: number)
 	"Payout", -- (amount: number) pen income just paid
 	"WelcomeBack", -- ({ away: number, ready: number, mutations: number })
+	"Rebirthed", -- (rebirths: number) celebration after a rebirth
 	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
 }
 
