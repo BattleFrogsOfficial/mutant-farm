@@ -436,8 +436,51 @@ local function watchPads()
 	end
 end
 
+-- Every Robux purchase: a burst of gold and pink sparkles over the buyer's plot, for everyone.
+local SPARKLE_COLORS = ColorSequence.new(Theme.colors.gold, Color3.fromHex("#FF8AD8"))
+local function purchaseSparkle(userId: number)
+	local plots = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Plots")
+	if not plots then
+		return
+	end
+	for _, plot in plots:GetChildren() do
+		if plot:IsA("Model") and plot:GetAttribute("OwnerUserId") == userId and plot.PrimaryPart then
+			local anchor = Instance.new("Part")
+			anchor.Name = "PurchaseSparkle"
+			anchor.Anchored = true
+			anchor.CanCollide = false
+			anchor.CanQuery = false
+			anchor.CanTouch = false
+			anchor.Transparency = 1
+			anchor.Size = Vector3.new(1, 1, 1)
+			anchor.CFrame = CFrame.new(plot.PrimaryPart.Position + Vector3.new(0, 6, 0))
+			local emitter = Instance.new("ParticleEmitter")
+			emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+			emitter.Color = SPARKLE_COLORS
+			emitter.LightEmission = 0.5
+			emitter.Size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1.6),
+				NumberSequenceKeypoint.new(1, 0),
+			})
+			emitter.Lifetime = NumberRange.new(1.2, 2.2)
+			emitter.Speed = NumberRange.new(14, 30)
+			emitter.SpreadAngle = Vector2.new(180, 180)
+			emitter.Acceleration = Vector3.new(0, -12, 0)
+			emitter.Rate = 0
+			emitter.Parent = anchor
+			anchor.Parent = folder
+			emitter:Emit(140)
+			task.delay(3, function()
+				anchor:Destroy()
+			end)
+			return
+		end
+	end
+end
+
 function PlotController.Start()
 	task.spawn(watchPads)
+	Remotes.get("PurchaseFx").OnClientEvent:Connect(purchaseSparkle)
 
 	-- The map replicates in full at join (StreamingEnabled is off in default.project.json);
 	-- ChildAdded covers anything that arrives after this first read.

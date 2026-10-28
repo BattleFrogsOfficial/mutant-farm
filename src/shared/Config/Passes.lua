@@ -18,6 +18,13 @@ return {
 		description = "Mutation rolls continue while offline",
 	},
 	PlotSlots10 = { id = 0, price = 349, name = "+10 Plot Slots", description = "Ten permanent extra slots" },
-	VIP = { id = 0, price = 499, name = "VIP", description = "Chat tag, 1.5x Cash, VIP egg, daily 50 Gems" },
+	VIP = {
+		id = 0,
+		price = 499,
+		name = "VIP",
+		-- The VIP egg (exclusive species pool) is M5.
+		description = "Gold [VIP] chat tag, 1.5x Cash, 50 Gems every day",
+		dailyGems = 50,
+	},
 	-- The Starter Bundle is sold as a developer product (see Products.lua) because it is offered once.
 }

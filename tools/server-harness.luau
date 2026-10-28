@@ -22,6 +22,7 @@ ServerHarness.__index = ServerHarness
 
 local SERVICES = {
 	"DataService",
+	"GroupRewardService",
 	"EconomyService",
 	"GrowthService",
 	"DailyService",
@@ -396,6 +397,9 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 
 	---------------------------------------------------------------- start the services
 
+	if opts.groupId then
+		self.modules("src/shared/Config/Game").groupId = opts.groupId
+	end
 	self.service = {}
 	for _, name in SERVICES do
 		self.service[name] = self.modules("src/server/Services/" .. name)

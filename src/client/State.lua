@@ -31,6 +31,7 @@ State.almanacSeen = Value(-1)
 -- Last pen payout from the server: amount and client clock time it arrived (for the flash/pop).
 State.lastPayout = Value({ amount = 0, at = -10 })
 -- "none" | "shop" | "sell" | "almanac" | "daily" | "welcome" | "store" | "slotOffer" | "rebirth" | "upgrades"
+-- | "groupOffer"
 State.panel = Value("none")
 -- Weather from Workspace attributes (WeatherService): the next event and the one running now.
 State.weather = Value({ nextId = "", nextAt = 0, id = "", endsAt = 0 })

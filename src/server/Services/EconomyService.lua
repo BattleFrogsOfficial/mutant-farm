@@ -12,6 +12,7 @@ local ShopRules = require(Shared.ShopRules)
 local Format = require(Shared.Format)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
+local GroupRewardService = require(script.Parent.GroupRewardService)
 local Net = require(script.Parent.Parent.Util.Net)
 local Validate = require(script.Parent.Parent.Util.Validate)
 local Analytics = require(script.Parent.Parent.Util.Analytics)
@@ -175,18 +176,21 @@ local function onBuyEgg(player: Player, data: Types.Profile, eggId: any, quantit
 end
 
 local function onSell(player: Player, data: Types.Profile, itemId: any)
-	if not Validate.string(itemId, 16) then
+	if not Validate.string(itemId, 16) or not data.inventory[itemId] then
 		return
 	end
+	GroupRewardService.beforeSale(player, data)
 	local value = EconomyService.sellItem(player, data, itemId)
 	if value then
 		Analytics.funnel(player, data, "FirstSell")
 		Net.notify(player, "Sold for " .. Format.cash(value), "success")
+		GroupRewardService.afterSale(player, data)
 	end
 end
 
 -- Sells the whole bag except pinned mutants.
 local function onSellAll(player: Player, data: Types.Profile)
+	GroupRewardService.beforeSale(player, data)
 	local total, count = 0, 0
 	for itemId, item in table.clone(data.inventory) do
 		local value = if item.pinned then nil else EconomyService.sellItem(player, data, itemId)
@@ -198,6 +202,7 @@ local function onSellAll(player: Player, data: Types.Profile)
 	if count > 0 then
 		Analytics.funnel(player, data, "FirstSell")
 		Net.notify(player, string.format("Sold %d for %s", count, Format.cash(total)), "success")
+		GroupRewardService.afterSale(player, data)
 	end
 end
 

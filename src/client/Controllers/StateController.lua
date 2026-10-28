@@ -58,6 +58,16 @@ function StateController.Start()
 		State.panel:set("welcome")
 	end)
 
+	-- The group offer (once, after the first sale) waits until the Sell panel is closed.
+	Remotes.get("GroupOffer").OnClientEvent:Connect(function()
+		task.spawn(function()
+			while State.panel:get(false) ~= "none" or State.hatching:get(false) do
+				task.wait(0.5)
+			end
+			State.panel:set("groupOffer")
+		end)
+	end)
+
 	Remotes.get("Almanac").OnClientEvent:Connect(function(entries)
 		local merged = table.clone(State.almanac:get(false))
 		for id, entry in entries do

@@ -2,17 +2,22 @@
 -- Robux purchases. Game passes: ownership is checked on join and granted the moment a purchase
 -- finishes. Developer products (Gem packs, Starter Bundle): ProcessReceipt grants them once per
 -- PurchaseId (recorded in processedPurchases). Ids of 0 in Config/Passes and Config/Products are
--- "not set up yet": the client never prompts those.
+-- "not set up yet": the client never prompts those, and Studio's output lists them at startup.
+-- Every Robux purchase is shown to the whole server (`PurchaseFx`: a sparkle burst on the buyer's
+-- plot; VIP and the Starter Bundle also post a system chat line). VIP owners carry a `VIP` player
+-- attribute, which clients turn into the gold [VIP] chat tag.
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local PolicyService = game:GetService("PolicyService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
 local Passes = require(Shared.Config.Passes)
 local Products = require(Shared.Config.Products)
 local Types = require(Shared.Types)
+local Remotes = require(Shared.Remotes)
 local DataService = require(script.Parent.DataService)
 local GrowthService = require(script.Parent.GrowthService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -41,6 +46,22 @@ local function productByDevProductId(id: number): (string?, any)
 	return nil, nil
 end
 
+-- The chat lines everyone sees for the big buys.
+local CHAT_LINES = {
+	VIP = "%s just went VIP!",
+	StarterBundle = "%s grabbed the Starter Bundle!",
+}
+
+-- Shows a Robux purchase to the whole server.
+local function purchaseFx(player: Player, id: string)
+	local line = CHAT_LINES[id]
+	Remotes.get("PurchaseFx"):FireAllClients(player.UserId, if line then string.format(line, player.Name) else nil)
+end
+
+local function markVip(player: Player, data: Types.Profile)
+	player:SetAttribute("VIP", data.ownedPasses.VIP == true)
+end
+
 local function grantPass(player: Player, data: Types.Profile, passId: string, announce: boolean)
 	if data.ownedPasses[passId] then
 		return
@@ -48,6 +69,7 @@ local function grantPass(player: Player, data: Types.Profile, passId: string, an
 	-- Settle at the old speed/luck first (passes change both).
 	GrowthService.settleAndAnnounce(player, data)
 	data.ownedPasses[passId] = true
+	markVip(player, data)
 	if announce then
 		Net.notify(player, (Passes :: any)[passId].name .. " unlocked!", "success")
 	end
@@ -111,6 +133,7 @@ local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
 	if not grantProduct(player, data, productId, product) then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
+	purchaseFx(player, productId)
 	data.processedPurchases[key] = DataService.now()
 	trimReceipts(data)
 	DataService.changed(player)
@@ -134,8 +157,36 @@ local function checkOwnedPasses(player: Player, data: Types.Profile)
 	end
 end
 
+-- Ids still 0 haven't been created in Creator Hub: say so in Studio, so nothing ships unlinked.
+local function warnUnlinked()
+	local missing = {}
+	for passId, pass in Passes do
+		if pass.id == 0 then
+			table.insert(missing, "pass " .. passId)
+		end
+	end
+	for productId, product in Products.robux do
+		if product.id == 0 then
+			table.insert(missing, "product " .. productId)
+		end
+	end
+	if #missing > 0 then
+		table.sort(missing)
+		warn(
+			string.format(
+				"[Monetization] %d not linked (id 0 in Config/Passes.lua / Config/Products.lua): %s",
+				#missing,
+				table.concat(missing, ", ")
+			)
+		)
+	end
+end
+
 function MonetizationService.Init()
 	MarketplaceService.ProcessReceipt = processReceipt
+	if RunService:IsStudio() then
+		warnUnlinked()
+	end
 end
 
 -- PolicyService: in some countries paid random items (and paid odds boosts like the Luck Potion)
@@ -166,6 +217,7 @@ end
 
 function MonetizationService.Start()
 	DataService.Loaded:Connect(function(player, data)
+		markVip(player, data)
 		task.spawn(checkOwnedPasses, player, data)
 		task.spawn(checkPolicy, player)
 	end)
@@ -183,8 +235,9 @@ function MonetizationService.Start()
 		end
 		local data = DataService.get(player)
 		local passId = passByGamePassId(gamePassId)
-		if data and passId then
+		if data and passId and not data.ownedPasses[passId] then
 			grantPass(player, data, passId, true)
+			purchaseFx(player, passId)
 		end
 	end)
 end

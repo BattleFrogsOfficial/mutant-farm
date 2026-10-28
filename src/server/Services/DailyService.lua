@@ -1,13 +1,12 @@
 --!strict
--- Daily login streak. The day index is UTC days since epoch, so it's the same on every server.
+-- Daily login streak, and the VIP pass's daily Gems (claimed from the Daily panel). The day index
+-- is UTC days since epoch, so it's the same on every server.
 
-local GroupService = game:GetService("GroupService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Daily = require(Shared.Config.Daily)
-local GameConfig = require(Shared.Config.Game)
-local Eggs = require(Shared.Config.Eggs)
+local Passes = require(Shared.Config.Passes)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -41,79 +40,23 @@ local function onClaim(player: Player, data: Types.Profile)
 	DataService.changed(player)
 end
 
--- Is the player in the group? GetGroupsAsync isn't cached per session (Player:IsInGroup is), so
--- joining mid-session and tapping Claim works. nil when the check failed.
-local function inGroup(player: Player): boolean?
-	local ok, groups = pcall(GroupService.GetGroupsAsync, GroupService, player.UserId)
-	if not ok then
-		return nil
-	end
-	for _, g in groups do
-		if g.Id == GameConfig.groupId then
-			return true
-		end
-	end
-	return false
-end
-
--- Updates the permanent +10% Cash bonus (data.inGroup). Leaving the group drops it next check.
-local function refreshGroup(player: Player, data: Types.Profile): boolean?
-	local member = inGroup(player)
-	if member == nil or DataService.get(player) ~= data then
-		return nil
-	end
-	if data.inGroup ~= member then
-		data.inGroup = member
-		DataService.changed(player)
-	end
-	return member
-end
-
--- Claim: re-checks membership (turns on the Cash bonus) and gives the one-time eggs.
-local claiming: { [Player]: boolean } = {}
-local function onClaimGroup(player: Player, data: Types.Profile)
-	if GameConfig.groupId == 0 then
-		Net.notify(player, "The group reward isn't set up yet", "info")
+-- VIP: Passes.VIP.dailyGems once per UTC day.
+local function onClaimVipGems(player: Player, data: Types.Profile)
+	if not DataService.vipGemsReady(data) then
 		return
 	end
-	if claiming[player] then
-		return -- the check yields; one at a time per player
+	local gems = Passes.VIP.dailyGems
+	if EconomyService.addGems(player, data, gems, "TimedReward", "VipDaily") then
+		data.vipGemsDay = today()
+		Net.notify(player, string.format("👑 VIP: +%d Gems! Come back tomorrow for more", gems), "success")
 	end
-	claiming[player] = true
-	local member = refreshGroup(player, data)
-	claiming[player] = nil
-	if member == nil then
-		return
-	end
-	if not member then
-		Net.notify(player, "Join our group first, then tap again!", "info")
-		return
-	end
-	if not data.groupRewardClaimed then
-		data.groupRewardClaimed = true
-		for eggId, count in GameConfig.groupReward.eggs or {} do
-			if Eggs.tiers[eggId] then
-				data.eggs[eggId] = (data.eggs[eggId] or 0) + count
-			end
-		end
-	end
-	Net.notify(player, "👥 Thanks for joining! +10% Cash while you're in the group", "success")
-	DataService.changed(player)
 end
 
 function DailyService.Init() end
 
 function DailyService.Start()
 	Net.on("ClaimDaily", onClaim)
-	Net.on("ClaimGroupReward", onClaimGroup)
-	if GameConfig.groupId ~= 0 then
-		DataService.Loaded:Connect(function(player, data)
-			task.spawn(refreshGroup, player, data)
-		end)
-	end
-	game:GetService("Players").PlayerRemoving:Connect(function(player)
-		claiming[player] = nil
-	end)
+	Net.on("ClaimVipGems", onClaimVipGems)
 end
 
 return DailyService

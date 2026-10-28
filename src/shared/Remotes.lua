@@ -25,6 +25,7 @@ Remotes.ClientToServer = {
 	"BuyUpgrade", -- (kind: "growthSpeed" | "mutationOdds") Cash upgrade
 	"ClaimGroupReward", -- ()
 	"Pin", -- (itemId: string, on: boolean) keep a bag mutant in the pen
+	"ClaimVipGems", -- () VIP pass: the daily Gems
 }
 
 -- server -> client
@@ -37,6 +38,8 @@ Remotes.ServerToClient = {
 	"WelcomeBack", -- ({ away, ready, mutations, capped, earned, autoHarvested })
 	"Rebirthed", -- (rebirths: number) celebration after a rebirth
 	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
+	"GroupOffer", -- () first sale: offer the group (once)
+	"PurchaseFx", -- (userId: number, chatLine: string?) to everyone: sparkle on the buyer's plot
 	"Leaderboards", -- ({ pens: { Leaderboards.Entry }, rebirths: { ... } }) top 100 of each, every 120 s
 }
 

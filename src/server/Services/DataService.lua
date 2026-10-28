@@ -73,6 +73,8 @@ local TEMPLATE: Types.Profile = {
 	almanacRewards = 0,
 	inGroup = false,
 	almanacLuck = 0,
+	groupOffered = false, -- the group offer was shown (once, at the first sale)
+	vipGemsDay = 0, -- UTC day of the last VIP daily Gems claim
 }
 
 local store = ProfileStore.New("PlayerData_v1", TEMPLATE)
@@ -180,6 +182,11 @@ function DataService.dailyStatus(data: Types.Profile): { day: number, canClaim: 
 	return { day = day, canClaim = canClaim, streak = streak }
 end
 
+-- VIP pass owners can claim Passes.VIP.dailyGems once per UTC day.
+function DataService.vipGemsReady(data: Types.Profile): boolean
+	return data.ownedPasses.VIP == true and data.vipGemsDay < math.floor(DataService.now() / 86400)
+end
+
 -- What the owning client is allowed to see. Rarity isn't sent, but `required` scales with rarity,
 -- so an accurate timer implies it (a deliberate trade-off: "this one's taking longer...").
 local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
@@ -227,6 +234,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		almanacLuck = data.almanacLuck,
 		ownedPasses = data.ownedPasses,
 		rebirthCost = Costs.rebirth(data.rebirths),
+		vipGemsReady = DataService.vipGemsReady(data),
 		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt
 			then 0
 			else data.bundleOfferEndsAt,

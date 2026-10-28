@@ -508,6 +508,17 @@ set(State.panel, "almanac")
 capture("almanac")
 set(State.panel, "daily")
 capture("daily")
+do -- a VIP owner with today's Gems to claim
+	local vip = table.clone(snapshot)
+	vip.ownedPasses = { VIP = true }
+	vip.vipGemsReady = true
+	vip.inGroup = false
+	set(State.snapshot, vip)
+	capture("daily-vip")
+	set(State.snapshot, snapshot)
+end
+set(State.panel, "groupOffer")
+capture("groupOffer")
 set(State.welcome, { away = 3 * 3600 + 720, ready = 6, mutations = 4, capped = true, earned = 128_400 })
 set(State.panel, "welcome")
 capture("welcome")

@@ -1,12 +1,14 @@
 --!strict
 -- Daily reward calendar: 7 tiles (claimed / today / upcoming) and a big claim button.
--- Missing a day resets the streak, so the panel says so.
+-- Missing a day resets the streak, so the panel says so. Under the calendar: the group reward
+-- strip (until claimed) and, for VIP owners, the VIP strip with the daily 50 Gems.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
+local Passes = require(ReplicatedStorage.Shared.Config.Passes)
 local Daily = require(Shared.Config.Daily)
 local Remotes = require(Shared.Remotes)
 local MutantModel = require(Shared.MutantModel)
@@ -129,8 +131,8 @@ end
 return function()
 	local tiles: { any } = {
 		New("UIGridLayout")({
-			CellSize = UDim2.fromOffset(112, 112),
-			CellPadding = UDim2.fromOffset(12, 12),
+			CellSize = UDim2.fromOffset(100, 100),
+			CellPadding = UDim2.fromOffset(10, 10),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		}),
@@ -163,55 +165,117 @@ return function()
 			}),
 			New("Frame")({
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(0, 36),
-				Size = UDim2.new(1, 0, 0, 236),
+				Position = UDim2.fromOffset(0, 34),
+				Size = UDim2.new(1, 0, 0, 210),
 				ZIndex = 2,
 				[Children] = tiles,
 			}),
-			-- Group reward (the codes replacement): join the Roblox group, claim once.
+			-- Strips under the calendar; hidden ones take no room.
 			New("Frame")({
-				Name = "Group",
-				Position = UDim2.fromOffset(0, 282),
-				Size = UDim2.new(1, 0, 0, 40),
-				BackgroundColor3 = Theme.colors.panelHi,
-				BorderSizePixel = 0,
-				Visible = Computed(function()
-					local snap = State.snapshot:get()
-					-- Until they're in the group with the eggs claimed (leaving the group brings it back).
-					return GameConfig.groupId ~= 0
-						and snap ~= nil
-						and not (snap.inGroup == true and snap.groupRewardClaimed == true)
-				end),
+				Name = "Strips",
+				BackgroundTransparency = 1,
+				Position = UDim2.fromOffset(0, 252),
+				Size = UDim2.new(1, 0, 0, 78),
 				ZIndex = 2,
 				[Children] = {
-					C.stroke(Theme.colors.ink, 2.5),
-					C.label({
-						Text = (function()
-							local parts = {
-								string.format("+%d%% CASH FOREVER", math.floor(GameConfig.groupCashBonus * 100 + 0.5)),
-							}
-							for eggId, count in GameConfig.groupReward.eggs or {} do
-								table.insert(parts, count .. " " .. string.upper(eggId) .. " EGGS")
-							end
-							return "👥 JOIN OUR GROUP: " .. table.concat(parts, " + ")
-						end)(),
-						Position = UDim2.fromOffset(10, 8),
-						Size = UDim2.new(1, -150, 1, -16),
-						TextXAlignment = Enum.TextXAlignment.Left,
-						MaxTextSize = 15,
-						ZIndex = 3,
+					New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) }),
+					-- Group reward (the codes replacement): join the Roblox group, claim once.
+					New("Frame")({
+						Name = "Group",
+						LayoutOrder = 1,
+						Size = UDim2.new(1, 0, 0, 36),
+						BackgroundColor3 = Theme.colors.panelHi,
+						BorderSizePixel = 0,
+						Visible = Computed(function()
+							local snap = State.snapshot:get()
+							-- Until they're in the group with the eggs claimed (leaving the group brings it back).
+							return GameConfig.groupId ~= 0
+								and snap ~= nil
+								and not (snap.inGroup == true and snap.groupRewardClaimed == true)
+						end),
+						ZIndex = 2,
+						[Children] = {
+							C.stroke(Theme.colors.ink, 2.5),
+							C.label({
+								Text = (function()
+									local parts = {
+										string.format(
+											"+%d%% CASH FOREVER",
+											math.floor(GameConfig.groupCashBonus * 100 + 0.5)
+										),
+									}
+									for eggId, count in GameConfig.groupReward.eggs or {} do
+										table.insert(parts, count .. " " .. string.upper(eggId) .. " EGGS")
+									end
+									return "👥 JOIN OUR GROUP: " .. table.concat(parts, " + ")
+								end)(),
+								Position = UDim2.fromOffset(10, 8),
+								Size = UDim2.new(1, -150, 1, -16),
+								TextXAlignment = Enum.TextXAlignment.Left,
+								MaxTextSize = 15,
+								ZIndex = 3,
+							}),
+							C.button({
+								AnchorPoint = Vector2.new(1, 0.5),
+								Position = UDim2.new(1, -6, 0.5, 0),
+								Size = UDim2.fromOffset(120, 34),
+								Color = Theme.colors.navy,
+								Text = "CLAIM",
+								MaxTextSize = 16,
+								ZIndex = 4,
+								OnClick = function()
+									Remotes.get("ClaimGroupReward"):FireServer()
+								end,
+							}),
+						},
 					}),
-					C.button({
-						AnchorPoint = Vector2.new(1, 0.5),
-						Position = UDim2.new(1, -6, 0.5, 0),
-						Size = UDim2.fromOffset(120, 34),
-						Color = Theme.colors.navy,
-						Text = "CLAIM",
-						MaxTextSize = 16,
-						ZIndex = 4,
-						OnClick = function()
-							Remotes.get("ClaimGroupReward"):FireServer()
-						end,
+					-- VIP: 50 Gems every day (VIP owners only).
+					New("Frame")({
+						Name = "Vip",
+						LayoutOrder = 2,
+						Size = UDim2.new(1, 0, 0, 36),
+						BackgroundColor3 = Theme.colors.panelHi,
+						BorderSizePixel = 0,
+						Visible = Computed(function()
+							local snap = State.snapshot:get()
+							return snap ~= nil and snap.ownedPasses ~= nil and snap.ownedPasses.VIP == true
+						end),
+						ZIndex = 2,
+						[Children] = {
+							C.stroke(Theme.colors.gold, 2.5),
+							C.label({
+								Text = string.format("👑 VIP: %d GEMS EVERY DAY", Passes.VIP.dailyGems),
+								Position = UDim2.fromOffset(10, 7),
+								Size = UDim2.new(1, -150, 1, -14),
+								TextXAlignment = Enum.TextXAlignment.Left,
+								TextColor3 = Theme.colors.gold,
+								MaxTextSize = 15,
+								ZIndex = 3,
+							}),
+							C.button({
+								AnchorPoint = Vector2.new(1, 0.5),
+								Position = UDim2.new(1, -6, 0.5, 0),
+								Size = UDim2.fromOffset(120, 30),
+								Color = Theme.colors.navy,
+								MaxTextSize = 15,
+								ZIndex = 4,
+								Pulse = Computed(function()
+									local snap = State.snapshot:get()
+									return snap ~= nil and snap.vipGemsReady == true
+								end),
+								Disabled = Computed(function()
+									local snap = State.snapshot:get()
+									return not (snap ~= nil and snap.vipGemsReady == true)
+								end),
+								Text = Computed(function()
+									local snap = State.snapshot:get()
+									return if snap ~= nil and snap.vipGemsReady == true then "CLAIM 💎" else "CLAIMED"
+								end),
+								OnClick = function()
+									Remotes.get("ClaimVipGems"):FireServer()
+								end,
+							}),
+						},
 					}),
 				},
 			}),

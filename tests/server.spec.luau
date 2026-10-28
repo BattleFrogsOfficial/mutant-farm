@@ -170,6 +170,89 @@ return function(t)
 			t.eq(players[2]:FindFirstChild("leaderstats"):FindFirstChild("Rebirths").Value, 5)
 		end,
 
+		["VIP daily Gems: claim once per UTC day"] = function()
+			local world = t.server({ now = 1_800_000_000 - 1_800_000_000 % 86400 + 3600 })
+			local player, data = world:join(1, { ownedPasses = { VIP = true } })
+			t.eq(player:GetAttribute("VIP"), true, "chat tag attribute")
+			world:send(player, "ClaimVipGems")
+			t.eq(data.gems, 50)
+			world:send(player, "ClaimVipGems")
+			t.eq(data.gems, 50, "second claim the same day")
+			world:advance(86400)
+			world:send(player, "ClaimVipGems")
+			t.eq(data.gems, 100, "next day")
+			-- Not VIP: nothing.
+			local other, otherData = world:join(2)
+			world:send(other, "ClaimVipGems")
+			t.eq(otherData.gems, 0)
+			t.eq(other:GetAttribute("VIP"), false)
+		end,
+
+		["buying VIP: sparkle for everyone, a chat line, the tag"] = function()
+			local world = t.server()
+			world.modules("src/shared/Config/Passes").VIP.id = 4242
+			local player, data = world:join(7)
+			world.services.MarketplaceService.PromptGamePassPurchaseFinished:Fire(player, 4242, true)
+			world:runDue()
+			t.ok(data.ownedPasses.VIP)
+			t.eq(player:GetAttribute("VIP"), true)
+			local fx
+			for _, m in world.broadcast do
+				if m.name == "PurchaseFx" then
+					fx = m.args
+				end
+			end
+			t.ok(fx, "PurchaseFx sent to all")
+			t.eq(fx[1], 7)
+			t.eq(fx[2], "Player7 just went VIP!")
+			world.modules("src/shared/Config/Passes").VIP.id = 0
+		end,
+
+		["group: offered once at the first sell; joining mid-session pays on the next sell"] = function()
+			local world = t.server({ groupId = 777 })
+			local inventory = {}
+			for i = 1, 3 do
+				inventory[tostring(i)] = mutant(i, "Swamp", "Common")
+			end
+			local player, data = world:join(1, { inventory = inventory, nextItemId = 4 })
+			t.eq(data.inGroup, false)
+			world:send(player, "Sell", "1")
+			t.eq(#world:received(player, "GroupOffer"), 1, "offered at the first sell")
+			world:advance(60)
+			world:send(player, "Sell", "2")
+			t.eq(#world:received(player, "GroupOffer"), 1, "only once")
+			-- Joins the group mid-session (not via the offer): the next sell re-checks and pays +10%.
+			world.groups[1] = { 777 }
+			world:advance(60)
+			local cash = data.cash
+			world:send(player, "Sell", "3")
+			t.eq(data.inGroup, true)
+			t.eq(data.cash - cash, math.floor(900 * 1.1))
+			-- Claim gives the eggs once.
+			world:send(player, "ClaimGroupReward")
+			t.eq(data.eggs.Swamp, 2)
+			t.eq(data.groupRewardClaimed, true)
+			-- A member is checked with IsInGroup on join.
+			world:leave(player)
+			world.groups[1] = {}
+			local _, back = world:join(1)
+			t.eq(back.inGroup, false, "left the group: bonus off at next join")
+		end,
+
+		["Studio warns about every pass/product whose id is still 0"] = function()
+			local world = t.server()
+			local found
+			for _, w in world.warnings do
+				if w:find("not linked", 1, true) then
+					found = w
+				end
+			end
+			t.ok(found, "warning printed")
+			for _, name in { "pass VIP", "pass Luck2x", "product Gems100", "product StarterBundle" } do
+				t.ok(found:find(name, 1, true), name .. " listed")
+			end
+		end,
+
 		["Auto-Harvest offline: 3 h of 5-minute eggs fills the bag and spends Cash"] = function()
 			local world = t.server()
 			local player, data = world:join(1, {

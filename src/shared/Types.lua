@@ -67,6 +67,8 @@ export type Profile = {
 	almanacRewards: number, -- Almanac milestones already paid
 	inGroup: boolean, -- group member as of the last check (join / Claim): +10% Cash
 	almanacLuck: number, -- permanent luck bonus from Almanac milestones (0.1 = +10%)
+	groupOffered: boolean, -- the group offer was shown (once, at the first sale)
+	vipGemsDay: number, -- UTC day of the last VIP daily Gems claim
 }
 
 export type SlotView = {
@@ -109,6 +111,7 @@ export type Snapshot = {
 	almanacRewards: number,
 	inGroup: boolean,
 	almanacLuck: number,
+	vipGemsReady: boolean, -- VIP pass: today's Gems can be claimed
 }
 
 return {}

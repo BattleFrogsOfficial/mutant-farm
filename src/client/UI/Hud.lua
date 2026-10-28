@@ -421,7 +421,7 @@ end
 local function dailyButton()
 	local ready = Computed(function()
 		local snap = State.snapshot:get()
-		return snap ~= nil and snap.daily ~= nil and snap.daily.canClaim
+		return snap ~= nil and (snap.daily ~= nil and snap.daily.canClaim or snap.vipGemsReady == true)
 	end)
 	return iconButton("Daily", "🎁", 70, ready, function()
 		openPanel("daily")
