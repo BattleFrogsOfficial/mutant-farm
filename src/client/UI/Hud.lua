@@ -1,7 +1,8 @@
 --!strict
 -- Always-on HUD, laid out in fixed zones on the 900x540 design canvas so nothing can overlap:
---   top center    Cash pill (rolling counter) + income chip, Bag pill
---   left column   Daily reward tile, Almanac tile (badges, alert dots, pulses)
+--   top bar       Cash box (rolling counter + payout bar with $/min) and Bag box, at the very top
+--                 of the screen (the ScreenGui ignores the top-bar inset; Roblox's buttons are left)
+--   left edge     Daily reward and Almanac tiles, vertically centered (badges, alerts, pulses)
 --   bottom left   NEXT UP quest card with progress
 --   bottom center egg tray with live 3D eggs
 --   bottom right  HATCH (pulses when eggs are ready) and WATER (drain bar)
@@ -41,25 +42,28 @@ local almanacCount = Computed(function()
 	return n
 end)
 
----------------------------------------------------------------------------- top
+---------------------------------------------------------------------------- top bar
 
+-- Square gold coin badge with a "$" (left end of the Cash box).
 local function coin(size: number)
 	return New("Frame")({
 		Name = "Coin",
 		Size = UDim2.fromOffset(size, size),
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 7, 0.5, 0),
+		Position = UDim2.new(0, 13, 0.5, 0),
 		BackgroundColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		Rotation = 0,
 		ZIndex = 2,
 		[Children] = {
-			C.round(),
-			C.stroke(Theme.colors.goldDark, 3),
+			C.stroke(Theme.colors.ink, 3),
 			C.gradient(Color3.fromHex("#FFE58A"), Theme.colors.gold),
+			C.bevel(3, 0.45),
 			C.label({
 				Text = "$",
 				Size = UDim2.fromScale(1, 1),
-				MaxTextSize = 28,
-				TextColor3 = Theme.colors.goldDark,
+				MaxTextSize = 30,
+				TextColor3 = Color3.fromHex("#8A5A12"),
 				StrokeThickness = 0,
 				ZIndex = 3,
 			}),
@@ -80,9 +84,14 @@ end)
 local payoutFlash = Computed(function()
 	return State.clock:get() - State.lastPayout:get().at < 0.7
 end)
+local income = Computed(function()
+	local snap = State.snapshot:get()
+	return if snap then snap.incomePerMinute or 0 else 0
+end)
 
-local function cashPill()
-	-- The number rolls up/down instead of jumping, and the pill bumps when it goes up.
+-- Cash box: the balance (rolls instead of jumping) over a payout bar that fills toward the next
+-- pen payout and reads "+$X / min · 0:21". "+$" pops drop out underneath when cash goes up.
+local function cashBox()
 	local rolling = Spring(State.cash, 12, 1)
 	-- Don't count up from $0 on join: jump straight to the first real balance.
 	local snapped = false
@@ -94,70 +103,83 @@ local function cashPill()
 	end)
 	local bump = Fusion.Value(0)
 	local bumpSpring = Spring(bump, 30, 0.45)
-	local pill = C.pill({
+	local box = C.pill({
 		Name = "Cash",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, -72, 0, 8),
-		Size = UDim2.fromOffset(268, 58),
-		Rim = Theme.colors.toxic,
+		Position = UDim2.new(0.5, -82, 0, 8),
+		Size = UDim2.fromOffset(300, 66),
+		Rim = Theme.colors.gold,
 		Children = {
 			New("UIScale")({
 				Scale = Computed(function()
-					return 1 + bumpSpring:get() * 0.08
+					return 1 + bumpSpring:get() * 0.06
 				end),
 			}),
-			coin(44),
+			coin(42),
 			C.label({
-				Size = UDim2.new(1, -70, 1, -20),
-				Position = UDim2.fromOffset(58, 5),
+				Name = "Amount",
+				Size = UDim2.new(1, -80, 0, 32),
+				Position = UDim2.fromOffset(66, 5),
 				TextColor3 = Theme.colors.toxic,
 				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 36,
+				MaxTextSize = 32,
 				StrokeThickness = 3,
 				ZIndex = 2,
 				Text = Computed(function()
 					return Format.cash(math.floor(rolling:get() + 0.5))
 				end),
 			}),
-			-- Fills up toward the next pen payout, flashes gold when it pays.
 			New("Frame")({
 				Name = "PayoutBar",
-				Position = UDim2.new(0, 58, 1, -14),
-				Size = UDim2.new(1, -76, 0, 8),
-				BackgroundColor3 = Theme.colors.slate,
-				Visible = Computed(function()
-					local snap = State.snapshot:get()
-					return snap ~= nil and (snap.incomePerMinute or 0) > 0
-				end),
+				Position = UDim2.new(0, 66, 1, -25),
+				Size = UDim2.new(1, -78, 0, 18),
+				BackgroundColor3 = Theme.colors.ink,
+				BorderSizePixel = 0,
 				ZIndex = 2,
 				[Children] = {
-					C.round(),
 					New("Frame")({
 						Name = "Fill",
+						BorderSizePixel = 0,
 						BackgroundColor3 = Color3.new(1, 1, 1),
 						Size = Computed(function()
-							return UDim2.fromScale(math.max(payoutProgress:get(), 0.03), 1)
+							return UDim2.fromScale(if income:get() > 0 then payoutProgress:get() else 0, 1)
 						end),
 						ZIndex = 3,
-						[Children] = {
-							C.round(),
-							New("UIGradient")({
-								Rotation = 90,
-								Color = Computed(function()
-									if payoutFlash:get() then
-										return ColorSequence.new(Color3.fromHex("#FFF3A8"), Theme.colors.gold)
-									end
-									return ColorSequence.new(Color3.fromHex("#B8FF8A"), Theme.colors.toxicDark)
-								end),
-							}),
-						},
+						[Children] = New("UIGradient")({
+							Rotation = 90,
+							Color = Computed(function()
+								if payoutFlash:get() then
+									return ColorSequence.new(Color3.fromHex("#FFF3A8"), Theme.colors.gold)
+								end
+								return ColorSequence.new(Color3.fromHex("#9BEA6A"), Theme.colors.toxicDark)
+							end),
+						}),
+					}),
+					C.label({
+						Name = "Rate",
+						Size = UDim2.new(1, -10, 1, -4),
+						Position = UDim2.fromOffset(5, 2),
+						MaxTextSize = 13,
+						StrokeThickness = 1.5,
+						ZIndex = 4,
+						Text = Computed(function()
+							if income:get() <= 0 then
+								return "HATCH MUTANTS TO EARN / MIN"
+							end
+							State.now:get() -- tick the countdown
+							local snap = State.snapshot:get(false)
+							local left = if snap
+								then math.max(0, snap.nextPayoutAt - workspace:GetServerTimeNow())
+								else 0
+							return string.format("+%s / MIN  ·  %s", Format.cash(income:get()), Format.duration(left))
+						end),
 					}),
 				},
 			}),
 		},
 	})
 
-	-- "+$1.2K" pops out under the pill whenever Cash goes up. Skip the first snapshot.
+	-- "+$1.2K" pops out under the box whenever Cash goes up. Skip the first snapshot.
 	local last: number? = nil
 	Observer(State.cash):onChange(function()
 		local now = State.cash:get(false)
@@ -178,16 +200,16 @@ local function cashPill()
 			Text = "+" .. Format.cash(gained) .. (if fromPen then " 🐾" else ""),
 			TextColor3 = Theme.colors.gold,
 			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0.5, 0, 1, 18),
-			Size = UDim2.fromOffset(220, 38),
-			MaxTextSize = 32,
+			Position = UDim2.new(0.5, 0, 1, 20),
+			Size = UDim2.fromOffset(220, 34),
+			MaxTextSize = 28,
 			StrokeThickness = 3,
 			ZIndex = 8,
 		})
 		local scale = Instance.new("UIScale")
 		scale.Scale = 0.3
 		scale.Parent = pop
-		pop.Parent = pill
+		pop.Parent = box
 		TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
 			:Play()
 		TweenService:Create(pop, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -198,110 +220,83 @@ local function cashPill()
 			pop:Destroy()
 		end)
 	end)
-	return pill
+	return box
 end
 
-local function incomeChip()
-	local income = Computed(function()
-		local snap = State.snapshot:get()
-		return if snap then snap.incomePerMinute or 0 else 0
-	end)
-	return New("Frame")({
-		Name = "Income",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, -72, 0, 70),
-		Size = UDim2.fromOffset(236, 26),
-		BackgroundColor3 = Theme.colors.slate,
-		BackgroundTransparency = 0.15,
-		Visible = Computed(function()
-			return State.snapshot:get() ~= nil
-		end),
-		[Children] = {
-			C.round(),
-			C.label({
-				Size = UDim2.new(1, -16, 1, -4),
-				Position = UDim2.fromOffset(8, 2),
-				TextColor3 = Computed(function()
-					return if income:get() > 0 then Theme.colors.toxic else Theme.colors.cream
-				end),
-				MaxTextSize = 18,
-				Text = Computed(function()
-					if income:get() <= 0 then
-						return "🐾 Keep mutants to earn per minute"
-					end
-					State.now:get() -- tick the countdown
-					local snap = State.snapshot:get(false)
-					local left = if snap then math.max(0, snap.nextPayoutAt - workspace:GetServerTimeNow()) else 0
-					return string.format("🐾 %s / min  ·  %s", Format.cash(income:get()), Format.duration(left))
-				end),
-			}),
-		},
-	})
-end
-
-local function bagPill()
-	local fill = Computed(function()
+local function bagBox()
+	local count = Computed(function()
 		local snap = State.snapshot:get()
 		if not snap then
-			return 0
+			return { n = 0, cap = 1 }
 		end
 		local n = 0
 		for _ in snap.inventory do
 			n += 1
 		end
-		return n / snap.inventoryCap
+		return { n = n, cap = snap.inventoryCap }
+	end)
+	local fill = Computed(function()
+		local c = count:get()
+		return c.n / math.max(c.cap, 1)
+	end)
+	local accent = Computed(function()
+		return if fill:get() >= 0.9 then Theme.colors.danger else Theme.colors.purple
 	end)
 	return C.pill({
 		Name = "Bag",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 148, 0, 12),
-		Size = UDim2.fromOffset(150, 50),
-		Rim = Computed(function()
-			return if fill:get() >= 0.9 then Theme.colors.danger else Theme.colors.purple
-		end),
+		Position = UDim2.new(0.5, 160, 0, 8),
+		Size = UDim2.fromOffset(160, 66),
+		Rim = accent,
 		Children = {
-			C.label({
-				Text = "🎒",
-				Size = UDim2.fromOffset(34, 34),
-				Position = UDim2.new(0, 8, 0.5, -17),
-				MaxTextSize = 26,
+			New("Frame")({
+				Name = "Icon",
+				AnchorPoint = Vector2.new(0, 0.5),
+				Position = UDim2.new(0, 13, 0.5, 0),
+				Size = UDim2.fromOffset(42, 42),
+				BackgroundColor3 = accent,
+				BorderSizePixel = 0,
 				ZIndex = 2,
+				[Children] = {
+					C.stroke(Theme.colors.ink, 3),
+					C.bevel(3, 0.55),
+					C.label({ Text = "🎒", Size = UDim2.fromScale(1, 1), MaxTextSize = 24, ZIndex = 3 }),
+				},
 			}),
 			C.label({
-				Size = UDim2.new(1, -54, 0, 26),
-				Position = UDim2.fromOffset(46, 6),
-				MaxTextSize = 22,
+				Size = UDim2.new(1, -78, 0, 30),
+				Position = UDim2.fromOffset(66, 6),
+				MaxTextSize = 24,
 				TextXAlignment = Enum.TextXAlignment.Left,
 				ZIndex = 2,
 				Text = Computed(function()
-					local snap = State.snapshot:get()
-					if not snap then
-						return ""
-					end
-					local n = 0
-					for _ in snap.inventory do
-						n += 1
-					end
-					return string.format("%d/%d", n, snap.inventoryCap)
+					local c = count:get()
+					return string.format("%d/%d", c.n, c.cap)
 				end),
 			}),
 			New("Frame")({
 				Name = "Fill",
-				Position = UDim2.new(0, 46, 1, -14),
-				Size = UDim2.new(1, -60, 0, 6),
-				BackgroundColor3 = Theme.colors.slate,
+				Position = UDim2.new(0, 66, 1, -25),
+				Size = UDim2.new(1, -78, 0, 18),
+				BackgroundColor3 = Theme.colors.ink,
+				BorderSizePixel = 0,
 				ZIndex = 2,
 				[Children] = {
-					C.round(),
 					New("Frame")({
+						BorderSizePixel = 0,
 						Size = Computed(function()
 							return UDim2.fromScale(math.clamp(fill:get(), 0, 1), 1)
 						end),
-						BackgroundColor3 = Computed(function()
-							return if fill:get() >= 0.9 then Theme.colors.danger else Theme.colors.purple
-						end),
+						BackgroundColor3 = accent,
 						ZIndex = 3,
-						[Children] = C.round(),
+					}),
+					C.label({
+						Text = "BAG",
+						Size = UDim2.new(1, -10, 1, -4),
+						Position = UDim2.fromOffset(5, 2),
+						MaxTextSize = 13,
+						StrokeThickness = 1.5,
+						ZIndex = 4,
 					}),
 				},
 			}),
@@ -322,15 +317,20 @@ local function sideMenu()
 	end)
 	return New("Frame")({
 		Name = "Menu",
-		Position = UDim2.fromOffset(14, 104),
-		Size = UDim2.fromOffset(92, 220),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 14, 0.5, -24),
+		Size = UDim2.fromOffset(150, 190),
 		BackgroundTransparency = 1,
 		[Children] = {
-			New("UIListLayout")({ Padding = UDim.new(0, 22), SortOrder = Enum.SortOrder.LayoutOrder }),
+			New("UIListLayout")({
+				Padding = UDim.new(0, 18),
+				SortOrder = Enum.SortOrder.LayoutOrder,
+				VerticalAlignment = Enum.VerticalAlignment.Center,
+			}),
 			C.tile({
 				Name = "Daily",
 				Icon = "🎁",
-				Label = "Daily",
+				Label = "DAILY",
 				Color = Theme.colors.danger,
 				LayoutOrder = 1,
 				Alert = dailyReady,
@@ -338,8 +338,8 @@ local function sideMenu()
 					local snap = State.snapshot:get()
 					local streak = if snap and snap.daily then snap.daily.streak else 0
 					return if streak > 0
-						then "🔥 " .. streak .. " day" .. (if streak == 1 then "" else "s")
-						else "Claim!"
+						then "🔥 " .. streak .. (if streak == 1 then " DAY" else " DAYS")
+						else "CLAIM!"
 				end),
 				Selected = Computed(function()
 					return State.panel:get() == "daily"
@@ -351,7 +351,7 @@ local function sideMenu()
 			C.tile({
 				Name = "Almanac",
 				Icon = "📖",
-				Label = "Almanac",
+				Label = "ALMANAC",
 				Color = Theme.colors.purple,
 				LayoutOrder = 2,
 				Alert = almanacNew,
@@ -430,7 +430,6 @@ local function eggCard(eggId: string, count: number)
 						BackgroundColor3 = Theme.colors.slate,
 						ZIndex = 5,
 						[Children] = {
-							C.round(),
 							C.label({ Text = "x" .. count, Size = UDim2.fromScale(1, 1), MaxTextSize = 16, ZIndex = 6 }),
 						},
 					}),
@@ -463,7 +462,6 @@ local function eggTray()
 				BackgroundTransparency = 0.12,
 				ZIndex = 1,
 				[Children] = {
-					C.corner(22),
 					C.stroke(Theme.colors.slate, 3),
 					C.gradient(Theme.colors.slateLight, Theme.colors.slate),
 				},
@@ -476,7 +474,6 @@ local function eggTray()
 				BackgroundColor3 = Theme.colors.toxicDark,
 				ZIndex = 3,
 				[Children] = {
-					C.round(),
 					C.stroke(Theme.colors.slate, 2.5),
 					C.label({
 						Size = UDim2.new(1, -16, 1, -4),
@@ -614,7 +611,6 @@ local function actionButtons()
 					BackgroundTransparency = 0.25,
 					Visible = watering,
 					ZIndex = 4,
-					[Children] = C.round(),
 				}),
 			}),
 		},
@@ -648,7 +644,6 @@ local function nextUp()
 				BackgroundColor3 = Color3.new(1, 1, 1),
 				ZIndex = 1,
 				[Children] = {
-					C.corner(18),
 					C.stroke(Theme.colors.toxic, 3),
 					C.gradient(Theme.colors.slateLight, Theme.colors.slate),
 				},
@@ -660,7 +655,6 @@ local function nextUp()
 				BackgroundColor3 = Theme.colors.toxic,
 				ZIndex = 3,
 				[Children] = {
-					C.round(),
 					C.stroke(Theme.colors.slate, 2.5),
 					C.label({
 						Text = "⭐ NEXT UP",
@@ -692,7 +686,6 @@ local function nextUp()
 				end),
 				ZIndex = 2,
 				[Children] = {
-					C.round(),
 					C.stroke(Theme.colors.slate, 2),
 					New("Frame")({
 						BackgroundColor3 = Color3.new(1, 1, 1),
@@ -700,7 +693,7 @@ local function nextUp()
 							return UDim2.fromScale(math.clamp(progress:get(), 0.04, 1), 1)
 						end),
 						ZIndex = 3,
-						[Children] = { C.round(), C.gradient(Color3.fromHex("#B8FF8A"), Theme.colors.toxicDark) },
+						[Children] = C.gradient(Color3.fromHex("#B8FF8A"), Theme.colors.toxicDark),
 					}),
 				},
 			}),
@@ -709,5 +702,5 @@ local function nextUp()
 end
 
 return function()
-	return { cashPill(), incomeChip(), bagPill(), sideMenu(), eggTray(), actionButtons(), nextUp() }
+	return { cashBox(), bagBox(), sideMenu(), eggTray(), actionButtons(), nextUp() }
 end

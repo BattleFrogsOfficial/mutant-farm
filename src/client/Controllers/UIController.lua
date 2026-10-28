@@ -23,6 +23,9 @@ function UIController.Start()
 	local gui = New("ScreenGui")({
 		Name = "MutantFarm",
 		ResetOnSpawn = false,
+		-- Use the whole screen: the currency bar sits in the top strip, centered, clear of
+		-- Roblox's own buttons at the top-left.
+		IgnoreGuiInset = true,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
 		[Children] = New("Frame")({
@@ -40,7 +43,7 @@ function UIController.Start()
 		}),
 	})
 
-	-- Scale from the area the GUI can actually use (below the top bar), not the raw viewport.
+	-- Scale from the area the GUI actually covers (the full screen, with IgnoreGuiInset).
 	local function updateScale()
 		local size = gui.AbsoluteSize
 		if size.X < 1 or size.Y < 1 then

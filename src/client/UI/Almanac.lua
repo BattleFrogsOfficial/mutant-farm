@@ -70,7 +70,6 @@ local function chip(text: string, color: Color3, order: number)
 		BackgroundColor3 = color,
 		ZIndex = 12,
 		[Children] = {
-			C.round(),
 			C.stroke(Theme.colors.slate, 2),
 			New("UIPadding")({ PaddingLeft = UDim.new(0, 12), PaddingRight = UDim.new(0, 12) }),
 			New("TextLabel")({
@@ -118,7 +117,6 @@ local function detailPage(id: string, entry: { n: number, first: number, best: n
 			BackgroundColor3 = Theme.colors.slate,
 			ZIndex = 11,
 			[Children] = {
-				C.corner(18),
 				C.stroke(rarityColor, 3),
 				New("UIGradient")({
 					Rotation = 90,
@@ -204,7 +202,6 @@ local function detailPage(id: string, entry: { n: number, first: number, best: n
 					BackgroundColor3 = Theme.colors.purpleDark,
 					ZIndex = 12,
 					[Children] = {
-						C.corner(12),
 						C.padding(10),
 						New("TextLabel")({
 							BackgroundTransparency = 1,
@@ -282,7 +279,6 @@ local function card(id: string, order: number, entry: any, onOpen: (string) -> (
 					Size = UDim2.new(0.6, 0, 0, 4),
 					BackgroundColor3 = rarityColor,
 					ZIndex = 3,
-					[Children] = C.round(),
 				}),
 				found and C.label({
 					Text = "x" .. entry.n,
@@ -408,14 +404,13 @@ return function()
 				BackgroundColor3 = Theme.colors.slate,
 				ZIndex = 11,
 				[Children] = {
-					C.round(),
 					New("Frame")({
 						BackgroundColor3 = Theme.colors.toxic,
 						Size = Computed(function()
 							return UDim2.fromScale(foundCount:get() / TOTAL, 1)
 						end),
 						ZIndex = 12,
-						[Children] = { C.round(), C.shine() },
+						[Children] = C.shine(),
 					}),
 				},
 			}),

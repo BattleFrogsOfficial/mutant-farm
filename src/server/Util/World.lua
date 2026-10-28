@@ -1,8 +1,14 @@
 --!strict
--- Builds the whole map in code: a round grass valley walled in by a fence and rocks, a slime
--- lake beyond it, the hub (fountain, Egg Shop stall, Sell stand) and a ring of fenced farm plots.
+-- Builds the whole map in code: a round grass valley closed in by a hedge wall and mountains,
+-- the hub (fountain, Egg Shop and Sell buildings with step-on pads) and a ring of fenced plots.
 -- Keeping the map in code means the repo is the single source of truth (no .rbxl to merge).
--- Labels are SurfaceGuis on physical signs, never floating billboards.
+--
+-- Rules the layout follows (tools/preview/check.luau verifies them):
+--   * Every prop is its own Model, and props never intersect each other.
+--   * Ground layers never share a surface height (no z-fighting). Layer tops, in studs:
+--       valley 0, path 0.25, plaza 0.45, plot base 0.5, pen floor 0.65, lawn 0.7, soil 0.95
+--     Each layer is thick and sinks into the one below, so no thin floating edges.
+--   * Labels are SurfaceGuis on the face that looks at the viewer (Front = -Z).
 
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,6 +16,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
 local Upgrades = require(ReplicatedStorage.Shared.Config.Upgrades)
 local Rng = require(ReplicatedStorage.Shared.Rng)
+local MutantModel = require(ReplicatedStorage.Shared.MutantModel)
+local Mutants = require(ReplicatedStorage.Shared.Config.Mutants)
 
 local World = {}
 
@@ -27,33 +35,71 @@ local COLORS = {
 	grass = Color3.fromHex("#7FCB5E"),
 	plotGrass = Color3.fromHex("#9BE07A"),
 	soil = Color3.fromHex("#5B3A24"),
-	bed = Color3.fromHex("#7A5434"),
 	path = Color3.fromHex("#E8DDBF"),
 	cream = Color3.fromHex("#FFF4D6"),
 	wood = Color3.fromHex("#A8754A"),
 	darkWood = Color3.fromHex("#6E4A2E"),
 	purple = Color3.fromHex("#9B5CFF"),
+	purpleDark = Color3.fromHex("#5E2FB8"),
 	toxic = Color3.fromHex("#7CFF4A"),
-	slime = Color3.fromHex("#5FD43C"),
 	gold = Color3.fromHex("#FFD24A"),
+	goldDark = Color3.fromHex("#C9932A"),
 	slate = Color3.fromHex("#1E2230"),
-	stone = Color3.fromHex("#9A93A8"),
+	stone = Color3.fromHex("#B8B0C8"),
 	rock = Color3.fromHex("#6C6380"),
 	hay = Color3.fromHex("#E8D27A"),
 	buy = Color3.fromHex("#7CFF4A"),
 }
 
 -- Layout (studs)
-local WORLD_RADIUS = 168 -- fence line; nothing walkable beyond it
+local WORLD_RADIUS = 168 -- hedge line; nothing walkable beyond it
 local HUB_RADIUS = 34
-local RING_RADIUS = 104 -- plot centers
+-- Plot centers. Plots are 46 wide and 12 share the ring, so their inner corners need
+-- atan(PLOT_HALF / (RING_RADIUS - PLOT_HALF)) < 15 degrees, or neighbours overlap.
+local RING_RADIUS = 118
 local PLOT_HALF = 23
 local SLOT_SIZE = 3.6
 local SLOT_SPACING = 4.2
 local SLOT_COLUMNS = 8
-local GATE_WIDTH = 10
+local GATE_HALF = 5 -- gate opening is 10 wide
+
+-- Surface heights (tops).
+local Y = { valley = 0, path = 0.25, plaza = 0.45, plotBase = 0.5, pen = 0.65, lawn = 0.7, soil = 0.95 }
 
 local rng = Rng.new(20261027) -- decoration placement is the same every server
+
+local function plotAngle(index: number): number
+	-- Half a step off the compass points so the Egg Shop (west) and Sell (east) sit between paths.
+	return (index - 0.5) / GameConfig.islandCount * math.pi * 2
+end
+
+---------------------------------------------------------------------------- helpers
+
+-- Moves a built model so its PrimaryPart lands on `cf` (same as PivotTo for these models, and
+-- it also runs under Lune for the preview/check tools).
+local function place(model: Model, cf: CFrame)
+	local delta = cf * (model.PrimaryPart :: BasePart).CFrame:Inverse()
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") then
+			d.CFrame = delta * d.CFrame
+		end
+	end
+end
+
+local function stripEffects(model: Model)
+	for _, d in model:GetDescendants() do
+		if d:IsA("ParticleEmitter") or d:IsA("Light") then
+			d:Destroy()
+		end
+	end
+end
+
+local function group(name: string, parent: Instance): Model
+	local m = Instance.new("Model")
+	m.Name = name
+	m.Parent = parent
+	return m
+end
 
 local function part(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -86,13 +132,21 @@ local function wedge(props: { [string]: any }): WedgePart
 	return p
 end
 
--- A flat text sign on one face of a part.
+-- A flat horizontal disc (Roblox cylinders run along X, so stand it up). `top` is the top height.
+local function disc(props: { [string]: any }, center: Vector3, radius: number, thickness: number, top: number): Part
+	props.Shape = Enum.PartType.Cylinder
+	props.Size = Vector3.new(thickness, radius * 2, radius * 2)
+	props.CFrame = CFrame.new(center.X, top - thickness / 2, center.Z) * CFrame.Angles(0, 0, math.rad(90))
+	return part(props)
+end
+
+-- Text on one face of a sign board. Front (-Z) is the face you see when the board looks at you.
 local function signText(board: BasePart, face: Enum.NormalId, text: string, color: Color3?): TextLabel
 	local gui = Instance.new("SurfaceGui")
 	gui.Face = face
 	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
 	gui.PixelsPerStud = 40
-	gui.LightInfluence = 0.2
+	gui.LightInfluence = 0.15
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
@@ -105,29 +159,19 @@ local function signText(board: BasePart, face: Enum.NormalId, text: string, colo
 	stroke.Color = COLORS.slate
 	stroke.Parent = label
 	local padding = Instance.new("UIPadding")
-	padding.PaddingLeft = UDim.new(0.06, 0)
-	padding.PaddingRight = UDim.new(0.06, 0)
-	padding.PaddingTop = UDim.new(0.08, 0)
-	padding.PaddingBottom = UDim.new(0.08, 0)
+	padding.PaddingLeft = UDim.new(0.05, 0)
+	padding.PaddingRight = UDim.new(0.05, 0)
+	padding.PaddingTop = UDim.new(0.1, 0)
+	padding.PaddingBottom = UDim.new(0.1, 0)
 	padding.Parent = label
 	label.Parent = gui
 	gui.Parent = board
 	return label
 end
 
-local function prompt(parent: Instance, name: string, objectText: string, actionText: string)
-	local p = Instance.new("ProximityPrompt")
-	p.Name = name
-	p.ObjectText = objectText
-	p.ActionText = actionText
-	p.HoldDuration = 0
-	p.MaxActivationDistance = 12
-	p.RequiresLineOfSight = false
-	p.Parent = parent
-end
-
--- Wooden fence from a to b (y is ground level), posts every ~4 studs and two rails.
+-- Wooden fence from a to b (y = the surface it stands on), posts every ~4 studs and two rails.
 local function fence(parent: Instance, a: Vector3, b: Vector3, height: number?)
+	local m = group("Fence", parent)
 	local h = height or 3
 	local length = (b - a).Magnitude
 	if length < 0.5 then
@@ -142,7 +186,7 @@ local function fence(parent: Instance, a: Vector3, b: Vector3, height: number?)
 			CFrame = CFrame.new(pos + Vector3.new(0, (h + 0.4) / 2, 0)),
 			Color = COLORS.darkWood,
 			Material = Enum.Material.Wood,
-			Parent = parent,
+			Parent = m,
 		})
 	end
 	for _, y in { h * 0.45, h * 0.85 } do
@@ -153,12 +197,13 @@ local function fence(parent: Instance, a: Vector3, b: Vector3, height: number?)
 			CFrame = CFrame.lookAt(mid, b + Vector3.new(0, y, 0)),
 			Color = COLORS.wood,
 			Material = Enum.Material.Wood,
-			Parent = parent,
+			Parent = m,
 		})
 	end
 end
 
 local function tree(parent: Instance, pos: Vector3, scale: number, mutant: boolean)
+	local m = group("Tree", parent)
 	local trunkHeight = 7 * scale
 	part({
 		Name = "Trunk",
@@ -167,7 +212,7 @@ local function tree(parent: Instance, pos: Vector3, scale: number, mutant: boole
 		CFrame = CFrame.new(pos + Vector3.new(0, trunkHeight / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = COLORS.darkWood,
 		Material = Enum.Material.Wood,
-		Parent = parent,
+		Parent = m,
 	})
 	local leaf = if mutant then COLORS.purple else Color3.fromHex("#4FAE3F")
 	local leaf2 = if mutant then Color3.fromHex("#C29BFF") else Color3.fromHex("#6CCB4F")
@@ -180,12 +225,13 @@ local function tree(parent: Instance, pos: Vector3, scale: number, mutant: boole
 			CFrame = CFrame.new(pos + Vector3.new(0, trunkHeight + 1.2 * scale, 0) + offset * scale),
 			Color = if i == 1 then leaf else leaf2,
 			Material = Enum.Material.Grass,
-			Parent = parent,
+			Parent = m,
 		})
 	end
 end
 
 local function mushroom(parent: Instance, pos: Vector3, scale: number)
+	local m = group("Mushroom", parent)
 	local stem = 2.2 * scale
 	part({
 		Name = "Stem",
@@ -193,7 +239,7 @@ local function mushroom(parent: Instance, pos: Vector3, scale: number)
 		Size = Vector3.new(stem, 0.9 * scale, 0.9 * scale),
 		CFrame = CFrame.new(pos + Vector3.new(0, stem / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = COLORS.cream,
-		Parent = parent,
+		Parent = m,
 	})
 	local caps = { Color3.fromHex("#FF5A7A"), COLORS.purple, Color3.fromHex("#FF9A3C") }
 	blob({
@@ -201,11 +247,12 @@ local function mushroom(parent: Instance, pos: Vector3, scale: number)
 		Size = Vector3.new(3 * scale, 1.4 * scale, 3 * scale),
 		CFrame = CFrame.new(pos + Vector3.new(0, stem + 0.2 * scale, 0)),
 		Color = caps[rng:integer(1, #caps)],
-		Parent = parent,
+		Parent = m,
 	})
 end
 
 local function barrel(parent: Instance, pos: Vector3)
+	local m = group("Barrel", parent)
 	part({
 		Name = "Barrel",
 		Shape = Enum.PartType.Cylinder,
@@ -213,27 +260,104 @@ local function barrel(parent: Instance, pos: Vector3)
 		CFrame = CFrame.new(pos + Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = Color3.fromHex("#3E8F2F"),
 		Material = Enum.Material.Metal,
-		Parent = parent,
+		Parent = m,
 	})
 	part({
 		Name = "Ooze",
 		Shape = Enum.PartType.Cylinder,
 		Size = Vector3.new(0.2, 1.9, 1.9),
-		CFrame = CFrame.new(pos + Vector3.new(0, 3.05, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		CFrame = CFrame.new(pos + Vector3.new(0, 3.1, 0)) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = COLORS.toxic,
-		Parent = parent,
+		Parent = m,
 	})
 end
 
 local function rock(parent: Instance, pos: Vector3, size: Vector3)
+	local m = group("Rock", parent)
 	blob({
 		Name = "Rock",
 		Size = size,
-		CFrame = CFrame.new(pos) * CFrame.Angles(0, rng:next() * math.pi * 2, 0),
+		-- Sunk a quarter into the ground so it looks embedded, not balanced on a point.
+		CFrame = CFrame.new(pos + Vector3.new(0, size.Y * 0.25, 0)) * CFrame.Angles(0, rng:next() * math.pi * 2, 0),
 		Color = COLORS.rock:Lerp(COLORS.stone, rng:next() * 0.6),
 		Material = Enum.Material.Slate,
-		Parent = parent,
+		Parent = m,
 	})
+end
+
+local function lamp(parent: Instance, pos: Vector3)
+	local m = group("Lamp", parent)
+	part({
+		Name = "LampPole",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(8, 0.5, 0.5),
+		CFrame = CFrame.new(pos + Vector3.new(0, 4, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = COLORS.slate,
+		Material = Enum.Material.Metal,
+		Parent = m,
+	})
+	part({
+		Name = "Lamp",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(1.4, 1.4, 1.4),
+		CFrame = CFrame.new(pos + Vector3.new(0, 8.6, 0)),
+		Color = COLORS.cream,
+		Parent = m,
+	})
+end
+
+local function flowerBed(parent: Instance, pos: Vector3)
+	local m = group("FlowerBed", parent)
+	part({
+		Name = "Bush",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(2.6, 2.6, 2.6),
+		CFrame = CFrame.new(pos + Vector3.new(0, 1, 0)),
+		Color = Color3.fromHex("#4FAE3F"),
+		Material = Enum.Material.Grass,
+		Parent = m,
+	})
+	local flowers = { "#FF7AA8", "#FFD24A", "#C29BFF", "#FFFFFF" }
+	for k = 1, 5 do
+		local a = k / 5 * math.pi * 2
+		part({
+			Name = "Flower",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.6, 0.6, 0.6),
+			CFrame = CFrame.new(pos + Vector3.new(math.cos(a) * 1.05, 2 + (k % 2) * 0.25, math.sin(a) * 1.05)),
+			Color = Color3.fromHex(flowers[(k % #flowers) + 1]),
+			Parent = m,
+		})
+	end
+end
+
+local function bench(parent: Instance, cf: CFrame)
+	local m = group("Bench", parent)
+	part({
+		Name = "Seat",
+		Size = Vector3.new(5, 0.4, 1.6),
+		CFrame = cf * CFrame.new(0, 1.4, 0),
+		Color = COLORS.wood,
+		Material = Enum.Material.WoodPlanks,
+		Parent = m,
+	})
+	part({
+		Name = "Back",
+		Size = Vector3.new(5, 1.4, 0.3),
+		CFrame = cf * CFrame.new(0, 2.3, 0.65),
+		Color = COLORS.wood,
+		Material = Enum.Material.WoodPlanks,
+		Parent = m,
+	})
+	for _, x in { -2, 2 } do
+		part({
+			Name = "Leg",
+			Size = Vector3.new(0.4, 1.2, 1.2),
+			CFrame = cf * CFrame.new(x, 0.6, 0),
+			Color = COLORS.darkWood,
+			Parent = m,
+		})
+	end
 end
 
 local function setLighting()
@@ -264,25 +388,23 @@ local function setLighting()
 	bloom.Parent = Lighting
 end
 
+---------------------------------------------------------------------------- terrain
+
 local function buildTerrain(parent: Instance)
-	-- Valley floor (top at y = 0), wide enough that the mountains outside stand on it.
-	part({
-		Name = "Valley",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(4, 640, 640),
-		CFrame = CFrame.new(0, -2, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = COLORS.grass,
-		Material = Enum.Material.Grass,
-		Parent = parent,
-	})
+	disc(
+		{ Name = "Valley", Color = COLORS.grass, Material = Enum.Material.Grass, Parent = parent },
+		Vector3.zero,
+		320,
+		4,
+		Y.valley
+	)
 
 	-- A solid hedge wall all the way round, rocks in front of it, mountains behind it.
-	local edge = Instance.new("Folder")
-	edge.Name = "Edge"
-	edge.Parent = parent
+	local edge = group("Edge", parent)
 	local hedge = Color3.fromHex("#3F8F3A")
 	local hedgeTop = Color3.fromHex("#4FA845")
 	local segments = 72
+	local thickness = 7
 	for i = 0, segments - 1 do
 		local a0 = i / segments * math.pi * 2
 		local a1 = (i + 1) / segments * math.pi * 2
@@ -290,15 +412,16 @@ local function buildTerrain(parent: Instance)
 		local p1 = Vector3.new(math.cos(a1), 0, math.sin(a1)) * WORLD_RADIUS
 		local mid = (p0 + p1) / 2
 		local length = (p1 - p0).Magnitude + 2
+		local seg = group("HedgeSegment", edge)
 		part({
 			Name = "Hedge",
-			Size = Vector3.new(length, 14, 7),
-			CFrame = CFrame.lookAt(mid + Vector3.new(0, 7, 0), Vector3.new(0, 7, 0)),
+			-- Alternate heights so overlapping segment ends never share a top face (z-fighting).
+			Size = Vector3.new(length, 14 + (i % 2) * 0.2, thickness),
+			CFrame = CFrame.lookAt(mid + Vector3.new(0, 7 + (i % 2) * 0.1, 0), Vector3.new(0, 7 + (i % 2) * 0.1, 0)),
 			Color = hedge,
 			Material = Enum.Material.Grass,
-			Parent = edge,
+			Parent = seg,
 		})
-		-- Bushy rounded top.
 		for k, t in { 0.2, 0.55, 0.85 } do
 			part({
 				Name = "HedgeTop",
@@ -307,7 +430,7 @@ local function buildTerrain(parent: Instance)
 				CFrame = CFrame.new(p0:Lerp(p1, t) + Vector3.new(0, 13.5 + rng:next() * 1.5, 0)),
 				Color = if (i + k) % 2 == 0 then hedge else hedgeTop,
 				Material = Enum.Material.Grass,
-				Parent = edge,
+				Parent = seg,
 			})
 		end
 		-- Invisible wall well above the hedge so nobody climbs out.
@@ -317,18 +440,19 @@ local function buildTerrain(parent: Instance)
 			CFrame = CFrame.lookAt(mid + Vector3.new(0, 60, 0), Vector3.new(0, 60, 0)),
 			Transparency = 1,
 			CanQuery = false,
-			Parent = edge,
+			Parent = seg,
 		})
 		if i % 3 == 0 then
-			local inward = -mid.Unit
-			local s = 4 + rng:next() * 4
-			rock(edge, mid + inward * (5 + s * 0.3) + Vector3.new(0, s * 0.3, 0), Vector3.new(s * 1.4, s, s * 1.1))
+			-- Rock just in front of the hedge, not poking into it.
+			local s = 4 + rng:next() * 3
+			local inner = WORLD_RADIUS - thickness / 2 - s * 0.75 - 0.4
+			rock(edge, mid.Unit * inner, Vector3.new(s * 1.4, s, s * 1.1))
 		end
 	end
 	-- Mountains close the horizon so the valley feels like a place, not a floating disc.
 	for i = 1, 36 do
 		local angle = i / 36 * math.pi * 2 + rng:next() * 0.08
-		local radius = WORLD_RADIUS + 40 + rng:next() * 40
+		local radius = WORLD_RADIUS + 48 + rng:next() * 36
 		local pos = Vector3.new(math.cos(angle) * radius, 0, math.sin(angle) * radius)
 		local s = 60 + rng:next() * 50
 		blob({
@@ -337,321 +461,414 @@ local function buildTerrain(parent: Instance)
 			CFrame = CFrame.lookAt(pos, Vector3.zero),
 			Color = Color3.fromHex("#7A8F6A"):Lerp(COLORS.rock, rng:next() * 0.5),
 			Material = Enum.Material.Grass,
-			Parent = edge,
+			Parent = group("Mountain", edge),
 		})
 	end
-	-- Trees peeking over the hedge.
+	-- Trees peeking over the hedge from outside.
 	for i = 0, 47 do
 		local angle = (i + 0.5) / 48 * math.pi * 2
 		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
-		tree(edge, dir * (WORLD_RADIUS + 12 + rng:next() * 10), 1.8 + rng:next() * 0.8, rng:next() < 0.2)
+		tree(edge, dir * (WORLD_RADIUS + 16 + rng:next() * 8), 1.8 + rng:next() * 0.8, rng:next() < 0.2)
 	end
 end
 
-local function lamp(parent: Instance, pos: Vector3)
-	part({
-		Name = "LampPole",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(8, 0.5, 0.5),
-		CFrame = CFrame.new(pos + Vector3.new(0, 4, 0)) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = COLORS.slate,
-		Material = Enum.Material.Metal,
-		Parent = parent,
+---------------------------------------------------------------------------- hub buildings
+
+-- A step-on pad: walk onto it and the client opens `opens` ("shop" | "sell").
+local function pad(
+	parent: Instance,
+	name: string,
+	center: Vector3,
+	radius: number,
+	color: Color3,
+	label: string,
+	opens: string,
+	faceToward: Vector3
+)
+	local m = group(name, parent)
+	disc({ Name = "Rim", Color = Color3.new(1, 1, 1), Parent = m }, center, radius + 0.6, 0.6, Y.plaza + 0.15)
+	local top = disc({ Name = "Pad", Color = color, Parent = m }, center, radius, 0.6, Y.plaza + 0.25)
+	top:SetAttribute("Opens", opens)
+	top:SetAttribute("Radius", radius)
+	m.PrimaryPart = top
+	-- Floor text, readable when walking up from the fountain. A thin flat slab carries it.
+	local slab = part({
+		Name = "Label",
+		Size = Vector3.new(radius * 1.5, 0.05, radius * 0.6),
+		CFrame = CFrame.lookAt(
+			Vector3.new(center.X, Y.plaza + 0.28, center.Z),
+			Vector3.new(faceToward.X, Y.plaza + 0.28, faceToward.Z)
+		),
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		Parent = m,
 	})
-	part({
-		Name = "Lamp",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(1.4, 1.4, 1.4),
-		CFrame = CFrame.new(pos + Vector3.new(0, 8.4, 0)),
-		Color = COLORS.cream,
-		Parent = parent,
-	})
+	local text = signText(slab, Enum.NormalId.Top, label)
+	text.Rotation = 180
+	return top
 end
 
-local function flowerBed(parent: Instance, pos: Vector3)
+-- A friendly mutant behind the counter, sized to about `height` studs whatever its species.
+local function shopkeeper(parent: Instance, speciesTier: string, rarity: string, cf: CFrame, height: number)
+	local id = Mutants.buckets[speciesTier][rarity][1]
+	local unit =
+		MutantModel.visualScale({ tier = speciesTier, rarity = rarity, species = id, mutations = {}, size = 1 })
+	local size = ((height / 3.6) / unit) ^ (1 / 1.6)
+	local model = MutantModel.build({ tier = speciesTier, rarity = rarity, species = id, mutations = {}, size = size })
+	stripEffects(model)
+	model.Name = "Shopkeeper"
+	place(model, cf)
+	model.Parent = parent
+end
+
+-- Market stall in the classic simulator style: stone platform, three walls, a flat roof with a
+-- giant sign standing on it, a striped awning over the open front, and a counter with the goods
+-- on it and a shopkeeper behind. -Z of `frame` is the open front.
+local function building(
+	parent: Instance,
+	name: string,
+	frame: CFrame,
+	colors: { main: Color3, trim: Color3, roof: Color3 },
+	title: string,
+	titleColor: Color3
+)
+	local m = group(name, parent)
+	local function at(x: number, y: number, z: number): CFrame
+		return frame * CFrame.new(x, y, z)
+	end
+	local W, D, H = 16, 10, 8 -- width, depth, wall height
+	local floorTop = Y.plaza + 0.6
+	local function up(x: number, y: number, z: number): CFrame
+		return at(x, floorTop + y, z)
+	end
 	part({
-		Name = "Bush",
-		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(3, 3, 3),
-		CFrame = CFrame.new(pos + Vector3.new(0, 1, 0)),
-		Color = Color3.fromHex("#4FAE3F"),
-		Material = Enum.Material.Grass,
-		Parent = parent,
+		Name = "Platform",
+		Size = Vector3.new(W + 2, 1.2, D + 2),
+		CFrame = at(0, floorTop - 0.6, 0),
+		Color = COLORS.stone,
+		Material = Enum.Material.Slate,
+		Parent = m,
 	})
-	local flowers = { "#FF7AA8", "#FFD24A", "#C29BFF", "#FFFFFF" }
-	for k = 1, 5 do
-		local a = k / 5 * math.pi * 2
+	part({
+		Name = "BackWall",
+		Size = Vector3.new(W, H, 1),
+		CFrame = up(0, H / 2, D / 2 - 0.5),
+		Color = colors.main,
+		Material = Enum.Material.WoodPlanks,
+		Parent = m,
+	})
+	for _, side in { -1, 1 } do
 		part({
-			Name = "Flower",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(0.6, 0.6, 0.6),
-			CFrame = CFrame.new(pos + Vector3.new(math.cos(a) * 1.2, 2.1 + (k % 2) * 0.3, math.sin(a) * 1.2)),
-			Color = Color3.fromHex(flowers[(k % #flowers) + 1]),
-			Parent = parent,
+			Name = "SideWall",
+			Size = Vector3.new(1, H, D - 1.9),
+			CFrame = up(side * (W / 2 - 0.5), H / 2, -0.05),
+			Color = colors.main,
+			Material = Enum.Material.WoodPlanks,
+			Parent = m,
+		})
+		part({
+			Name = "Pillar",
+			Size = Vector3.new(1.4, H, 1.4),
+			CFrame = up(side * (W / 2 - 0.3), H / 2, -D / 2 + 0.3),
+			Color = colors.trim,
+			Material = Enum.Material.Wood,
+			Parent = m,
 		})
 	end
+	part({
+		Name = "Roof",
+		Size = Vector3.new(W + 1.6, 1, D + 1),
+		CFrame = up(0, H + 0.5, 0),
+		Color = colors.trim,
+		Material = Enum.Material.Wood,
+		Parent = m,
+	})
+	part({
+		Name = "RoofTop",
+		Size = Vector3.new(W + 0.6, 0.4, D),
+		CFrame = up(0, H + 1.2, 0),
+		Color = colors.roof,
+		Parent = m,
+	})
+
+	-- Striped awning sloping down and out from the front edge of the roof.
+	local stripes, tilt, length = 8, math.rad(24), 4.4
+	local stripeW = (W + 1.6) / stripes
+	for i = 0, stripes - 1 do
+		local x = -(W + 1.6) / 2 + stripeW * (i + 0.5)
+		local color = if i % 2 == 0 then colors.main else COLORS.cream
+		local hinge = up(x, H - 0.1, -D / 2 - 0.5) * CFrame.Angles(-tilt, 0, 0)
+		part({
+			Name = "Awning",
+			Size = Vector3.new(stripeW, 0.3, length),
+			CFrame = hinge * CFrame.new(0, 0, -length / 2),
+			Color = color,
+			Material = Enum.Material.Fabric,
+			Parent = m,
+		})
+		part({
+			Name = "Valance",
+			Size = Vector3.new(stripeW, 1, 0.2),
+			CFrame = hinge * CFrame.new(0, 0, -length) * CFrame.Angles(tilt, 0, 0) * CFrame.new(0, -0.5, 0),
+			Color = color,
+			Material = Enum.Material.Fabric,
+			Parent = m,
+		})
+	end
+
+	-- Counter across the opening; the goods go on top so they show from the plaza.
+	part({
+		Name = "Counter",
+		Size = Vector3.new(W - 3, 3, 1.6),
+		CFrame = up(0, 1.5, -D / 2 + 1.6),
+		Color = colors.trim,
+		Material = Enum.Material.WoodPlanks,
+		Parent = m,
+	})
+	part({
+		Name = "CounterTop",
+		Size = Vector3.new(W - 2.4, 0.3, 2.2),
+		CFrame = up(0, 3.15, -D / 2 + 1.6),
+		Color = colors.main,
+		Material = Enum.Material.WoodPlanks,
+		Parent = m,
+	})
+
+	-- Giant sign standing on the roof, readable from anywhere on the plaza.
+	local signY = H + 1.4 + 2.8
+	for _, side in { -1, 1 } do
+		part({
+			Name = "SignPost",
+			Size = Vector3.new(0.8, 3, 0.8),
+			CFrame = up(side * 5, H + 1.4 + 1.5, -D / 2 + 2.6),
+			Color = COLORS.darkWood,
+			Material = Enum.Material.Wood,
+			Parent = m,
+		})
+	end
+	part({
+		Name = "SignFrame",
+		Size = Vector3.new(W + 2, 5.6, 0.6),
+		CFrame = up(0, signY, -D / 2 + 1.9),
+		Color = colors.trim,
+		Material = Enum.Material.Wood,
+		Parent = m,
+	})
+	local board = part({
+		Name = "Sign",
+		Size = Vector3.new(W + 1, 4.6, 0.3),
+		CFrame = up(0, signY, -D / 2 + 1.45),
+		Color = COLORS.slate,
+		Parent = m,
+	})
+	signText(board, Enum.NormalId.Front, title, titleColor)
+	return m, up
 end
 
 local function buildHub(parent: Instance)
-	local hub = Instance.new("Model")
-	hub.Name = "Hub"
+	local hub = group("Hub", parent)
 
-	part({
-		Name = "Plaza",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.4, HUB_RADIUS * 2, HUB_RADIUS * 2),
-		CFrame = CFrame.new(0, 0.2, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = COLORS.path,
-		Material = Enum.Material.Cobblestone,
-		Parent = hub,
-	})
-	part({
-		Name = "PlazaBorder",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.38, HUB_RADIUS * 2 + 2, HUB_RADIUS * 2 + 2),
-		CFrame = CFrame.new(0, 0.19, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = COLORS.stone,
-		Material = Enum.Material.Slate,
-		Parent = hub,
-	})
-	part({
-		Name = "Lawn",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.5, 30, 30),
-		CFrame = CFrame.new(0, 0.25, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = COLORS.plotGrass,
-		Material = Enum.Material.Grass,
-		Parent = hub,
-	})
+	disc(
+		{ Name = "PlazaBorder", Color = COLORS.stone, Material = Enum.Material.Slate, Parent = hub },
+		Vector3.zero,
+		HUB_RADIUS + 1,
+		2,
+		Y.plaza - 0.1
+	)
+	disc(
+		{ Name = "Plaza", Color = COLORS.path, Material = Enum.Material.Cobblestone, Parent = hub },
+		Vector3.zero,
+		HUB_RADIUS,
+		2,
+		Y.plaza
+	)
+	disc(
+		{ Name = "Lawn", Color = COLORS.plotGrass, Material = Enum.Material.Grass, Parent = hub },
+		Vector3.zero,
+		11,
+		2,
+		Y.lawn
+	)
 
 	-- Two-tier fountain with a golden egg statue on top.
-	local stone = Color3.fromHex("#C9C2D6")
+	local fountain = group("Fountain", hub)
 	local water = Color3.fromHex("#6FD3C7")
-	local function disc(
-		name: string,
-		radius: number,
-		height: number,
-		y: number,
-		color: Color3,
-		material: Enum.Material,
-		transparency: number?
+	disc(
+		{ Name = "Basin", Color = COLORS.stone, Material = Enum.Material.Slate, Parent = fountain },
+		Vector3.zero,
+		7,
+		2.2,
+		Y.lawn + 1.6
 	)
-		part({
-			Name = name,
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(height, radius * 2, radius * 2),
-			CFrame = CFrame.new(0, y, 0) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = color,
-			Material = material,
-			Transparency = transparency or 0,
-			CanCollide = name ~= "Water",
-			Parent = hub,
-		})
-	end
-	disc("Basin", 8, 1.8, 1.4, stone, Enum.Material.Slate)
-	disc("Water", 7.2, 0.2, 2.25, water, Enum.Material.Glass, 0.25)
-	disc("Column", 1.4, 4, 4, stone, Enum.Material.Slate)
-	disc("UpperBasin", 3.8, 0.9, 6.2, stone, Enum.Material.Slate)
-	disc("Water", 3.2, 0.2, 6.6, water, Enum.Material.Glass, 0.25)
-	disc("Pedestal", 1.2, 1.4, 7.4, stone, Enum.Material.Slate)
+	disc({
+		Name = "Water",
+		Color = water,
+		Material = Enum.Material.Glass,
+		Transparency = 0.25,
+		CanCollide = false,
+		Parent = fountain,
+	}, Vector3.zero, 6.3, 0.3, Y.lawn + 1.75)
+	disc(
+		{ Name = "Column", Color = COLORS.stone, Material = Enum.Material.Slate, Parent = fountain },
+		Vector3.zero,
+		1.2,
+		4,
+		Y.lawn + 5
+	)
+	disc(
+		{ Name = "UpperBasin", Color = COLORS.stone, Material = Enum.Material.Slate, Parent = fountain },
+		Vector3.zero,
+		3.4,
+		1,
+		Y.lawn + 5.6
+	)
+	disc({
+		Name = "UpperWater",
+		Color = water,
+		Material = Enum.Material.Glass,
+		Transparency = 0.25,
+		CanCollide = false,
+		Parent = fountain,
+	}, Vector3.zero, 2.9, 0.3, Y.lawn + 5.75)
+	disc(
+		{ Name = "Pedestal", Color = COLORS.stone, Material = Enum.Material.Slate, Parent = fountain },
+		Vector3.zero,
+		1.1,
+		1.4,
+		Y.lawn + 7
+	)
 	local gold = Color3.fromHex("#E8B830")
+	local eggBase = Y.lawn + 7
 	blob({
 		Name = "EggStatue",
-		Size = Vector3.new(3.4, 2.9, 3.4),
-		CFrame = CFrame.new(0, 9.3, 0),
+		Size = Vector3.new(3.2, 2.7, 3.2),
+		CFrame = CFrame.new(0, eggBase + 1.35, 0),
 		Color = gold,
 		Material = Enum.Material.Metal,
-		Parent = hub,
+		Parent = fountain,
 	})
 	blob({
 		Name = "EggStatueTop",
-		Size = Vector3.new(2.9, 3.6, 2.9),
-		CFrame = CFrame.new(0, 10.3, 0),
+		Size = Vector3.new(2.75, 3.4, 2.75),
+		CFrame = CFrame.new(0, eggBase + 2.3, 0),
 		Color = gold,
 		Material = Enum.Material.Metal,
-		Parent = hub,
+		Parent = fountain,
 	})
 
-	-- Flower beds around the lawn, lamps around the plaza.
 	for i = 0, 7 do
 		local a = (i + 0.5) / 8 * math.pi * 2
-		flowerBed(hub, Vector3.new(math.cos(a) * 12.5, 0.4, math.sin(a) * 12.5))
+		flowerBed(hub, Vector3.new(math.cos(a) * 9.2, Y.lawn, math.sin(a) * 9.2))
 	end
+	-- Lamps around the plaza edge, skipping the two buildings (east/west) and the paths.
 	for i = 0, 11 do
-		local a = i / 12 * math.pi * 2 + math.pi / 12
-		lamp(hub, Vector3.new(math.cos(a) * (HUB_RADIUS - 2), 0.4, math.sin(a) * (HUB_RADIUS - 2)))
-	end
-
-	-- Egg Shop: a little market stall on the west side, counter facing the fountain.
-	local shopFrame = CFrame.lookAt(Vector3.new(-23, 0, 0), Vector3.new(0, 0, 0))
-	local function shop(cf: CFrame, props: { [string]: any })
-		props.CFrame = shopFrame * cf
-		return part(props)
-	end
-	shop(CFrame.new(0, 4, 4), {
-		Name = "ShopBack",
-		Size = Vector3.new(16, 8, 1),
-		Color = COLORS.cream,
-		Material = Enum.Material.WoodPlanks,
-		Parent = hub,
-	})
-	local counter = shop(CFrame.new(0, 1.75, -1), {
-		Name = "EggShopCounter",
-		Size = Vector3.new(16, 3.5, 3),
-		Color = COLORS.purple,
-		Parent = hub,
-	})
-	prompt(counter, "EggShopPrompt", "Egg Shop", "Buy eggs")
-	shop(CFrame.new(0, 3.6, -1), {
-		Name = "CounterTop",
-		Size = Vector3.new(16.6, 0.3, 3.6),
-		Color = COLORS.cream,
-		Material = Enum.Material.WoodPlanks,
-		Parent = hub,
-	})
-	for _, x in { -7.7, 7.7 } do
-		for _, z in { -2.2, 4 } do
-			shop(CFrame.new(x, 4.6, z), {
-				Name = "Post",
-				Size = Vector3.new(0.8, 9.2, 0.8),
-				Color = COLORS.darkWood,
-				Material = Enum.Material.Wood,
-				Parent = hub,
-			})
+		local a = i / 12 * math.pi * 2
+		local nearBuilding = math.abs(math.cos(a)) > 0.85
+		if not nearBuilding then
+			lamp(hub, Vector3.new(math.cos(a) * (HUB_RADIUS - 2.5), Y.plaza, math.sin(a) * (HUB_RADIUS - 2.5)))
 		end
 	end
-	for i = 0, 7 do
-		shop(CFrame.new(-8 + i * 2 + 1, 9.6, 0.9) * CFrame.Angles(math.rad(-16), 0, 0), {
-			Name = "Awning",
-			Size = Vector3.new(2, 0.4, 8.4),
-			Color = if i % 2 == 0 then COLORS.purple else COLORS.cream,
-			Material = Enum.Material.Fabric,
-			Parent = hub,
-		})
-	end
-	local shopSign = shop(CFrame.new(0, 12, -2.2), {
-		Name = "EggShopSign",
-		Size = Vector3.new(12, 2.8, 0.5),
-		Color = COLORS.darkWood,
-		Material = Enum.Material.WoodPlanks,
-		Parent = hub,
-	})
-	signText(shopSign, Enum.NormalId.Front, "EGG SHOP", COLORS.toxic)
-	signText(shopSign, Enum.NormalId.Back, "EGG SHOP", COLORS.toxic)
-	-- Eggs on display, one per tier.
-	local eggColors = { "#F6F0D8", "#7FA85A", "#EEF3F8", "#3B4A2A", "#2B2140", "#5A2DFF" }
-	for i, hex in eggColors do
-		local base = shopFrame * CFrame.new(-6 + (i - 1) * 2.4, 3.75, -1)
-		blob({
-			Name = "DisplayEgg",
-			Size = Vector3.new(1.5, 1.3, 1.5),
-			CFrame = base * CFrame.new(0, 0.65, 0),
-			Color = Color3.fromHex(hex),
-			Parent = hub,
-		})
-		blob({
-			Name = "DisplayEggTop",
-			Size = Vector3.new(1.3, 1.6, 1.3),
-			CFrame = base * CFrame.new(0, 1.1, 0),
-			Color = Color3.fromHex(hex),
-			Parent = hub,
-		})
+	for i = 0, 3 do
+		local a = i / 4 * math.pi * 2 + math.pi / 4
+		local pos = Vector3.new(math.cos(a) * 19, Y.plaza, math.sin(a) * 19)
+		bench(hub, CFrame.lookAt(pos, Vector3.new(0, Y.plaza, 0)))
 	end
 
-	-- Sell stand on the east side: a coin booth with the pad in front.
-	local sellFrame = CFrame.lookAt(Vector3.new(23, 0, 0), Vector3.new(0, 0, 0))
-	local pad = part({
-		Name = "SellPad",
-		Size = Vector3.new(10, 0.4, 10),
-		CFrame = sellFrame * CFrame.new(0, 0.6, -3),
-		Color = Color3.fromHex("#E9C44A"),
-		Material = Enum.Material.SmoothPlastic,
-		Parent = hub,
+	-- Egg Shop on the west side, facing the fountain.
+	local shopFrame = CFrame.lookAt(Vector3.new(-26, 0, 0), Vector3.new(0, 0, 0))
+	local shop, shopAt = building(hub, "EggShop", shopFrame, {
+		main = Color3.fromHex("#7A45D6"),
+		trim = COLORS.cream,
+		roof = Color3.fromHex("#9B6BF0"),
+	}, "🥚 EGG SHOP", COLORS.toxic)
+	-- One egg per tier on the counter.
+	local eggOrder = { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" }
+	for i, eggId in eggOrder do
+		local egg = MutantModel.buildEgg(eggId, 0, {}) -- progress 0 = the smallest egg size
+		stripEffects(egg)
+		place(egg, shopAt(-5.5 + (i - 1) * 2.2, 3.3, -3.4))
+		egg.Parent = shop
+	end
+	shopkeeper(shop, "Lab", "Legendary", shopAt(0, 0, 0.6), 5)
+	-- Giant egg icon floating over the roof.
+	local icon = group("Icon", shop)
+	local iconAt = shopAt(0, 19, 1)
+	blob({ Name = "IconEgg", Size = Vector3.new(4.4, 3.8, 4.4), CFrame = iconAt, Color = COLORS.toxic, Parent = icon })
+	blob({
+		Name = "IconEggTop",
+		Size = Vector3.new(3.8, 4.8, 3.8),
+		CFrame = iconAt * CFrame.new(0, 1.4, 0),
+		Color = COLORS.toxic,
+		Parent = icon,
 	})
-	prompt(pad, "SellPrompt", "Sell Pad", "Sell mutants")
-	part({
-		Name = "PadTrim",
-		Size = Vector3.new(11, 0.3, 11),
-		CFrame = sellFrame * CFrame.new(0, 0.5, -3),
-		Color = COLORS.darkWood,
-		Material = Enum.Material.WoodPlanks,
-		Parent = hub,
-	})
-	part({
-		Name = "Booth",
-		Size = Vector3.new(12, 7, 3),
-		CFrame = sellFrame * CFrame.new(0, 3.5, 4),
-		Color = COLORS.darkWood,
-		Material = Enum.Material.WoodPlanks,
-		Parent = hub,
-	})
-	for i = 0, 5 do
-		wedge({
-			Name = "BoothRoof",
-			Size = Vector3.new(2, 2, 4.5),
-			CFrame = sellFrame * CFrame.new(-5 + i * 2, 8, 3.4) * CFrame.Angles(0, math.pi, 0),
-			Color = if i % 2 == 0 then Color3.fromHex("#E9C44A") else COLORS.cream,
-			Parent = hub,
+	for k, off in { Vector3.new(0.9, 0.6, -1.9), Vector3.new(-1.2, 1.6, -1.6), Vector3.new(0.4, 2.6, -1.5) } do
+		blob({
+			Name = "Spot" .. k,
+			Size = Vector3.new(1, 1, 0.3),
+			CFrame = iconAt * CFrame.new(off),
+			Color = Color3.fromHex("#3FA82A"),
+			Parent = icon,
 		})
 	end
-	local sellSign = part({
-		Name = "SellSign",
-		Size = Vector3.new(9, 2.6, 0.4),
-		CFrame = sellFrame * CFrame.new(0, 10.4, 3.5),
-		Color = COLORS.darkWood,
-		Material = Enum.Material.WoodPlanks,
-		Parent = hub,
-	})
-	signText(sellSign, Enum.NormalId.Front, "SELL", COLORS.gold)
-	signText(sellSign, Enum.NormalId.Back, "SELL", COLORS.gold)
-	for i = 1, 5 do
+	-- Pads sit between the fountain lawn (r 11) and the building platform (r 20).
+	pad(
+		hub,
+		"EggShopPad",
+		(shopFrame * CFrame.new(0, 0, -10.4)).Position,
+		3.6,
+		COLORS.purple,
+		"EGG SHOP",
+		"shop",
+		Vector3.zero
+	)
+
+	-- Sell building on the east side.
+	local sellFrame = CFrame.lookAt(Vector3.new(26, 0, 0), Vector3.new(0, 0, 0))
+	local sell, sellAt = building(hub, "SellShop", sellFrame, {
+		main = Color3.fromHex("#B07A2E"),
+		trim = COLORS.cream,
+		roof = Color3.fromHex("#E9B43A"),
+	}, "💰 SELL", COLORS.gold)
+	-- Coin stacks of different heights on the counter.
+	for i = 1, 4 do
+		local h = 0.6 + (i % 3) * 0.5
 		part({
 			Name = "Coins",
 			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(0.4 + i * 0.25, 1.6, 1.6),
-			CFrame = sellFrame
-				* CFrame.new(-4.5 + i * 1.8, 0.4 + (0.4 + i * 0.25) / 2, 2)
-				* CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromHex("#E9C44A"),
+			Size = Vector3.new(h, 1.6, 1.6),
+			CFrame = sellAt(-5.6 + (i - 1) * 1.9, 3.3 + h / 2, -3.4) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = COLORS.gold,
 			Material = Enum.Material.Metal,
-			Parent = hub,
+			Parent = sell,
 		})
 	end
-
-	-- Benches facing the fountain.
-	for i = 0, 3 do
-		local a = i / 4 * math.pi * 2 + math.pi / 4
-		local pos = Vector3.new(math.cos(a) * 18, 0, math.sin(a) * 18)
-		local cf = CFrame.lookAt(pos, Vector3.zero)
-		part({
-			Name = "BenchSeat",
-			Size = Vector3.new(5, 0.4, 1.6),
-			CFrame = cf * CFrame.new(0, 1.4, 0),
-			Color = COLORS.wood,
-			Material = Enum.Material.WoodPlanks,
-			Parent = hub,
-		})
-		part({
-			Name = "BenchBack",
-			Size = Vector3.new(5, 1.4, 0.3),
-			CFrame = cf * CFrame.new(0, 2.3, 0.7),
-			Color = COLORS.wood,
-			Material = Enum.Material.WoodPlanks,
-			Parent = hub,
-		})
-		for _, x in { -2, 2 } do
-			part({
-				Name = "BenchLeg",
-				Size = Vector3.new(0.4, 1.2, 1.2),
-				CFrame = cf * CFrame.new(x, 0.6, 0),
-				Color = COLORS.darkWood,
-				Parent = hub,
-			})
-		end
-	end
-
-	hub.Parent = parent
+	part({
+		Name = "Register",
+		Size = Vector3.new(2, 1.4, 1.4),
+		CFrame = sellAt(3.5, 4.0, -3.4),
+		Color = COLORS.slate,
+		Material = Enum.Material.Metal,
+		Parent = sell,
+	})
+	shopkeeper(sell, "Starter", "Legendary", sellAt(0, 0, 0.6), 5)
+	local coin = group("Icon", sell)
+	local coinPart = part({
+		Name = "IconCoin",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1, 6, 6),
+		CFrame = sellAt(0, 19, 1) * CFrame.Angles(0, math.rad(90), 0),
+		Color = COLORS.gold,
+		Material = Enum.Material.Metal,
+		Parent = coin,
+	})
+	-- "$" on both faces of the coin (a cylinder's flat ends are its Left/Right faces).
+	signText(coinPart, Enum.NormalId.Left, "$", COLORS.goldDark)
+	signText(coinPart, Enum.NormalId.Right, "$", COLORS.goldDark)
+	pad(hub, "SellPad", (sellFrame * CFrame.new(0, 0, -10.4)).Position, 3.6, COLORS.gold, "SELL", "sell", Vector3.zero)
 end
+
+---------------------------------------------------------------------------- plots
 
 -- Slot positions, filled from the gate row outward and from the middle of each row,
 -- so the first 6 slots are a tidy centered row.
@@ -680,16 +897,17 @@ local function slotOffsets(): { Vector3 }
 end
 
 local function buildPlot(index: number, parent: Instance): Plot
-	local angle = (index - 1) / GameConfig.islandCount * math.pi * 2
+	local angle = plotAngle(index)
 	local center = Vector3.new(math.cos(angle) * RING_RADIUS, 0, math.sin(angle) * RING_RADIUS)
 	-- -Z of the plot frame points at the hub; the gate is on that side.
 	local frame = CFrame.lookAt(center, Vector3.new(0, 0, 0))
 	local function at(x: number, y: number, z: number): CFrame
 		return frame * CFrame.new(x, y, z)
 	end
-	local function world(x: number, z: number): Vector3
-		return (frame * CFrame.new(x, 0, z)).Position
+	local function world(x: number, z: number, y: number?): Vector3
+		return (frame * CFrame.new(x, y or 0, z)).Position
 	end
+	local h = PLOT_HALF
 
 	local model = Instance.new("Model")
 	model.Name = "Plot" .. index
@@ -701,79 +919,77 @@ local function buildPlot(index: number, parent: Instance): Plot
 
 	local base = part({
 		Name = "Base",
-		Size = Vector3.new(PLOT_HALF * 2, 0.4, PLOT_HALF * 2),
-		CFrame = at(0, 0.2, 0),
+		Size = Vector3.new(h * 2, 1.5, h * 2),
+		CFrame = at(0, Y.plotBase - 0.75, 0),
 		Color = COLORS.plotGrass,
 		Material = Enum.Material.Grass,
 		Parent = model,
 	})
 	model.PrimaryPart = base
 
-	-- Hay-floored pen at the back; slots are individual soil patches (no empty bed).
-	local penZ0, penZ1 = 9, PLOT_HALF - 1
+	local penZ0, penZ1 = 9, h - 1
 	part({
 		Name = "PenFloor",
-		Size = Vector3.new(PLOT_HALF * 2 - 2, 0.3, penZ1 - penZ0),
-		CFrame = at(0, 0.45, (penZ0 + penZ1) / 2),
+		Size = Vector3.new(h * 2 - 2, 0.6, penZ1 - penZ0),
+		CFrame = at(0, Y.pen - 0.3, (penZ0 + penZ1) / 2),
 		Color = COLORS.hay,
 		Material = Enum.Material.Sand,
 		Parent = model,
 	})
-	model:SetAttribute("PenCenter", world(0, (penZ0 + penZ1) / 2) + Vector3.new(0, 0.6, 0))
-	model:SetAttribute("PenSize", Vector2.new(PLOT_HALF * 2 - 6, penZ1 - penZ0 - 3))
+	model:SetAttribute("PenCenter", world(0, (penZ0 + penZ1) / 2, Y.pen))
+	model:SetAttribute("PenSize", Vector2.new(h * 2 - 6, penZ1 - penZ0 - 3))
 
-	-- Fence: three closed sides, a gate gap facing the hub, and a low fence around the pen.
+	-- Fence: three closed sides, the gate on the hub side, a low fence around the pen.
 	local fences = Instance.new("Folder")
 	fences.Name = "Fence"
 	fences.Parent = model
-	local h = PLOT_HALF
-	fence(fences, world(-h, -h), world(-GATE_WIDTH / 2, -h))
-	fence(fences, world(GATE_WIDTH / 2, -h), world(h, -h))
-	fence(fences, world(h, -h), world(h, h))
-	fence(fences, world(h, h), world(-h, h))
-	fence(fences, world(-h, h), world(-h, -h))
-	fence(fences, world(-h + 1, penZ0), world(-4, penZ0), 2)
-	fence(fences, world(4, penZ0), world(h - 1, penZ0), 2)
+	local gateEdge = GATE_HALF + 1.2 -- leave room for the arch posts
+	fence(fences, world(-h, -h, Y.plotBase), world(-gateEdge, -h, Y.plotBase))
+	fence(fences, world(gateEdge, -h, Y.plotBase), world(h, -h, Y.plotBase))
+	fence(fences, world(h, -h, Y.plotBase), world(h, h, Y.plotBase))
+	fence(fences, world(h, h, Y.plotBase), world(-h, h, Y.plotBase))
+	fence(fences, world(-h, h, Y.plotBase), world(-h, -h, Y.plotBase))
+	fence(fences, world(-h + 1, penZ0, Y.pen), world(-4, penZ0, Y.pen), 2)
+	fence(fences, world(4, penZ0, Y.pen), world(h - 1, penZ0, Y.pen), 2)
 
-	-- Owner sign beside the gate, readable from the path.
+	-- Gate arch with the owner's name on top and the farm's $/min underneath, facing the path.
+	local arch = group("GateArch", model)
+	for _, side in { -1, 1 } do
+		part({
+			Name = "ArchPost",
+			Size = Vector3.new(0.8, 9, 0.8),
+			CFrame = at(side * GATE_HALF, Y.plotBase + 4.5, -h),
+			Color = COLORS.darkWood,
+			Material = Enum.Material.Wood,
+			Parent = arch,
+		})
+	end
 	part({
-		Name = "SignPost",
-		Size = Vector3.new(0.6, 5, 0.6),
-		CFrame = at(GATE_WIDTH / 2 + 3, 2.5, -h - 1.5),
+		Name = "ArchBeam",
+		Size = Vector3.new(GATE_HALF * 2 + 1.6, 0.8, 0.9),
+		CFrame = at(0, Y.plotBase + 9.2, -h),
 		Color = COLORS.darkWood,
 		Material = Enum.Material.Wood,
-		Parent = model,
+		Parent = arch,
 	})
-	local board = part({
-		Name = "SignBoard",
-		Size = Vector3.new(8, 2.2, 0.3),
-		CFrame = at(GATE_WIDTH / 2 + 3, 5, -h - 1.8),
+	-- Boards hang just in front of the arch (toward the hub) so they never clip into the posts.
+	local nameBoard = part({
+		Name = "NameBoard",
+		Size = Vector3.new(GATE_HALF * 2 + 1, 2.4, 0.3),
+		CFrame = at(0, Y.plotBase + 10.9, -h - 0.25),
 		Color = COLORS.wood,
 		Material = Enum.Material.WoodPlanks,
-		Parent = model,
-	})
-	-- The board's Back face points toward the hub (frame -Z), where visitors come from.
-	local sign = signText(board, Enum.NormalId.Back, "Empty Plot")
-	signText(board, Enum.NormalId.Front, "")
-
-	-- Income sign on the other side of the gate: what this farm earns per minute.
-	part({
-		Name = "IncomePost",
-		Size = Vector3.new(0.6, 5, 0.6),
-		CFrame = at(-GATE_WIDTH / 2 - 3, 2.5, -h - 1.5),
-		Color = COLORS.darkWood,
-		Material = Enum.Material.Wood,
-		Parent = model,
+		Parent = arch,
 	})
 	local incomeBoard = part({
 		Name = "IncomeBoard",
-		Size = Vector3.new(8, 2.6, 0.3),
-		CFrame = at(-GATE_WIDTH / 2 - 3, 5.2, -h - 1.8),
+		Size = Vector3.new(GATE_HALF * 2 - 2.5, 1.5, 0.3),
+		CFrame = at(0, Y.plotBase + 8, -h - 0.25),
 		Color = COLORS.slate,
-		Parent = model,
+		Parent = arch,
 	})
-	local income = signText(incomeBoard, Enum.NormalId.Back, "", COLORS.toxic)
-	signText(incomeBoard, Enum.NormalId.Front, "", COLORS.toxic)
+	local sign = signText(nameBoard, Enum.NormalId.Front, "Empty Plot")
+	local income = signText(incomeBoard, Enum.NormalId.Front, "", COLORS.toxic)
 
 	local slotsFolder = Instance.new("Folder")
 	slotsFolder.Name = "Slots"
@@ -782,8 +998,8 @@ local function buildPlot(index: number, parent: Instance): Plot
 	for i, offset in slotOffsets() do
 		local slot = part({
 			Name = "Slot" .. i,
-			Size = Vector3.new(SLOT_SIZE, 0.5, SLOT_SIZE),
-			CFrame = at(offset.X, 0.75, offset.Z),
+			Size = Vector3.new(SLOT_SIZE, 0.6, SLOT_SIZE),
+			CFrame = at(offset.X, Y.soil - 0.3, offset.Z),
 			Color = COLORS.soil,
 			Material = Enum.Material.Ground,
 			Transparency = 1,
@@ -809,7 +1025,7 @@ local function buildPlot(index: number, parent: Instance): Plot
 	spawn.Name = "Spawn"
 	spawn.Anchored = true
 	spawn.Size = Vector3.new(4, 0.2, 4)
-	spawn.CFrame = at(0, 0.5, -h + 3) * CFrame.Angles(0, math.pi, 0)
+	spawn.CFrame = at(0, Y.plotBase + 0.1, -h + 3) * CFrame.Angles(0, math.pi, 0)
 	spawn.Neutral = true
 	spawn.Duration = 0
 	spawn.Transparency = 1
@@ -817,13 +1033,14 @@ local function buildPlot(index: number, parent: Instance): Plot
 	spawn.CanQuery = false
 	spawn.Parent = model
 
-	-- Path from the plaza edge to the gate.
-	local from = Vector3.new(math.cos(angle) * HUB_RADIUS, 0.1, math.sin(angle) * HUB_RADIUS)
-	local to = world(0, -h) + Vector3.new(0, 0.1, 0)
+	-- Path from the plaza edge to the gate (thick, so its edges sink into the valley).
+	local from = Vector3.new(math.cos(angle) * (HUB_RADIUS - 1), 0, math.sin(angle) * (HUB_RADIUS - 1))
+	local to = world(0, -h + 1)
+	local mid = (from + to) / 2
 	part({
 		Name = "Path",
-		Size = Vector3.new(7, 0.2, (to - from).Magnitude + 2),
-		CFrame = CFrame.lookAt((from + to) / 2, to),
+		Size = Vector3.new(7, 1, (to - from).Magnitude),
+		CFrame = CFrame.lookAt(Vector3.new(mid.X, Y.path - 0.5, mid.Z), Vector3.new(to.X, Y.path - 0.5, to.Z)),
 		Color = COLORS.path,
 		Material = Enum.Material.Cobblestone,
 		CanQuery = false,
@@ -835,28 +1052,26 @@ local function buildPlot(index: number, parent: Instance): Plot
 end
 
 local function buildDecor(parent: Instance)
-	local decor = Instance.new("Folder")
-	decor.Name = "Decor"
-	decor.Parent = parent
+	local decor = group("Decor", parent)
 	local n = GameConfig.islandCount
 	for i = 0, n - 1 do
-		-- Between each pair of plots: a tree near the hub side and one further out, plus clutter.
-		local angle = (i + 0.5) / n * math.pi * 2
+		-- Between each pair of plots (plots sit at half steps, so gaps are at whole steps).
+		local angle = i / n * math.pi * 2
 		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
-		tree(decor, dir * 70, 0.9 + rng:next() * 0.3, i % 3 == 0)
-		tree(decor, dir * 140, 1.1 + rng:next() * 0.4, i % 4 == 1)
-		mushroom(decor, dir * 112 + Vector3.new(rng:next() * 4 - 2, 0, rng:next() * 4 - 2), 0.8 + rng:next() * 0.5)
+		local side = Vector3.new(-dir.Z, 0, dir.X)
+		tree(decor, dir * 72, 0.9 + rng:next() * 0.3, i % 3 == 0)
+		mushroom(decor, dir * 124 + side * (rng:next() * 2 - 1), 0.8 + rng:next() * 0.4)
 		if i % 2 == 0 then
-			barrel(decor, dir * 96)
+			barrel(decor, dir * 86)
 		else
-			rock(decor, dir * 124 + Vector3.new(0, 0.6, 0), Vector3.new(4, 2.6, 3.4))
+			rock(decor, dir * 136, Vector3.new(4, 2.6, 3.4))
 		end
 	end
-	-- An outer ring of trees between the plots and the fence.
+	-- An outer ring of trees between the plots and the hedge, skipping the plot corners.
 	for i = 0, 35 do
-		local angle = i / 36 * math.pi * 2 + rng:next() * 0.05
+		local angle = i / 36 * math.pi * 2 + rng:next() * 0.04
 		local dir = Vector3.new(math.cos(angle), 0, math.sin(angle))
-		tree(decor, dir * (152 + rng:next() * 8), 1 + rng:next() * 0.6, rng:next() < 0.25)
+		tree(decor, dir * (152 + rng:next() * 3), 1 + rng:next() * 0.5, rng:next() < 0.25)
 	end
 end
 
@@ -883,5 +1098,6 @@ function World.build(): { Plot }
 end
 
 World.colors = COLORS
+World.surface = Y
 
 return World

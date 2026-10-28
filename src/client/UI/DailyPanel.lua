@@ -44,7 +44,6 @@ local function tile(day: number)
 				BackgroundColor3 = Color3.new(1, 1, 1),
 				ZIndex = 1,
 				[Children] = {
-					C.corner(16),
 					New("UIStroke")({
 						Thickness = Computed(function()
 							return if state:get() == "today" then 4 else 2.5
@@ -129,8 +128,8 @@ end
 return function()
 	local tiles: { any } = {
 		New("UIGridLayout")({
-			CellSize = UDim2.fromOffset(112, 142),
-			CellPadding = UDim2.fromOffset(12, 14),
+			CellSize = UDim2.fromOffset(112, 134),
+			CellPadding = UDim2.fromOffset(12, 12),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
 		}),

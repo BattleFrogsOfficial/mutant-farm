@@ -5,7 +5,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local ProximityPromptService = game:GetService("ProximityPromptService")
 local HttpService = game:GetService("HttpService")
 
 local Shared = ReplicatedStorage.Shared
@@ -117,12 +116,17 @@ local function makeTimer(v: SlotVisual)
 	bar.Size = UDim2.fromScale(1, 1)
 	bar.BackgroundColor3 = Theme.colors.slate
 	bar.BackgroundTransparency = 0.15
-	Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 8)
+	bar.BorderSizePixel = 0
+	local outline = Instance.new("UIStroke")
+	outline.Color = Theme.colors.ink
+	outline.Thickness = 2
+	outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	outline.Parent = bar
 	bar.Parent = gui
 	local fill = Instance.new("Frame")
 	fill.BackgroundColor3 = Theme.colors.toxic
 	fill.Size = UDim2.fromScale(0, 1)
-	Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 8)
+	fill.BorderSizePixel = 0
 	fill.Parent = bar
 	local text = Instance.new("TextLabel")
 	text.BackgroundTransparency = 1
@@ -389,14 +393,52 @@ function PlotController.Init()
 	folder.Parent = workspace
 end
 
-function PlotController.Start()
-	ProximityPromptService.PromptTriggered:Connect(function(prompt)
-		if prompt.Name == "EggShopPrompt" then
-			State.panel:set("shop")
-		elseif prompt.Name == "SellPrompt" then
-			State.panel:set("sell")
+-- Step-on shop pads: entering one opens its panel, walking off closes it. Closing the panel
+-- while still standing on the pad keeps it closed until you step off and back on.
+local function watchPads()
+	local hub = workspace:WaitForChild("Map"):WaitForChild("Hub")
+	local pads: { BasePart } = {}
+	for _, name in { "EggShopPad", "SellPad" } do
+		-- Wait for the Pad part itself: the Model can replicate before its children at join.
+		local model = hub:WaitForChild(name, 60)
+		local pad = model and model:WaitForChild("Pad", 60) :: BasePart?
+		if pad then
+			table.insert(pads, pad)
+		else
+			warn("[PlotController] shop pad missing:", name)
 		end
-	end)
+	end
+	local inside: BasePart? = nil
+	while true do
+		task.wait(0.1)
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local now: BasePart? = nil
+		if root then
+			for _, pad in pads do
+				local offset = root.Position - pad.Position
+				local radius = (pad:GetAttribute("Radius") or 4) :: number
+				if Vector2.new(offset.X, offset.Z).Magnitude <= radius + 0.5 and math.abs(offset.Y) < 8 then
+					now = pad
+				end
+			end
+		end
+		if now ~= inside then
+			local opened = inside and inside:GetAttribute("Opens")
+			if opened and State.panel:get(false) == opened then
+				State.panel:set("none")
+			end
+			inside = now
+			if now and not State.hatching:get(false) then
+				State.panel:set(now:GetAttribute("Opens") :: string)
+				Sfx.play("click")
+			end
+		end
+	end
+end
+
+function PlotController.Start()
+	task.spawn(watchPads)
 
 	-- The map replicates in full at join (StreamingEnabled is off in default.project.json);
 	-- ChildAdded covers anything that arrives after this first read.

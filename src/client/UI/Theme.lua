@@ -1,5 +1,6 @@
 --!strict
--- Palette and fonts. Colors match the design doc; UI surfaces are dark slate with bright accents.
+-- Palette and fonts. Boxy style: square corners, 3px ink outlines, hard offset shadows, flat
+-- surfaces with a bevel lip, and a heavy geometric font. Accents match the design doc.
 
 local Theme = {}
 
@@ -21,9 +22,13 @@ Theme.colors = {
 	white = Color3.new(1, 1, 1),
 	muted = Color3.fromHex("#9AA0B4"),
 	locked = Color3.fromHex("#555B70"),
+	ink = Color3.fromHex("#14111F"), -- outlines and hard shadows
+	panel = Color3.fromHex("#201D33"),
+	panelHi = Color3.fromHex("#2C2846"),
 }
 
-Theme.font = Enum.Font.FredokaOne
+Theme.font = Enum.Font.GothamBlack
+Theme.shadow = 4 -- hard shadow offset (px, down-right)
 
 -- A darker version of any color, for button lips and shadows.
 function Theme.darker(c: Color3, amount: number?): Color3

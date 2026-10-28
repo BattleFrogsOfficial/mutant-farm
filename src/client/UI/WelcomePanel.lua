@@ -21,7 +21,6 @@ local function stat(order: number, icon: string, value: any, label: string, colo
 		BackgroundColor3 = Theme.colors.slate,
 		ZIndex = 2,
 		[Children] = {
-			C.corner(16),
 			C.stroke(color, 3),
 			C.label({
 				Text = icon,

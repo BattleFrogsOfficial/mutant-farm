@@ -23,7 +23,7 @@ const html = `<!doctype html><html><head><style>
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; font-family: "Fredoka", "Arial Rounded MT Bold", "Nunito", Arial, sans-serif; }
 #screen { position: relative; overflow: hidden; background: #8fc96f center/cover no-repeat; }
-#topbar { position: absolute; left: 0; top: 0; right: 0; background: rgba(0,0,0,.25); z-index: 1000; }
+#topbar { position: absolute; left: 0; top: 0; right: 0; background: transparent; z-index: 1000; }
 #topbar i { position: absolute; top: 12px; width: 34px; height: 34px; border-radius: 10px; background: rgba(0,0,0,.45); }
 .g { position: absolute; }
 .inner { position: absolute; }
@@ -81,6 +81,11 @@ function build(node, parentInner, parentLayout) {
     el.style.backgroundImage = \`linear-gradient(\${rot}deg, \${ks})\`;
     el.style.backgroundBlendMode = "multiply";
   }
+  if (mods.UIGradient && Array.isArray(mods.UIGradient.Transparency) && !isText) {
+    const ks = mods.UIGradient.Transparency.map(k => \`rgba(0,0,0,\${1 - k[1]}) \${k[0]*100}%\`).join(",");
+    const rot = (mods.UIGradient.Rotation ?? 0) + 90;
+    el.style.maskImage = \`linear-gradient(\${rot}deg, \${ks})\`;
+  }
   if (mods.UISizeConstraint && mods.UISizeConstraint.MaxSize) {
     const [mx, my] = mods.UISizeConstraint.MaxSize; if (mx < 1e6) el.style.maxWidth = mx + "px"; if (my < 1e6) el.style.maxHeight = my + "px";
   }
@@ -108,7 +113,8 @@ function build(node, parentInner, parentLayout) {
     t.style.textAlign = xa.toLowerCase() === "center" ? "center" : xa.toLowerCase();
     t.style.alignItems = ya === "Top" ? "flex-start" : ya === "Bottom" ? "flex-end" : "center";
     t.style.color = rgba(p.TextColor3, p.TextTransparency ?? 0);
-    if (p.Font && p.Font !== "FredokaOne") t.style.fontFamily = "Arial, sans-serif";
+    if (p.Font === "GothamBlack" || p.Font === "GothamBold") { t.style.fontFamily = "Inter, sans-serif"; t.style.fontWeight = p.Font === "GothamBlack" ? "900" : "700"; }
+    else if (p.Font && p.Font !== "FredokaOne") t.style.fontFamily = "Arial, sans-serif";
     let text = p.Text || "";
     if (p.RichText) text = text.replace(/<font[^>]*color="([^"]+)"[^>]*>/g, '<span style="color:$1">').replace(/<\\/font>/g, "</span>");
     else text = text.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
@@ -186,8 +192,8 @@ window.render = (sceneIndex, W, H) => {
   screen.style.backgroundImage = ${JSON.stringify(bg ? `url(${bg})` : "none")};
   document.getElementById("topbar").style.height = ${TOPBAR} + "px";
   for (const old of screen.querySelectorAll(".gui")) old.remove();
-  // The hatch cinematic ignores the top-bar inset (full screen); everything else sits below it.
-  const full = data.scenes[sceneIndex].name === "hatch";
+  // Both ScreenGuis (HUD and hatch) ignore the top-bar inset and cover the full screen.
+  const full = true;
   const inset = full ? 0 : ${TOPBAR};
   const usableH = H - inset;
   const scale = Math.min(Math.max(Math.min(W / ${DESIGN.w}, usableH / ${DESIGN.h}), 0.5), 1.4);

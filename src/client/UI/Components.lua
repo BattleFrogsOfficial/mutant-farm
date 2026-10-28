@@ -1,7 +1,8 @@
 --!strict
--- Building blocks shared by every screen: chunky 3D buttons, menu tiles with badges, pills with
--- drop shadows, panels that pop open over a dimmed screen, a drawn padlock, outlined labels, and
--- a pulse helper for anything that wants attention. Everything uses Fusion 0.2.
+-- Building blocks shared by every screen, in one boxy style: square corners, 3px ink outlines,
+-- hard offset shadows, and a darker "lip" under every button face. Chunky 3D buttons, menu tiles
+-- with badges, stat boxes, panels that pop open over a dimmed screen, a drawn padlock, outlined
+-- labels, and a pulse helper for anything that wants attention. Everything uses Fusion 0.2.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -23,24 +24,26 @@ local function read(v: any): any
 end
 Components.read = read
 
-function Components.corner(radius: number?)
-	return New("UICorner")({ CornerRadius = UDim.new(0, radius or 14) })
+-- The style has no rounded corners. These stay so call sites read the same; they add nothing.
+function Components.corner(_radius: number?): any
+	return nil
 end
 
-function Components.round()
-	return New("UICorner")({ CornerRadius = UDim.new(1, 0) })
+function Components.round(): any
+	return nil
 end
 
 function Components.stroke(color: any?, thickness: number?)
 	return New("UIStroke")({
-		Color = color or Theme.colors.slate,
+		Color = color or Theme.colors.ink,
 		Thickness = thickness or 3,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+		LineJoinMode = Enum.LineJoinMode.Miter,
 	})
 end
 
 function Components.textStroke(thickness: number?)
-	return New("UIStroke")({ Color = Theme.colors.slate, Thickness = thickness or 2 })
+	return New("UIStroke")({ Color = Theme.colors.ink, Thickness = thickness or 2 })
 end
 
 function Components.padding(px: number)
@@ -52,13 +55,25 @@ end
 function Components.shine()
 	return New("UIGradient")({
 		Rotation = 90,
-		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(200, 200, 212)),
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(205, 205, 215)),
 	})
 end
 
 -- A two-color vertical gradient (top -> bottom) on a white surface.
 function Components.gradient(top: Color3, bottom: Color3)
 	return New("UIGradient")({ Rotation = 90, Color = ColorSequence.new(top, bottom) })
+end
+
+-- A thin light strip along the top inside edge: the "bevel" that makes flat boxes look physical.
+function Components.bevel(z: number?, transparency: number?)
+	return New("Frame")({
+		Name = "Bevel",
+		BorderSizePixel = 0,
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = transparency or 0.72,
+		Size = UDim2.new(1, 0, 0, 3),
+		ZIndex = z or 2,
+	})
 end
 
 -- UIScale that gently pulses while `active` is true (attention without being annoying).
@@ -97,22 +112,23 @@ function Components.label(props: { [any]: any })
 	return New("TextLabel")(base)
 end
 
--- A soft drop shadow: put it first in a transparent container, behind the real face.
-function Components.shadow(radius: number?, offset: number?)
+-- Hard drop shadow: put it first in a transparent container, behind the real face.
+function Components.shadow(_radius: number?, offset: number?)
+	local o = offset or Theme.shadow
 	return New("Frame")({
 		Name = "Shadow",
-		BackgroundColor3 = Color3.new(0, 0, 0),
-		BackgroundTransparency = 0.55,
-		Position = UDim2.fromOffset(0, offset or 5),
+		BorderSizePixel = 0,
+		BackgroundColor3 = Theme.colors.ink,
+		BackgroundTransparency = 0.2,
+		Position = UDim2.fromOffset(o, o),
 		Size = UDim2.fromScale(1, 1),
 		ZIndex = 0,
-		[Children] = New("UICorner")({ CornerRadius = UDim.new(0, radius or 14) }),
 	})
 end
 
--- Chunky simulator-style button: a darker "lip" underneath and a face that presses down into it.
+-- Chunky simulator-style button: a darker lip underneath and a face that presses down into it.
 -- props: Text, Icon (emoji), Color, Size, Position, AnchorPoint, LayoutOrder, Name, ZIndex, Visible,
---        OnClick, Disabled (state), Selected (state: gold ring), Pulse (state), MaxTextSize, Children, Silent
+--        OnClick, Disabled (state), Selected (state: gold outline), Pulse (state), MaxTextSize, Children, Silent
 function Components.button(props: { [string]: any })
 	local pressed = Value(false)
 	local hovered = Value(false)
@@ -126,16 +142,17 @@ function Components.button(props: { [string]: any })
 		end
 		return read(props.Color) or Theme.colors.toxic
 	end)
+	local LIP = 6
 	local push = Spring(
 		Computed(function()
-			return if pressed:get() then 5 else 0
+			return if pressed:get() then LIP - 1 else 0
 		end),
 		50,
 		0.8
 	)
 	local hover = Spring(
 		Computed(function()
-			return if hovered:get() and not isDisabled() then 1.05 else 1
+			return if hovered:get() and not isDisabled() then 1.04 else 1
 		end),
 		30,
 		0.6
@@ -161,34 +178,32 @@ function Components.button(props: { [string]: any })
 					return hover:get() * pulse
 				end),
 			}),
-			Components.shadow(16, 6),
+			Components.shadow(),
 			New("Frame")({
 				Name = "Lip",
+				BorderSizePixel = 0,
 				Size = UDim2.fromScale(1, 1),
 				BackgroundColor3 = Computed(function()
-					return Theme.darker(color:get(), 0.42)
+					return Theme.darker(color:get(), 0.45)
 				end),
 				ZIndex = 1,
-				[Children] = {
-					Components.corner(16),
-					New("UIStroke")({
-						ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-						Color = Computed(function()
-							return if props.Selected and props.Selected:get()
-								then Theme.colors.gold
-								else Theme.colors.slate
-						end),
-						Thickness = Computed(function()
-							return if props.Selected and props.Selected:get() then 4 else 3
-						end),
-					}),
-				},
+				[Children] = New("UIStroke")({
+					ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+					LineJoinMode = Enum.LineJoinMode.Miter,
+					Color = Computed(function()
+						return if props.Selected and props.Selected:get() then Theme.colors.gold else Theme.colors.ink
+					end),
+					Thickness = Computed(function()
+						return if props.Selected and props.Selected:get() then 4 else 3
+					end),
+				}),
 			}),
 			New("TextButton")({
 				Name = "Face",
 				AutoButtonColor = false,
+				BorderSizePixel = 0,
 				Text = "",
-				Size = UDim2.new(1, 0, 1, -6),
+				Size = UDim2.new(1, 0, 1, -LIP),
 				Position = Computed(function()
 					return UDim2.fromOffset(0, push:get())
 				end),
@@ -220,25 +235,15 @@ function Components.button(props: { [string]: any })
 					end
 				end,
 				[Children] = {
-					Components.corner(16),
-					-- Face: base color, lighter at the top.
+					-- Flat face, a touch lighter at the top.
 					New("UIGradient")({
 						Rotation = 90,
 						Color = Computed(function()
 							local c = color:get()
-							return ColorSequence.new(c:Lerp(Color3.new(1, 1, 1), 0.28), c)
+							return ColorSequence.new(c:Lerp(Color3.new(1, 1, 1), 0.18), c)
 						end),
 					}),
-					New("Frame")({
-						-- Glossy highlight along the top edge.
-						Name = "Gloss",
-						BackgroundColor3 = Color3.new(1, 1, 1),
-						BackgroundTransparency = 0.78,
-						Position = UDim2.new(0, 7, 0, 4),
-						Size = UDim2.new(1, -14, 0.3, 0),
-						ZIndex = 2,
-						[Children] = Components.corner(10),
-					}),
+					Components.bevel(3, 0.55),
 					Components.label({
 						Name = "Text",
 						Text = Computed(function()
@@ -259,12 +264,12 @@ function Components.button(props: { [string]: any })
 	})
 end
 
--- Square menu tile for the left column. props: Icon, Label, Color, OnClick, Badge (state text),
--- Alert (state: red dot + pulse), Selected (state), LayoutOrder, Name
+-- Square menu tile. props: Icon, Label, Color, OnClick, Badge (state text),
+-- Alert (state: red marker + pulse), Selected (state), LayoutOrder, Name, Size
 function Components.tile(props: { [string]: any })
 	return Components.button({
 		Name = props.Name,
-		Size = props.Size or UDim2.fromOffset(84, 84),
+		Size = props.Size or UDim2.fromOffset(76, 82),
 		LayoutOrder = props.LayoutOrder,
 		Color = props.Color,
 		Text = "",
@@ -274,49 +279,63 @@ function Components.tile(props: { [string]: any })
 		Children = {
 			Components.label({
 				Text = props.Icon,
-				Position = UDim2.fromOffset(0, 4),
-				Size = UDim2.new(1, 0, 0.55, 0),
-				MaxTextSize = 40,
+				Position = UDim2.fromOffset(0, 5),
+				Size = UDim2.new(1, 0, 0.52, 0),
+				MaxTextSize = 34,
 				ZIndex = 4,
 			}),
 			Components.label({
 				Text = props.Label,
 				Position = UDim2.new(0, 4, 0.6, 0),
-				Size = UDim2.new(1, -8, 0.32, 0),
-				MaxTextSize = 17,
+				Size = UDim2.new(1, -8, 0.28, 0),
+				MaxTextSize = 14,
 				ZIndex = 4,
 			}),
 			props.Badge and New("Frame")({
 				Name = "Badge",
 				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.new(0.5, 0, 1, 2),
-				Size = UDim2.fromOffset(62, 20),
-				BackgroundColor3 = Theme.colors.slate,
-				ZIndex = 5,
-				[Children] = {
-					Components.round(),
-					Components.label({ Text = props.Badge, Size = UDim2.fromScale(1, 1), MaxTextSize = 14, ZIndex = 6 }),
-				},
+				Position = UDim2.new(0.5, 0, 1, 4),
+				Size = UDim2.new(1, 4, 0, 22),
+				BackgroundColor3 = Theme.colors.ink,
+				BorderSizePixel = 0,
+				ZIndex = 6,
+				[Children] = Components.label({
+					Text = props.Badge,
+					Size = UDim2.new(1, -8, 1, -6),
+					Position = UDim2.fromOffset(4, 3),
+					MaxTextSize = 13,
+					TextColor3 = Theme.colors.cream,
+					StrokeThickness = 0,
+					ZIndex = 7,
+				}),
 			}) or nil,
 			props.Alert and New("Frame")({
 				Name = "Alert",
 				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.new(1, -6, 0, 6),
-				Size = UDim2.fromOffset(24, 24),
+				Position = UDim2.new(1, -2, 0, 2),
+				Size = UDim2.fromOffset(22, 22),
+				Rotation = 45,
 				BackgroundColor3 = Theme.colors.danger,
+				BorderSizePixel = 0,
 				Visible = props.Alert,
 				ZIndex = 6,
 				[Children] = {
-					Components.round(),
-					Components.stroke(Theme.colors.white, 2),
-					Components.label({ Text = "!", Size = UDim2.fromScale(1, 1), MaxTextSize = 18, ZIndex = 7 }),
+					Components.stroke(Theme.colors.ink, 2.5),
+					Components.label({
+						Text = "!",
+						Rotation = -45,
+						Size = UDim2.fromScale(1, 1),
+						MaxTextSize = 16,
+						ZIndex = 7,
+					}),
 				},
 			}) or nil,
 		},
 	})
 end
 
--- Dark rounded pill with a colored rim and a drop shadow, for Cash, Bag and similar readouts.
+-- Dark stat box with an accent stripe down its left edge and a hard shadow, for top-bar readouts.
+-- props: Name, AnchorPoint, Position, Size, Rim (accent, may be a state), ZIndex, Children
 function Components.pill(props: { [string]: any })
 	return New("Frame")({
 		Name = props.Name,
@@ -326,16 +345,24 @@ function Components.pill(props: { [string]: any })
 		BackgroundTransparency = 1,
 		ZIndex = props.ZIndex,
 		[Children] = {
-			Components.shadow(999, 4),
+			Components.shadow(),
 			New("Frame")({
 				Name = "Face",
+				BorderSizePixel = 0,
 				Size = UDim2.fromScale(1, 1),
 				BackgroundColor3 = Color3.new(1, 1, 1),
 				ZIndex = 1,
 				[Children] = {
-					Components.round(),
-					Components.stroke(props.Rim or Theme.colors.toxic, 3),
-					Components.gradient(Theme.colors.slateLight, Theme.colors.slate),
+					Components.stroke(Theme.colors.ink, 3),
+					Components.gradient(Theme.colors.panelHi, Theme.colors.panel),
+					Components.bevel(1, 0.88),
+					New("Frame")({
+						Name = "Stripe",
+						BorderSizePixel = 0,
+						Size = UDim2.new(0, 5, 1, 0),
+						BackgroundColor3 = props.Rim or Theme.colors.toxic,
+						ZIndex = 2,
+					}),
 					props.Children,
 				},
 			}),
@@ -356,16 +383,18 @@ function Components.padlock(props: { [string]: any })
 		ZIndex = z,
 		[Children] = {
 			New("Frame")({
+				-- Squared-off shackle: an outline box whose bottom is hidden behind the body.
 				Name = "Shackle",
 				BackgroundTransparency = 1,
 				AnchorPoint = Vector2.new(0.5, 0),
-				Position = UDim2.fromScale(0.5, 0.02),
-				Size = UDim2.fromScale(0.6, 0.62),
+				Position = UDim2.fromScale(0.5, 0.04),
+				Size = UDim2.fromScale(0.56, 0.6),
 				ZIndex = z,
-				[Children] = {
-					Components.round(),
-					New("UIStroke")({ Color = Theme.darker(color, 0.15), Thickness = 6 }),
-				},
+				[Children] = New("UIStroke")({
+					Color = Theme.darker(color, 0.15),
+					Thickness = 6,
+					LineJoinMode = Enum.LineJoinMode.Miter,
+				}),
 			}),
 			New("Frame")({
 				Name = "Body",
@@ -373,19 +402,19 @@ function Components.padlock(props: { [string]: any })
 				Position = UDim2.fromScale(0.5, 1),
 				Size = UDim2.fromScale(0.9, 0.58),
 				BackgroundColor3 = color,
+				BorderSizePixel = 0,
 				ZIndex = z + 1,
 				[Children] = {
-					Components.corner(8),
-					Components.stroke(Theme.colors.slate, 2.5),
+					Components.stroke(Theme.colors.ink, 2.5),
 					Components.shine(),
 					New("Frame")({
 						Name = "Keyhole",
 						AnchorPoint = Vector2.new(0.5, 0.5),
 						Position = UDim2.fromScale(0.5, 0.45),
-						Size = UDim2.fromScale(0.18, 0.3),
-						BackgroundColor3 = Theme.colors.slate,
+						Size = UDim2.fromScale(0.14, 0.34),
+						BackgroundColor3 = Theme.colors.ink,
+						BorderSizePixel = 0,
 						ZIndex = z + 2,
-						[Children] = Components.round(),
 					}),
 				},
 			}),
@@ -393,18 +422,18 @@ function Components.padlock(props: { [string]: any })
 	})
 end
 
--- Centered modal panel with a colored header and a close button. Pops in when opened.
--- (UIController draws the dim backdrop behind open panels.)
+-- Centered modal panel: accent header bar with the title, square close button, hard shadow.
+-- Pops in when opened. (Root draws the dim backdrop behind open panels.)
 function Components.panel(
 	props: { Title: any, IsOpen: any, OnClose: () -> (), Size: UDim2?, Content: any, Accent: Color3? }
 )
 	local accent = props.Accent or Theme.colors.purple
 	local scale = Spring(
 		Computed(function()
-			return if props.IsOpen:get() then 1 else 0.82
+			return if props.IsOpen:get() then 1 else 0.86
 		end),
-		30,
-		0.65
+		32,
+		0.7
 	)
 	return New("Frame")({
 		Name = "Panel",
@@ -417,40 +446,41 @@ function Components.panel(
 		ZIndex = 10,
 		[Children] = {
 			New("UIScale")({ Scale = scale }),
-			Components.shadow(24, 8),
+			Components.shadow(nil, 8),
 			New("Frame")({
 				Name = "Body",
+				BorderSizePixel = 0,
 				Size = UDim2.fromScale(1, 1),
 				BackgroundColor3 = Color3.new(1, 1, 1),
 				ZIndex = 1,
 				[Children] = {
-					Components.corner(24),
-					Components.stroke(Theme.colors.slate, 4),
-					Components.gradient(Theme.colors.slateLight, Theme.colors.slate),
+					Components.stroke(Theme.colors.ink, 4),
+					Components.gradient(Theme.colors.panelHi, Theme.colors.panel),
 				},
 			}),
 			New("Frame")({
 				Name = "Header",
-				Size = UDim2.new(1, 0, 0, 60),
-				BackgroundColor3 = Color3.new(1, 1, 1),
+				BorderSizePixel = 0,
+				Size = UDim2.new(1, 0, 0, 58),
+				BackgroundColor3 = accent,
 				ZIndex = 2,
 				[Children] = {
-					Components.corner(24),
-					Components.gradient(accent:Lerp(Color3.new(1, 1, 1), 0.2), accent),
+					Components.bevel(3, 0.6),
 					New("Frame")({
-						-- Square off the header's bottom corners.
-						BackgroundColor3 = accent,
+						-- Darker band along the bottom of the header.
+						Name = "Lip",
 						BorderSizePixel = 0,
-						Position = UDim2.new(0, 0, 1, -24),
-						Size = UDim2.new(1, 0, 0, 24),
-						ZIndex = 2,
+						BackgroundColor3 = Theme.darker(accent, 0.35),
+						Position = UDim2.new(0, 0, 1, -6),
+						Size = UDim2.new(1, 0, 0, 6),
+						ZIndex = 3,
 					}),
 					Components.label({
 						Text = props.Title,
-						Size = UDim2.new(1, -110, 0, 42),
-						Position = UDim2.fromOffset(22, 9),
+						Size = UDim2.new(1, -110, 0, 36),
+						Position = UDim2.fromOffset(20, 9),
 						TextXAlignment = Enum.TextXAlignment.Left,
-						MaxTextSize = 36,
+						MaxTextSize = 30,
 						StrokeThickness = 3,
 						ZIndex = 3,
 					}),
@@ -459,18 +489,18 @@ function Components.panel(
 			Components.button({
 				Text = "✕",
 				Color = Theme.colors.danger,
-				Size = UDim2.fromOffset(50, 50),
-				Position = UDim2.new(1, 12, 0, -12),
+				Size = UDim2.fromOffset(48, 48),
+				Position = UDim2.new(1, 10, 0, -10),
 				AnchorPoint = Vector2.new(1, 0),
-				MaxTextSize = 26,
+				MaxTextSize = 24,
 				ZIndex = 5, -- above the header (siblings sort by ZIndex)
 				OnClick = props.OnClose,
 			}),
 			New("Frame")({
 				Name = "Content",
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(16, 74),
-				Size = UDim2.new(1, -32, 1, -90),
+				Position = UDim2.fromOffset(16, 72),
+				Size = UDim2.new(1, -32, 1, -88),
 				ZIndex = 3,
 				[Children] = props.Content,
 			}),

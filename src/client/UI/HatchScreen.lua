@@ -1,7 +1,7 @@
 --!strict
--- Builds the full-screen hatch cinematic (plain Instances, animated by HatchController):
--- dark backdrop, rarity glow, spinning light rays, the egg/mutant in a 3D window, 2D confetti,
--- reveal text, Skip buttons, a tap-anywhere catcher and a white flash on top of everything.
+-- Builds the hatch cutscene's overlay (plain Instances, animated by HatchController). The scene
+-- itself is 3D (the swamp island); this adds top/bottom shades so text reads, 2D confetti, reveal
+-- text, Skip buttons, a tap-anywhere catcher and a full-screen flash on top of everything.
 -- Layout is on the same 900x540 design canvas as the HUD; the caller scales `root`.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,11 +12,7 @@ local HatchScreen = {}
 
 export type Screen = {
 	root: Frame,
-	backdrop: Frame,
-	glow: { Frame },
-	rays: { Frame },
-	viewport: ViewportFrame,
-	camera: Camera,
+	shades: { Frame },
 	confetti: Frame,
 	title: TextLabel,
 	titleGradient: UIGradient,
@@ -42,16 +38,11 @@ local function frame(props: { [string]: any }): Frame
 	return f
 end
 
-local function corner(parent: Instance, radius: number?)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = if radius then UDim.new(0, radius) else UDim.new(1, 0)
-	c.Parent = parent
-end
-
 local function stroke(parent: Instance, color: Color3, thickness: number, border: boolean?)
 	local s = Instance.new("UIStroke")
 	s.Color = color
 	s.Thickness = thickness
+	s.LineJoinMode = Enum.LineJoinMode.Miter
 	if border then
 		s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	end
@@ -69,7 +60,7 @@ local function text(props: { [string]: any }): TextLabel
 			(t :: any)[k] = v
 		end
 	end
-	stroke(t, Theme.colors.slate, props.Stroke or 3)
+	stroke(t, Theme.colors.ink, props.Stroke or 3)
 	local limit = Instance.new("UITextSizeConstraint")
 	limit.MaxTextSize = props.Max or 40
 	limit.Parent = t
@@ -84,20 +75,38 @@ local function button(name: string, label: string, props: { [string]: any }): Te
 	b.TextScaled = true
 	b.Text = label
 	b.TextColor3 = Theme.colors.white
-	b.BackgroundColor3 = Theme.colors.slateLight
-	b.BackgroundTransparency = 0.1
+	b.BackgroundColor3 = Theme.colors.panelHi
+	b.BorderSizePixel = 0
 	for k, v in props do
 		(b :: any)[k] = v
 	end
-	corner(b, 14)
-	stroke(b, Theme.colors.slate, 3, true)
+	-- Boxy: ink outline, a light bevel on top and a dark lip along the bottom.
+	stroke(b, Theme.colors.ink, 3, true)
 	local inner = Instance.new("UIStroke")
-	inner.Color = Theme.colors.slate
+	inner.Color = Theme.colors.ink
 	inner.Thickness = 2
 	inner.Parent = b
+	frame({
+		Name = "Bevel",
+		Size = UDim2.new(1, 0, 0, 3),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.75,
+		ZIndex = b.ZIndex,
+		Parent = b,
+	})
+	frame({
+		Name = "Lip",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.new(1, 0, 0, 6),
+		BackgroundColor3 = Theme.colors.ink,
+		BackgroundTransparency = 0.35,
+		ZIndex = b.ZIndex,
+		Parent = b,
+	})
 	local pad = Instance.new("UIPadding")
 	pad.PaddingTop = UDim.new(0, 8)
-	pad.PaddingBottom = UDim.new(0, 8)
+	pad.PaddingBottom = UDim.new(0, 12)
 	pad.Parent = b
 	return b
 end
@@ -105,88 +114,27 @@ end
 function HatchScreen.new(): Screen
 	local root = frame({ Name = "HatchRoot", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1 })
 
-	local backdrop = frame({
-		Name = "Backdrop",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		ZIndex = 1,
-		Parent = root,
-	})
-	local backGradient = Instance.new("UIGradient")
-	backGradient.Rotation = 90
-	backGradient.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromHex("#2A1E4A")),
-		ColorSequenceKeypoint.new(0.55, Color3.fromHex("#140F24")),
-		ColorSequenceKeypoint.new(1, Color3.fromHex("#0B0814")),
-	})
-	backGradient.Parent = backdrop
-
-	-- Soft rarity glow: stacked circles, faintest outermost.
-	local glow = {}
-	for i = 1, 6 do
-		local size = 180 + i * 70
-		local g = frame({
-			Name = "Glow" .. i,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0.5, 0, 0.5, 10),
-			Size = UDim2.fromOffset(size, size),
-			BackgroundColor3 = Theme.colors.white,
-			BackgroundTransparency = 0.78 + i * 0.03,
-			ZIndex = 2,
+	-- Soft dark fades at the top and bottom so the text reads over the 3D scene.
+	local function shade(name: string, anchorY: number, rotation: number)
+		local f = frame({
+			Name = name,
+			AnchorPoint = Vector2.new(0, anchorY),
+			Position = UDim2.fromScale(0, anchorY),
+			Size = UDim2.new(1, 0, 0.3, 0),
+			BackgroundColor3 = Color3.fromHex("#0B0814"),
+			ZIndex = 1,
 			Parent = root,
 		})
-		corner(g)
-		glow[i] = g
+		local g = Instance.new("UIGradient")
+		g.Rotation = rotation
+		g.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.35),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		g.Parent = f
+		return f
 	end
-
-	-- Light rays: each is a long bar centered on the screen center (GUI rotation is around an
-	-- object's own center), with only its outer half lit and fading toward the tip.
-	local rays = {}
-	for i = 1, 14 do
-		local holder = frame({
-			Name = "Ray" .. i,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.new(0.5, 0, 0.5, 10),
-			Size = UDim2.fromOffset(if i % 2 == 0 then 54 else 34, 1300),
-			BackgroundTransparency = 1,
-			Rotation = (i - 1) * (360 / 14),
-			ZIndex = 2,
-			Parent = root,
-		})
-		local beam = frame({
-			Name = "Beam",
-			Size = UDim2.fromScale(1, 0.5),
-			BackgroundColor3 = Theme.colors.white,
-			BackgroundTransparency = 0,
-			ZIndex = 2,
-			Parent = holder,
-		})
-		local fade = Instance.new("UIGradient")
-		fade.Rotation = 90
-		fade.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 1),
-			NumberSequenceKeypoint.new(0.55, 0.82),
-			NumberSequenceKeypoint.new(1, 0.55),
-		})
-		fade.Parent = beam
-		rays[i] = holder
-	end
-
-	local viewport = Instance.new("ViewportFrame")
-	viewport.Name = "Stage"
-	viewport.AnchorPoint = Vector2.new(0.5, 0.5)
-	viewport.Position = UDim2.new(0.5, 0, 0.5, 10)
-	viewport.Size = UDim2.fromOffset(310, 310)
-	viewport.BackgroundTransparency = 1
-	viewport.Ambient = Color3.fromRGB(205, 200, 215)
-	viewport.LightColor = Color3.fromRGB(255, 250, 240)
-	viewport.LightDirection = Vector3.new(-0.4, -1, 0.7)
-	viewport.ZIndex = 4
-	viewport.Parent = root
-	local camera = Instance.new("Camera")
-	camera.FieldOfView = 32
-	camera.Parent = viewport
-	viewport.CurrentCamera = camera
+	local shades = { shade("TopShade", 0, 90), shade("BottomShade", 1, -90) }
 
 	local confetti = frame({
 		Name = "Confetti",
@@ -236,8 +184,7 @@ function HatchScreen.new(): Screen
 		ZIndex = 8,
 		Parent = root,
 	})
-	corner(newRibbon, 12)
-	stroke(newRibbon, Theme.colors.slate, 3, true)
+	stroke(newRibbon, Theme.colors.ink, 3, true)
 	text({
 		Text = "NEW!",
 		Size = UDim2.new(1, -12, 1, -8),
@@ -336,11 +283,7 @@ function HatchScreen.new(): Screen
 
 	return {
 		root = root,
-		backdrop = backdrop,
-		glow = glow,
-		rays = rays,
-		viewport = viewport,
-		camera = camera,
+		shades = shades,
 		confetti = confetti,
 		title = title,
 		titleGradient = titleGradient,
@@ -369,39 +312,24 @@ function HatchScreen.setChips(screen: Screen, chips: { { text: string, color: Co
 		local f = frame({
 			Name = "Chip" .. i,
 			LayoutOrder = i,
-			Size = UDim2.fromOffset(0, 30),
-			AutomaticSize = Enum.AutomaticSize.X,
+			-- Width from the text length (GothamBlack at 18px is ~11px per character).
+			Size = UDim2.fromOffset(30 + (utf8.len(chip.text) or #chip.text) * 11, 30),
 			BackgroundColor3 = chip.color,
 			ZIndex = 7,
 			Parent = screen.chips,
 		})
-		corner(f)
-		stroke(f, Theme.colors.slate, 2.5, true)
-		local pad = Instance.new("UIPadding")
-		pad.PaddingLeft = UDim.new(0, 14)
-		pad.PaddingRight = UDim.new(0, 14)
-		pad.Parent = f
+		stroke(f, Theme.colors.ink, 2.5, true)
 		local t = Instance.new("TextLabel")
 		t.BackgroundTransparency = 1
-		t.AutomaticSize = Enum.AutomaticSize.X
-		t.Size = UDim2.fromScale(0, 1)
+		t.Position = UDim2.fromOffset(8, 4)
+		t.Size = UDim2.new(1, -16, 1, -8)
 		t.Font = Theme.font
-		t.TextSize = 19
+		t.TextScaled = true
 		t.TextColor3 = Theme.colors.white
 		t.Text = chip.text
 		t.ZIndex = 8
-		stroke(t, Theme.colors.slate, 2)
+		stroke(t, Theme.colors.ink, 2)
 		t.Parent = f
-	end
-end
-
--- Tints rays and glow for a rarity.
-function HatchScreen.setColor(screen: Screen, color: Color3)
-	for _, g in screen.glow do
-		g.BackgroundColor3 = color
-	end
-	for _, ray in screen.rays do
-		(ray:FindFirstChild("Beam") :: Frame).BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.35)
 	end
 end
 

@@ -28,7 +28,11 @@ type Step = {
 local function hub(name: string): BasePart?
 	local map = workspace:FindFirstChild("Map")
 	local hubModel = map and map:FindFirstChild("Hub")
-	return hubModel and hubModel:FindFirstChild(name) :: BasePart?
+	local found = hubModel and hubModel:FindFirstChild(name)
+	if found and found:IsA("Model") then
+		return found.PrimaryPart
+	end
+	return found :: BasePart?
 end
 
 local function firstSlot(predicate: (BasePart) -> boolean): BasePart?
@@ -96,7 +100,7 @@ local function currentStep(snap: Types.Snapshot): Step
 		return {
 			text = "Buy more eggs at the EGG SHOP",
 			target = function()
-				return hub("EggShopCounter")
+				return hub("EggShopPad")
 			end,
 		}
 	elseif st.slotsBought == 0 and snap.nextSlotCost then

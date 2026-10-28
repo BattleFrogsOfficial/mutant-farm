@@ -445,7 +445,8 @@ do
 	local Theme = requireModule(UI.Theme)
 	local screen = HatchScreen.new()
 	local gold = roblox.Color3.fromHex(Rarities.info.Legendary.color)
-	HatchScreen.setColor(screen, gold)
+
+	screen.titleGradient.Color = roblox.ColorSequence.new(roblox.Color3.fromHex("#FFF3A8"), roblox.Color3.fromHex("#FF9A1F"))
 	screen.title.Text = "LEGENDARY!"
 	screen.value.Text = "Worth $1.62M"
 	screen.name.Text = "Duchess Froibby"

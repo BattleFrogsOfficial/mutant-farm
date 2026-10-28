@@ -77,7 +77,6 @@ local function eggCard(tierId: string, order: number)
 			return if locked:get() then Theme.colors.slate else Theme.colors.slateLight
 		end),
 		[Children] = {
-			C.corner(18),
 			C.stroke(
 				Computed(function()
 					return if locked:get() then Theme.colors.locked else Color3.fromHex(tier.color)
@@ -208,7 +207,6 @@ local function eggCard(tierId: string, order: number)
 				Size = UDim2.new(1, -12, 1, -52),
 				ZIndex = 14,
 				[Children] = {
-					C.corner(12),
 					C.padding(10),
 					C.label({ Text = "Hatch odds", Size = UDim2.new(1, 0, 0, 22), MaxTextSize = 20, ZIndex = 15 }),
 					New("Frame")({

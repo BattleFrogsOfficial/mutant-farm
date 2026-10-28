@@ -47,7 +47,6 @@ local function itemRow(itemId: string, order: any)
 		BackgroundColor3 = Theme.colors.slateLight,
 		ZIndex = 10,
 		[Children] = {
-			C.corner(14),
 			C.stroke(rarityColor, 2.5),
 			New("Frame")({
 				Name = "Thumb",
@@ -56,7 +55,6 @@ local function itemRow(itemId: string, order: any)
 				BackgroundColor3 = Theme.colors.slate,
 				ZIndex = 10,
 				[Children] = {
-					C.corner(12),
 					Viewport.new({
 						Build = function()
 							return MutantModel.build(item)

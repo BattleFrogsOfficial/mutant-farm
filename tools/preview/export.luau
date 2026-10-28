@@ -81,12 +81,24 @@ local function pivot(model, cf)
 	end
 end
 
-local World = requireModule(game.ServerScriptService.Server.Util.World)
-local plots = World.build()
+-- `hatch` mode renders the hatch cutscene set instead of the map: the island, an egg on the
+-- stump, and (with a 4th arg "mutant") a mutant standing there.
+local mode = args[3]
+local fog = nil
+if mode == "hatch" then
+	local Island = requireModule(game.ReplicatedStorage.Shared.HatchIsland)
+	local M = requireModule(game.ReplicatedStorage.Shared.MutantModel)
+	Island.build(CFrame.new()).Parent = workspace
+	local egg = M.buildEgg("Swamp", 1, {})
+	pivot(egg, CFrame.new(0, Island.STUMP_TOP, 0))
+	egg.Parent = workspace
+	fog = { color = "#6d8f8c", near = 40, far = 170, sky = "#7f9c98" }
+end
+local plots = if mode == "hatch" then {} else requireModule(game.ServerScriptService.Server.Util.World).build()
 
 -- Showcase: a player's plot in mid-game so mutants and eggs show up in screenshots.
 local MutantModel = game.ReplicatedStorage.Shared:FindFirstChild("MutantModel")
-if MutantModel then
+if MutantModel and mode ~= "hatch" then
 	local M = requireModule(MutantModel)
 	local plot = plots[1]
 	local Mutants = requireModule(game.ReplicatedStorage.Shared.Config.Mutants)
@@ -188,5 +200,23 @@ for _, inst in workspace:GetDescendants() do
 		})
 	end
 end
-fs.writeFile(outPath, serde.encode("json", { parts = parts }))
+-- Sign text: one entry per SurfaceGui so the renderer can paint it on the right face.
+local texts = {}
+for _, gui in workspace:GetDescendants() do
+	if gui:IsA("SurfaceGui") then
+		local part = gui.Adornee or gui.Parent
+		local label = gui:FindFirstChildOfClass("TextLabel")
+		if label and part and part:IsA("BasePart") then
+			table.insert(texts, {
+				face = gui.Face.Name,
+				text = label.Text,
+				color = colorHex(label.TextColor3),
+				rotation = label.Rotation,
+				size = { part.Size.X, part.Size.Y, part.Size.Z },
+				cf = { part.CFrame:GetComponents() },
+			})
+		end
+	end
+end
+fs.writeFile(outPath, serde.encode("json", { parts = parts, texts = texts, fog = fog }))
 print(string.format("exported %d parts", #parts))

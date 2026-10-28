@@ -1,5 +1,5 @@
 --!strict
--- Short messages stacked under the top bar, between the Cash pill and the side menu.
+-- Short messages stacked under the currency bar, clear of the side menu.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -30,7 +30,7 @@ return function()
 		Name = "Toasts",
 		ZIndex = 20, -- above open panels
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 104),
+		Position = UDim2.new(0.5, 0, 0, 92),
 		Size = UDim2.fromOffset(380, 170),
 		BackgroundTransparency = 1,
 		[Children] = {
@@ -54,7 +54,6 @@ return function()
 								BackgroundColor3 = style.color,
 								ZIndex = 1,
 								[Children] = {
-									C.corner(14),
 									C.stroke(Theme.colors.slate, 2.5),
 									C.shine(),
 									C.label({

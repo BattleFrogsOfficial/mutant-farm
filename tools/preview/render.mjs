@@ -36,8 +36,8 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 const s = new THREE.Scene();
-s.background = new THREE.Color("#cfe6ff");
-s.fog = new THREE.Fog("#fff4d6", 220, 700);
+s.background = new THREE.Color(data.fog ? data.fog.sky : "#cfe6ff");
+s.fog = data.fog ? new THREE.Fog(data.fog.color, data.fog.near, data.fog.far) : new THREE.Fog("#fff4d6", 220, 700);
 s.add(new THREE.HemisphereLight("#ffffff", "#7a6a90", 1.6));
 const sun = new THREE.DirectionalLight("#fff6e0", 2.4);
 sun.position.set(120, 260, 80);
@@ -94,6 +94,42 @@ for (const p of data.parts) {
   m.castShadow = p.transparency < 0.5 && !neon;
   m.receiveShadow = true;
   s.add(m);
+}
+// SurfaceGui text. Roblox face conventions (text right / up, in part space):
+//   Front(-Z): right -X, up +Y   Back(+Z): right +X, up +Y   Right(+X): right -Z, up +Y
+//   Left(-X): right +Z, up +Y    Top(+Y): right +X, up -Z    Bottom(-Y): right +X, up +Z
+const FACES = {
+  Front: [[-1,0,0],[0,1,0],[0,0,-1]], Back: [[1,0,0],[0,1,0],[0,0,1]],
+  Right: [[0,0,-1],[0,1,0],[1,0,0]], Left: [[0,0,1],[0,1,0],[-1,0,0]],
+  Top: [[1,0,0],[0,0,-1],[0,1,0]], Bottom: [[1,0,0],[0,0,1],[0,-1,0]],
+};
+for (const t of Array.isArray(data.texts) ? data.texts : []) {
+  const [r, u, n] = FACES[t.face];
+  const dim = (v) => Math.abs(v[0]) * t.size[0] + Math.abs(v[1]) * t.size[1] + Math.abs(v[2]) * t.size[2];
+  const w = dim(r), h = dim(u), depth = dim(n);
+  const ppu = 64, cw = Math.max(8, Math.round(w * ppu)), ch = Math.max(8, Math.round(h * ppu));
+  const cv = document.createElement("canvas"); cv.width = cw; cv.height = ch;
+  const g = cv.getContext("2d");
+  g.translate(cw / 2, ch / 2); g.rotate((t.rotation || 0) * Math.PI / 180);
+  const lines = String(t.text).split(String.fromCharCode(10));
+  const bw = cw * 0.9, bh = ch * 0.8;
+  let fs = bh / lines.length;
+  g.font = "900 " + fs + "px sans-serif";
+  const widest = Math.max(...lines.map((l) => g.measureText(l).width));
+  if (widest > bw) fs *= bw / widest;
+  g.font = "900 " + fs + "px sans-serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.lineJoin = "round"; g.lineWidth = fs * 0.12; g.strokeStyle = "#2a2340"; g.fillStyle = t.color;
+  lines.forEach((l, i) => { const y = (i - (lines.length - 1) / 2) * fs; g.strokeText(l, 0, y); g.fillText(l, 0, y); });
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  const c = t.cf;
+  const rot = new THREE.Matrix4().set(c[3], c[4], c[5], 0, c[6], c[7], c[8], 0, c[9], c[10], c[11], 0, 0, 0, 0, 1);
+  const local = new THREE.Matrix4().makeBasis(new THREE.Vector3(...r).multiplyScalar(w), new THREE.Vector3(...u).multiplyScalar(h), new THREE.Vector3(...n));
+  local.setPosition(new THREE.Vector3(...n).multiplyScalar(depth / 2 + 0.02));
+  const m4 = new THREE.Matrix4().makeTranslation(c[0], c[1], c[2]).multiply(rot).multiply(local);
+  plane.matrixAutoUpdate = false; plane.matrix.copy(m4);
+  s.add(plane);
 }
 const camera = new THREE.PerspectiveCamera(60, 1280 / 720, 0.5, 2000);
 window.shoot = (eye, target, fov) => {
