@@ -1,6 +1,6 @@
 --!strict
 -- Building blocks shared by every screen, in one boxy style: square corners, 3px ink outlines,
--- hard offset shadows, a darker "lip" under every button face, and a stud texture on buttons. Chunky 3D buttons, menu tiles
+-- hard offset shadows, a darker "lip" under every button face, and a stud texture on the primary buttons. Chunky 3D buttons, menu tiles
 -- with badges, stat boxes, panels that pop open over a dimmed screen, a drawn padlock, outlined
 -- labels, and a pulse helper for anything that wants attention. Everything uses Fusion 0.2.
 
@@ -171,7 +171,8 @@ end
 
 -- Chunky simulator-style button: a darker lip underneath and a face that presses down into it.
 -- props: Text, Icon (emoji), Color, Size, Position, AnchorPoint, LayoutOrder, Name, ZIndex, Visible,
---        OnClick, Disabled (state), Selected (state: gold outline), Pulse (state), MaxTextSize, Children, Silent
+--        OnClick, Disabled (state), Selected (state: gold outline), Pulse (state), MaxTextSize, Children, Silent,
+--        Studs (true: stud texture; only for the big primary buttons, the rest stay flat)
 function Components.button(props: { [string]: any })
 	local pressed = Value(false)
 	local hovered = Value(false)
@@ -286,7 +287,7 @@ function Components.button(props: { [string]: any })
 							return ColorSequence.new(c:Lerp(Color3.new(1, 1, 1), 0.18), c)
 						end),
 					}),
-					studs(props.Size),
+					if props.Studs then studs(props.Size) else nil,
 					Components.bevel(3, 0.55),
 					Components.label({
 						Name = "Text",

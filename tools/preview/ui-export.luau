@@ -295,6 +295,13 @@ local snapshot = {
 	rebirthCost = 800_000,
 	bundleOfferEndsAt = 1_800_000_000 + 581,
 	daily = { day = 2, canClaim = true, streak = 1 },
+	potionUntil = 0,
+	groupRewardClaimed = false,
+	paidRandomRestricted = false,
+	upgrades = { growthSpeed = 2, mutationOdds = 0 },
+	upgradeCosts = { growthSpeed = 18_000, mutationOdds = 2_000 },
+	almanacRewards = 1,
+	fastHatch = false,
 }
 
 local almanac = {}
@@ -468,6 +475,8 @@ set(State.panel, "slotOffer")
 capture("slotOffer")
 set(State.panel, "rebirth")
 capture("rebirth")
+set(State.panel, "upgrades")
+capture("upgrades")
 
 set(State.panel, "none")
 
@@ -488,6 +497,7 @@ do
 	screen.newRibbon.Visible = true
 	screen.queue.Text = "+2 more"
 	screen.skipAll.Visible = true
+	screen.potion.Visible = true
 	HatchScreen.setChips(screen, {
 		{ text = "x2.31 size", color = Theme.colors.slateLight },
 		{ text = "47 studs tall", color = Theme.colors.slateLight },

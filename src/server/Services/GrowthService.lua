@@ -16,6 +16,8 @@ local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
 local Mutants = require(Shared.Config.Mutants)
 local Daily = require(Shared.Config.Daily)
+local Products = require(Shared.Config.Products)
+local Costs = require(Shared.Costs)
 local Growth = require(Shared.Growth)
 local Rolls = require(Shared.Rolls)
 local Rng = require(Shared.Rng)
@@ -34,8 +36,11 @@ local rng = Rng.new(Random.new():NextInteger(1, 2 ^ 31 - 1))
 
 local GUARANTEED_RARE_PLANT = 2 -- the Nth egg a player ever plants
 
+-- 2x Luck pass x Luck Potion (while active). Rolls.clampLuck caps the total at Game.maxLuck.
 local function luck(data: Types.Profile): number
-	return if data.ownedPasses.Luck2x then 2 else 1
+	local pass = if data.ownedPasses.Luck2x then 2 else 1
+	local potion = if DataService.now() < data.potionUntil then Products.gems.LuckPotion.luck else 1
+	return pass * potion
 end
 
 local function oddsBonus(data: Types.Profile): number
@@ -183,6 +188,23 @@ local function onPlant(player: Player, data: Types.Profile, slotIndex: any, eggI
 	plant(player, data, tostring(slotIndex), eggId)
 end
 
+-- Almanac milestones: every `every` species discovered pays Gems, once each.
+local function almanacMilestone(player: Player, data: Types.Profile)
+	local cfg = GameConfig.almanacMilestones
+	local found = 0
+	for _ in data.almanac do
+		found += 1
+	end
+	local reached = found // cfg.every
+	while data.almanacRewards < reached do
+		data.almanacRewards += 1
+		local at = data.almanacRewards * cfg.every
+		if EconomyService.addGems(player, data, cfg.gems, "Gameplay", "Almanac_" .. at) then
+			Net.notify(player, string.format("📖 %d species discovered! +%d Gems", at, cfg.gems), "success")
+		end
+	end
+end
+
 -- Returns the harvested item, or nil (and a reason) if the slot can't be harvested.
 local function harvest(player: Player, data: Types.Profile, key: string, auto: boolean?): (Types.Item?, string?)
 	local slot = data.slots[key]
@@ -219,6 +241,9 @@ local function harvest(player: Player, data: Types.Profile, key: string, auto: b
 	entry.n += 1
 	entry.best = math.max(entry.best, item.size)
 	Net.fire(player, "Almanac", { [speciesId] = entry })
+	if isNew then
+		almanacMilestone(player, data)
+	end
 
 	Net.fire(
 		player,
@@ -281,6 +306,97 @@ local function onHarvestAll(player: Player, data: Types.Profile)
 	if reason then
 		Net.notify(player, reason, "error")
 	end
+	DataService.changed(player)
+end
+
+-- Luck Potion: Gems for Products.gems.LuckPotion.luck x luck on rarity, mutations and size for
+-- its duration (stacks time). Not sold where paid random items / paid odds are restricted.
+local function onBuyPotion(player: Player, data: Types.Profile)
+	local potion = Products.gems.LuckPotion
+	if DataService.paidRandomRestricted[player] ~= false then
+		Net.notify(player, "Luck Potions aren't available in your region", "info")
+		return
+	end
+	-- Settle first: rolls already due use the old luck.
+	GrowthService.settleAndAnnounce(player, data)
+	if not EconomyService.spendGems(player, data, potion.cost, "Shop", "LuckPotion") then
+		Net.notify(player, string.format("Need %d Gems for a Luck Potion", potion.cost), "info")
+		return
+	end
+	local now = DataService.now()
+	data.potionUntil = math.max(now, data.potionUntil) + potion.durationSeconds
+	Net.notify(player, string.format("🍀 Luck Potion! %dx luck for 30 min", potion.luck), "success")
+	DataService.changed(player)
+end
+
+-- Gems to finish every growing egg now (shared formula, so the client shows the same price).
+function GrowthService.skipCost(data: Types.Profile): number
+	local now = DataService.now()
+	local speed = DataService.speed(data)
+	local total = 0
+	for _, slot in data.slots do
+		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+		local left = Growth.secondsRemaining(slot.growth, required, now, data.wateredUntil, speed)
+		total += Costs.skip(left, Products.gems.SkipTimer.costPer10Minutes)
+	end
+	return total
+end
+
+-- Skip Timer: finish every growing egg now for Gems. The mutation rolls the skipped time would
+-- have made still happen, so skipping never costs you a mutation.
+local function onSkipTimers(player: Player, data: Types.Profile)
+	GrowthService.settleAndAnnounce(player, data)
+	local cost = GrowthService.skipCost(data)
+	if cost <= 0 then
+		return
+	end
+	if not EconomyService.spendGems(player, data, cost, "Shop", "SkipTimer") then
+		Net.notify(player, string.format("Need %d Gems to finish these now", cost), "info")
+		return
+	end
+	local now = DataService.now()
+	local events = {}
+	for key, slot in data.slots do
+		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+		if slot.growth < required then
+			local rolls = Growth.rollsCrossed(slot.growth, required, required)
+			for _ = 1, rolls do
+				for _, id in Rolls.rollMutations(rng, slot.mutations, luck(data), oddsBonus(data)) do
+					table.insert(slot.mutations, id)
+					table.insert(events, { slotIndex = tonumber(key) :: number, eggId = slot.eggId, mutation = id })
+				end
+			end
+			slot.rollsDone += rolls
+			slot.growth = required
+			slot.updatedAt = now
+			slot.lastRollAt = now
+		end
+	end
+	announce(player, data, events)
+	Net.notify(player, "⏩ Done! Your eggs are ready to hatch", "success")
+	DataService.changed(player)
+end
+
+-- Cash upgrades: growth speed and mutation odds (5 levels each, reset on rebirth).
+local function onBuyUpgrade(player: Player, data: Types.Profile, kind: any)
+	if kind ~= "growthSpeed" and kind ~= "mutationOdds" then
+		return
+	end
+	local cost = Costs.upgrade(kind, data.upgrades[kind], data.rebirths)
+	if not cost then
+		return
+	end
+	-- Settle at the old speed/odds before the upgrade applies.
+	GrowthService.settleAndAnnounce(player, data)
+	if not EconomyService.spendCash(player, data, cost, "Shop", "Upgrade_" .. kind) then
+		return
+	end
+	data.upgrades[kind] += 1
+	Net.notify(
+		player,
+		if kind == "growthSpeed" then "⚡ Growth speed upgraded!" else "✨ Mutation odds upgraded!",
+		"success"
+	)
 	DataService.changed(player)
 end
 
@@ -362,6 +478,9 @@ function GrowthService.Start()
 	Net.on("Harvest", onHarvest)
 	Net.on("HarvestAll", onHarvestAll)
 	Net.on("Water", onWater)
+	Net.on("BuyPotion", onBuyPotion)
+	Net.on("SkipTimers", onSkipTimers)
+	Net.on("BuyUpgrade", onBuyUpgrade)
 
 	while true do
 		task.wait(GameConfig.growthTickSeconds)

@@ -16,6 +16,7 @@ local WelcomePanel = require(script.Parent.WelcomePanel)
 local StorePanel = require(script.Parent.StorePanel)
 local SlotOfferPanel = require(script.Parent.SlotOfferPanel)
 local RebirthPanel = require(script.Parent.RebirthPanel)
+local UpgradesPanel = require(script.Parent.UpgradesPanel)
 
 local New, Children, Computed, OnEvent = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.OnEvent
 
@@ -61,6 +62,7 @@ return function()
 			StorePanel(),
 			SlotOfferPanel(),
 			RebirthPanel(),
+			UpgradesPanel(),
 			Toasts(),
 		},
 	})

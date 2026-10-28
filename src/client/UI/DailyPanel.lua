@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Shared = ReplicatedStorage.Shared
+local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
 local Daily = require(Shared.Config.Daily)
 local Remotes = require(Shared.Remotes)
 local MutantModel = require(Shared.MutantModel)
@@ -128,7 +129,7 @@ end
 return function()
 	local tiles: { any } = {
 		New("UIGridLayout")({
-			CellSize = UDim2.fromOffset(112, 134),
+			CellSize = UDim2.fromOffset(112, 112),
 			CellPadding = UDim2.fromOffset(12, 12),
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			HorizontalAlignment = Enum.HorizontalAlignment.Center,
@@ -163,9 +164,55 @@ return function()
 			New("Frame")({
 				BackgroundTransparency = 1,
 				Position = UDim2.fromOffset(0, 36),
-				Size = UDim2.new(1, 0, 0, 300),
+				Size = UDim2.new(1, 0, 0, 236),
 				ZIndex = 2,
 				[Children] = tiles,
+			}),
+			-- Group reward (the codes replacement): join the Roblox group, claim once.
+			New("Frame")({
+				Name = "Group",
+				Position = UDim2.fromOffset(0, 282),
+				Size = UDim2.new(1, 0, 0, 40),
+				BackgroundColor3 = Theme.colors.panelHi,
+				BorderSizePixel = 0,
+				Visible = Computed(function()
+					local snap = State.snapshot:get()
+					return GameConfig.groupId ~= 0 and snap ~= nil and snap.groupRewardClaimed == false
+				end),
+				ZIndex = 2,
+				[Children] = {
+					C.stroke(Theme.colors.ink, 2.5),
+					C.label({
+						Text = (function()
+							local reward = GameConfig.groupReward
+							local parts = {}
+							if reward.gems then
+								table.insert(parts, reward.gems .. " 💎")
+							end
+							for eggId, count in reward.eggs or {} do
+								table.insert(parts, count .. " " .. string.upper(eggId) .. " EGGS")
+							end
+							return "👥 JOIN OUR GROUP: " .. table.concat(parts, " + ")
+						end)(),
+						Position = UDim2.fromOffset(10, 8),
+						Size = UDim2.new(1, -150, 1, -16),
+						TextXAlignment = Enum.TextXAlignment.Left,
+						MaxTextSize = 15,
+						ZIndex = 3,
+					}),
+					C.button({
+						AnchorPoint = Vector2.new(1, 0.5),
+						Position = UDim2.new(1, -6, 0.5, 0),
+						Size = UDim2.fromOffset(120, 34),
+						Color = Theme.colors.navy,
+						Text = "CLAIM",
+						MaxTextSize = 16,
+						ZIndex = 4,
+						OnClick = function()
+							Remotes.get("ClaimGroupReward"):FireServer()
+						end,
+					}),
+				},
 			}),
 			C.button({
 				Name = "Claim",
@@ -173,6 +220,7 @@ return function()
 				Position = UDim2.new(0.5, 0, 1, 0),
 				Size = UDim2.fromOffset(280, 58),
 				Color = Theme.colors.gold,
+				Studs = true,
 				MaxTextSize = 26,
 				ZIndex = 3,
 				Pulse = Computed(function()

@@ -58,6 +58,9 @@ local TEMPLATE: Types.Profile = {
 	bundleOfferEndsAt = 0,
 	bundleBought = false,
 	fastHatch = false,
+	potionUntil = 0,
+	groupRewardClaimed = false,
+	almanacRewards = 0,
 }
 
 local store = ProfileStore.New("PlayerData_v1", TEMPLATE)
@@ -155,6 +158,10 @@ function DataService.incomePerMinute(data: Types.Profile): number
 	return math.floor(total)
 end
 
+-- PolicyService result per online player (MonetizationService fills it on join): true when paid
+-- random items / paid odds boosts aren't allowed for them. Unknown counts as restricted.
+DataService.paidRandomRestricted = {} :: { [Player]: boolean }
+
 -- Server time of each online player's next pen payout (not saved; restarts on join).
 DataService.nextPayoutAt = {} :: { [Player]: number }
 
@@ -200,6 +207,15 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		daily = DataService.dailyStatus(data),
 		totalSlots = DataService.totalSlots(data),
 		fastHatch = data.fastHatch,
+		potionUntil = data.potionUntil,
+		groupRewardClaimed = data.groupRewardClaimed,
+		paidRandomRestricted = DataService.paidRandomRestricted[player] ~= false, -- unknown = restricted
+		upgrades = data.upgrades,
+		upgradeCosts = {
+			growthSpeed = Costs.upgrade("growthSpeed", data.upgrades.growthSpeed, data.rebirths),
+			mutationOdds = Costs.upgrade("mutationOdds", data.upgrades.mutationOdds, data.rebirths),
+		},
+		almanacRewards = data.almanacRewards,
 		ownedPasses = data.ownedPasses,
 		rebirthCost = Costs.rebirth(data.rebirths),
 		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt

@@ -10,6 +10,7 @@ local Passes = require(Shared.Config.Passes)
 local Products = require(Shared.Config.Products)
 local Upgrades = require(Shared.Config.Upgrades)
 local Format = require(Shared.Format)
+local Remotes = require(Shared.Remotes)
 local State = require(script.Parent.Parent.State)
 local Purchase = require(script.Parent.Parent.Purchase)
 local Theme = require(script.Parent.Theme)
@@ -37,9 +38,10 @@ end
 
 local GEM_ORDER = { "Gems100", "Gems550", "Gems1500", "Gems4000" }
 
-local function sectionTitle(order: number, text: string)
+local function sectionTitle(order: number, text: string, visible: any?)
 	return C.label({
 		LayoutOrder = order,
+		Visible = visible,
 		Text = text,
 		Size = UDim2.new(1, 0, 0, 22),
 		TextXAlignment = Enum.TextXAlignment.Left,
@@ -129,6 +131,7 @@ local function bundleBanner()
 				Size = UDim2.fromOffset(170, 56),
 				Color = PINK,
 				Text = "R$ " .. offer.price,
+				Studs = true,
 				MaxTextSize = 24,
 				Pulse = true,
 				ZIndex = 3,
@@ -262,6 +265,76 @@ local function passCard(passId: string, order: number)
 	})
 end
 
+-- What Gems buy: the Luck Potion (hidden where PolicyService restricts paid odds boosts).
+-- Skip Timer is sold where it's needed, on the egg tray.
+local function potionCard()
+	local potion = Products.gems.LuckPotion
+	local function active(): number
+		local snap = State.snapshot:get()
+		return if snap then math.max(0, (snap.potionUntil or 0) - State.now:get()) else 0
+	end
+	return box({
+		Name = "LuckPotion",
+		LayoutOrder = 7,
+		Size = UDim2.new(1, -8, 0, 84),
+		Visible = Computed(function()
+			local snap = State.snapshot:get()
+			return snap ~= nil and snap.paidRandomRestricted == false
+		end),
+		Children = {
+			C.label({
+				Text = "🍀",
+				Position = UDim2.fromOffset(10, 10),
+				Size = UDim2.fromOffset(64, 64),
+				MaxTextSize = 50,
+				ZIndex = 2,
+			}),
+			C.label({
+				Text = string.format("LUCK POTION · %dx LUCK FOR 30 MIN", potion.luck),
+				Position = UDim2.fromOffset(84, 12),
+				Size = UDim2.new(1, -290, 0, 24),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				MaxTextSize = 18,
+				ZIndex = 2,
+			}),
+			C.label({
+				Text = Computed(function()
+					local left = active()
+					if left > 0 then
+						return string.format("Active · %d:%02d left (buying adds 30 min)", left // 60, left % 60)
+					end
+					return "Rarer mutants, more mutations, bigger sizes. Stacks with 2x Luck."
+				end),
+				Position = UDim2.fromOffset(84, 40),
+				Size = UDim2.new(1, -290, 0, 32),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				TextWrapped = true,
+				TextColor3 = Theme.colors.cream,
+				StrokeThickness = 0,
+				MaxTextSize = 13,
+				ZIndex = 2,
+			}),
+			C.button({
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -14, 0.5, 0),
+				Size = UDim2.fromOffset(180, 54),
+				Color = PINK,
+				Text = string.format("%d 💎", potion.cost),
+				MaxTextSize = 22,
+				ZIndex = 3,
+				OnClick = function()
+					if State.gems:get(false) < potion.cost then
+						State.toast(string.format("Need %d Gems: grab a pack above!", potion.cost), "info")
+						return
+					end
+					Remotes.get("BuyPotion"):FireServer()
+				end,
+			}),
+		},
+	})
+end
+
 local function row(order: number, height: number, children: { any })
 	table.insert(
 		children,
@@ -316,6 +389,15 @@ return function()
 				row(3, 128, gems),
 				sectionTitle(4, "⭐ GAME PASSES · FOREVER"),
 				row(5, 2 * 112 + 12 + 4, passes),
+				sectionTitle(
+					6,
+					"🍀 SPEND GEMS",
+					Computed(function()
+						local snap = State.snapshot:get()
+						return snap ~= nil and snap.paidRandomRestricted == false
+					end)
+				),
+				potionCard(),
 			},
 		}),
 	})

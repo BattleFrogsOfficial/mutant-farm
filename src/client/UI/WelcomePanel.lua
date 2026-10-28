@@ -131,6 +131,7 @@ return function()
 				Position = UDim2.new(0.5, 0, 1, 0),
 				Size = UDim2.fromOffset(300, 60),
 				Color = Theme.colors.gold,
+				Studs = true,
 				MaxTextSize = 26,
 				ZIndex = 3,
 				Pulse = Computed(function()

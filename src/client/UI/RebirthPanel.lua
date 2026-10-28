@@ -171,6 +171,7 @@ return function()
 				AnchorPoint = Vector2.new(0.5, 1),
 				Position = UDim2.new(0.5, 0, 1, 0),
 				Size = UDim2.fromOffset(300, 60),
+				Studs = true,
 				Color = Computed(function()
 					return if confirming:get() then Theme.colors.gold else Theme.colors.purple
 				end),

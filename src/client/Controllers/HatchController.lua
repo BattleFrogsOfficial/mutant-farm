@@ -17,6 +17,7 @@ local Format = require(Shared.Format)
 local Rarities = require(Shared.Config.Rarities)
 local Mutations = require(Shared.Config.Mutations)
 local Eggs = require(Shared.Config.Eggs)
+local Products = require(Shared.Config.Products)
 local MutantModel = require(Shared.MutantModel)
 local HatchIsland = require(Shared.HatchIsland)
 local State = require(script.Parent.Parent.State)
@@ -434,7 +435,21 @@ local function setFastLabel(on: boolean)
 	end
 end
 
+-- The Luck Potion offer on the reveal: shown with the reveal unless the player can't buy it
+-- (PolicyService) or one is already running.
+local function potionOffer(visible: boolean)
+	local snap = State.get()
+	local potion = Products.gems.LuckPotion
+	local active = snap ~= nil and (snap.potionUntil or 0) > workspace:GetServerTimeNow()
+	screen.potion.Visible = visible and snap ~= nil and snap.paidRandomRestricted == false and not active
+	local label = screen.potion:FindFirstChild("Label") :: TextLabel?
+	if label then
+		label.Text = string.format("🍀 LUCK x%d · %d 💎", potion.luck, potion.cost)
+	end
+end
+
 local function setRevealVisible(visible: boolean)
+	potionOffer(visible)
 	screen.title.Visible = visible
 	screen.value.Visible = visible
 	screen.name.Visible = visible
@@ -923,6 +938,15 @@ function HatchController.Init()
 	end)
 	screen.skipAll.Activated:Connect(function()
 		skipAll = true
+	end)
+	screen.potion.Activated:Connect(function()
+		local cost = Products.gems.LuckPotion.cost
+		if State.gems:get(false) < cost then
+			State.toast(string.format("Need %d Gems for a Luck Potion: open the Shop!", cost), "info")
+			return
+		end
+		Remotes.get("BuyPotion"):FireServer()
+		screen.potion.Visible = false
 	end)
 	screen.fast.Activated:Connect(function()
 		-- Flip the local value (the snapshot lags a round trip; quick double taps must toggle).

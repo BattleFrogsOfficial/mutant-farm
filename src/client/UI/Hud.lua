@@ -26,6 +26,9 @@ local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local MutantModel = require(Shared.MutantModel)
 local Mutants = require(Shared.Config.Mutants)
+local Growth = require(Shared.Growth)
+local Costs = require(Shared.Costs)
+local Products = require(Shared.Config.Products)
 local State = require(script.Parent.Parent.State)
 local Purchase = require(script.Parent.Parent.Purchase)
 local Theme = require(script.Parent.Theme)
@@ -403,6 +406,25 @@ local function dailyButton()
 end
 
 -- Almanac: a small icon like Daily, with a red dot when new species are waiting.
+-- Cash upgrades (growth speed, mutation odds): red dot when you can afford one.
+local function upgradesButton()
+	local affordable = Computed(function()
+		local snap = State.snapshot:get()
+		if not snap or not snap.upgradeCosts then
+			return false
+		end
+		for _, cost in snap.upgradeCosts do
+			if cost and snap.cash >= cost then
+				return true
+			end
+		end
+		return false
+	end)
+	return iconButton("Upgrades", "⬆️", 134, affordable, function()
+		openPanel("upgrades")
+	end)
+end
+
 local function almanacButton()
 	return iconButton("Almanac", "📖", 14, almanacNew, function()
 		State.almanacSeen:set(almanacCount:get(false))
@@ -430,6 +452,7 @@ local function shopButton()
 		Color = SPEND,
 		Icon = "🛒",
 		Text = "SHOP",
+		Studs = true,
 		MaxTextSize = Computed(function()
 			return if inHub:get() then 36 else 24
 		end),
@@ -696,6 +719,68 @@ local function luckBadge()
 	})
 end
 
+-- Skip Timer (Gems): finish every growing egg now. Shows only on long waits (2+ minutes left);
+-- not enough Gems opens the Shop.
+local SKIP_SHOW_AFTER = 120
+local function skipBadge()
+	local info = Computed(function()
+		local snap = State.snapshot:get()
+		local now = State.now:get()
+		if not snap then
+			return { cost = 0, longest = 0 }
+		end
+		local cost, longest = 0, 0
+		for _, slot in snap.slots do
+			local left = Growth.secondsRemaining(
+				State.slotGrowth(snap, slot, now),
+				slot.required,
+				now,
+				snap.wateredUntil,
+				snap.speed
+			)
+			longest = math.max(longest, left)
+			cost += Costs.skip(left, Products.gems.SkipTimer.costPer10Minutes)
+		end
+		return { cost = cost, longest = longest }
+	end)
+	return New("TextButton")({
+		Name = "SkipBadge",
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -122, 0, 0),
+		Size = UDim2.fromOffset(98, 28),
+		AutoButtonColor = false,
+		Text = "",
+		BorderSizePixel = 0,
+		BackgroundColor3 = SPEND,
+		Visible = Computed(function()
+			return info:get().longest >= SKIP_SHOW_AFTER
+		end),
+		ZIndex = 4,
+		[OnEvent("Activated")] = function()
+			local i = info:get(false)
+			if State.gems:get(false) < i.cost then
+				State.toast(string.format("Need %d Gems to finish now", i.cost), "info")
+				openPanel("store")
+				return
+			end
+			Remotes.get("SkipTimers"):FireServer()
+		end,
+		[Children] = {
+			C.stroke(Theme.colors.ink, 2.5),
+			C.bevel(3, 0.55),
+			C.label({
+				Text = Computed(function()
+					return string.format("⏩ %d 💎", info:get().cost)
+				end),
+				Size = UDim2.new(1, -8, 1, -6),
+				Position = UDim2.fromOffset(4, 3),
+				MaxTextSize = 14,
+				ZIndex = 5,
+			}),
+		},
+	})
+end
+
 -- HATCH inside the tray: "HATCH 3" when eggs are ready, dimmed otherwise.
 local function hatchButton()
 	local ready = Computed(function()
@@ -708,6 +793,7 @@ local function hatchButton()
 		Size = UDim2.fromOffset(108, 104),
 		Color = NAVY,
 		Text = "",
+		Studs = true,
 		Disabled = Computed(function()
 			return not ready:get()
 		end),
@@ -785,7 +871,7 @@ local function eggTray()
 				Name = "Tab",
 				AnchorPoint = Vector2.new(0, 0.5),
 				Position = UDim2.new(0, 10, 0, 0),
-				Size = UDim2.fromOffset(200, 26),
+				Size = UDim2.fromOffset(180, 26),
 				BackgroundColor3 = NAVY,
 				BorderSizePixel = 0,
 				ZIndex = 3,
@@ -803,6 +889,7 @@ local function eggTray()
 				},
 			}),
 			luckBadge(),
+			skipBadge(),
 			New("ScrollingFrame")({
 				Name = "Cards",
 				BackgroundTransparency = 1,
@@ -1072,6 +1159,7 @@ return function()
 		gemsBox(),
 		dailyButton(),
 		almanacButton(),
+		upgradesButton(),
 		shopButton(),
 		-- hub
 		rightColumn(),

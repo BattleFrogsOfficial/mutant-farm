@@ -42,4 +42,14 @@ return {
 
 	-- Pen shows the owner's most valuable mutants from their bag.
 	penDisplayCount = 8,
+
+	-- Group reward: join the Roblox group, claim once. Set groupId to your group's id (0 = off).
+	groupId = 0,
+	groupReward = { gems = 50, eggs = { Swamp = 2 } },
+
+	-- Almanac milestones: every `every` species discovered pays `gems` Gems (automatically).
+	almanacMilestones = { every = 25, gems = 25 },
+
+	-- Global leaderboard (OrderedDataStore of all-time Cash earned): how often to save and refresh.
+	leaderboardSeconds = 120,
 }

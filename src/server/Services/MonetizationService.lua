@@ -5,6 +5,7 @@
 -- "not set up yet": the client never prompts those.
 
 local MarketplaceService = game:GetService("MarketplaceService")
+local PolicyService = game:GetService("PolicyService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -137,11 +138,46 @@ function MonetizationService.Init()
 	MarketplaceService.ProcessReceipt = processReceipt
 end
 
+-- PolicyService: in some countries paid random items (and paid odds boosts like the Luck Potion)
+-- aren't allowed. Unknown (the call failed) counts as restricted.
+local function checkPolicy(player: Player)
+	local ok, policy = pcall(PolicyService.GetPolicyInfoForPlayerAsync, PolicyService, player)
+	if not ok then
+		task.wait(10) -- one retry; still unknown = restricted
+		ok, policy = pcall(PolicyService.GetPolicyInfoForPlayerAsync, PolicyService, player)
+	end
+	if player.Parent ~= Players then
+		return -- left meanwhile; don't leave a stale entry
+	end
+	DataService.paidRandomRestricted[player] = not ok or policy.ArePaidRandomItemsRestricted == true
+	local data = DataService.get(player)
+	if data then
+		DataService.changed(player)
+	end
+end
+
+-- Analytics: the first time a player sees any purchase prompt (whether or not they buy).
+local function promptShown(player: Player?)
+	local data = player and DataService.get(player)
+	if player and data then
+		Analytics.funnel(player, data, "FirstPurchasePrompt")
+	end
+end
+
 function MonetizationService.Start()
 	DataService.Loaded:Connect(function(player, data)
 		task.spawn(checkOwnedPasses, player, data)
+		task.spawn(checkPolicy, player)
+	end)
+	Players.PlayerRemoving:Connect(function(player)
+		DataService.paidRandomRestricted[player] = nil
+	end)
+	-- Fires when a prompt closes, bought or not: the prompt was seen.
+	MarketplaceService.PromptProductPurchaseFinished:Connect(function(userId)
+		promptShown(Players:GetPlayerByUserId(userId))
 	end)
 	MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, purchased)
+		promptShown(player)
 		if not purchased then
 			return
 		end
@@ -149,7 +185,6 @@ function MonetizationService.Start()
 		local passId = passByGamePassId(gamePassId)
 		if data and passId then
 			grantPass(player, data, passId, true)
-			Analytics.funnel(player, data, "FirstPurchasePrompt")
 		end
 	end)
 end

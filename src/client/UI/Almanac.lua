@@ -11,6 +11,7 @@ local Eggs = require(Shared.Config.Eggs)
 local Rarities = require(Shared.Config.Rarities)
 local Mutants = require(Shared.Config.Mutants)
 local MutantModel = require(Shared.MutantModel)
+local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
 local State = require(script.Parent.Parent.State)
 local Theme = require(script.Parent.Theme)
 local C = require(script.Parent.Components)
@@ -387,7 +388,19 @@ return function()
 
 	return C.panel({
 		Title = Computed(function()
-			return string.format("📖 Almanac   %d / %d found", foundCount:get(), TOTAL)
+			-- Next milestone (every 25 found pays Gems automatically, see GrowthService).
+			local every = GameConfig.almanacMilestones.every
+			local nextAt = (foundCount:get() // every + 1) * every
+			if nextAt > TOTAL then
+				return string.format("📖 Almanac   %d / %d found", foundCount:get(), TOTAL)
+			end
+			return string.format(
+				"📖 Almanac  %d / %d  ·  💎 %d at %d",
+				foundCount:get(),
+				TOTAL,
+				GameConfig.almanacMilestones.gems,
+				nextAt
+			)
 		end),
 		Accent = Theme.colors.purple,
 		Size = UDim2.fromOffset(760, 480),

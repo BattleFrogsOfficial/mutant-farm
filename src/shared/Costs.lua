@@ -29,6 +29,14 @@ function Costs.upgrade(kind: string, level: number, rebirths: number): number?
 	return math.floor(cfg.firstCost * cfg.costGrowth ^ level * rebirthScale(rebirths))
 end
 
+-- Gems to finish a growing egg now: `costPer10Minutes` per started 10 minutes left.
+function Costs.skip(secondsLeft: number, costPer10Minutes: number): number
+	if secondsLeft <= 0 then
+		return 0
+	end
+	return math.ceil(secondsLeft / 600) * costPer10Minutes
+end
+
 -- Cash needed to perform rebirth number `rebirths + 1`.
 function Costs.rebirth(rebirths: number): number
 	local n = rebirths + 1

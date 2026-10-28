@@ -60,6 +60,9 @@ export type Profile = {
 	bundleOfferEndsAt: number, -- Starter Bundle offer window (set on first join)
 	bundleBought: boolean,
 	fastHatch: boolean, -- player setting: short hatch cutscene below Epic
+	potionUntil: number, -- Luck Potion active until this server time
+	groupRewardClaimed: boolean,
+	almanacRewards: number, -- Almanac milestones already paid
 }
 
 export type SlotView = {
@@ -94,6 +97,12 @@ export type Snapshot = {
 	rebirthCost: number,
 	bundleOfferEndsAt: number, -- 0 when not on offer
 	fastHatch: boolean,
+	potionUntil: number,
+	groupRewardClaimed: boolean,
+	paidRandomRestricted: boolean, -- PolicyService: no paid odds boosts (Luck Potion) for this player
+	upgrades: { growthSpeed: number, mutationOdds: number },
+	upgradeCosts: { growthSpeed: number?, mutationOdds: number? }, -- nil = maxed
+	almanacRewards: number,
 }
 
 return {}

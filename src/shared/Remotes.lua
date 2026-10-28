@@ -20,6 +20,10 @@ Remotes.ClientToServer = {
 	"ClaimDaily", -- ()
 	"Rebirth", -- ()
 	"SetFastHatch", -- (on: boolean) player setting
+	"BuyPotion", -- () Luck Potion for Gems
+	"SkipTimers", -- () finish every growing egg now for Gems
+	"BuyUpgrade", -- (kind: "growthSpeed" | "mutationOdds") Cash upgrade
+	"ClaimGroupReward", -- ()
 }
 
 -- server -> client

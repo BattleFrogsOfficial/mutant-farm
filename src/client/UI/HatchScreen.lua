@@ -20,6 +20,7 @@ export type Screen = {
 	value: TextLabel,
 	valueScale: UIScale,
 	fast: TextButton,
+	potion: TextButton,
 	newRibbon: Frame,
 	name: TextLabel,
 	chips: Frame,
@@ -268,6 +269,16 @@ function HatchScreen.new(): Screen
 		Visible = false,
 		Parent = root,
 	})
+	-- Luck Potion offer during the reveal, on the left (Skip is on the right). Pink: it spends.
+	local potion = button("Potion", "🍀 LUCK x3 · 25 💎", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 16, 0.5, 0),
+		Size = UDim2.fromOffset(190, 52),
+		BackgroundColor3 = Theme.colors.spend,
+		ZIndex = 10,
+		Visible = false,
+		Parent = root,
+	})
 	local skipAll = button("SkipAll", "Skip all", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -16, 0.5, 30),
@@ -308,6 +319,7 @@ function HatchScreen.new(): Screen
 		value = value,
 		valueScale = valueScale,
 		fast = fast,
+		potion = potion,
 		newRibbon = newRibbon,
 		name = name,
 		chips = chips,

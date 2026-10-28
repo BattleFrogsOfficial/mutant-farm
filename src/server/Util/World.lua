@@ -666,6 +666,77 @@ local function building(
 	return m, up
 end
 
+-- Global leaderboard on the north edge of the plaza, facing the fountain. LeaderboardService
+-- fills the rows (Row1..Row10 TextLabels in the board's SurfaceGui).
+World.LEADERBOARD_ROWS = 10
+local function leaderboard(hub: Instance)
+	local m = group("Leaderboard", hub)
+	local frame = CFrame.lookAt(Vector3.new(0, 0, -27), Vector3.new(0, 0, 0))
+	local W, H, bottom = 13, 10, Y.plaza + 2
+	local postHeight = bottom + H - Y.plaza -- from the plaza surface to the top of the board
+	for _, side in { -1, 1 } do
+		part({
+			Name = "Post",
+			Size = Vector3.new(0.8, postHeight, 0.8),
+			CFrame = frame * CFrame.new(side * (W / 2 + 0.8), Y.plaza + postHeight / 2, 0.3),
+			Color = COLORS.darkWood,
+			Material = Enum.Material.Wood,
+			Parent = m,
+		})
+	end
+	local board = part({
+		Name = "Board",
+		Size = Vector3.new(W, H, 0.4),
+		CFrame = frame * CFrame.new(0, bottom + H / 2, 0),
+		Color = COLORS.slate,
+		Parent = m,
+	})
+	part({
+		Name = "Frame",
+		Size = Vector3.new(W + 0.8, H + 0.8, 0.3),
+		CFrame = frame * CFrame.new(0, bottom + H / 2, 0.3),
+		Color = COLORS.darkWood,
+		Material = Enum.Material.Wood,
+		Parent = m,
+	})
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Rows"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	gui.LightInfluence = 0.15
+	local list = Instance.new("UIListLayout")
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = gui
+	local function row(name: string, order: number, text: string, color: Color3, height: number)
+		local label = Instance.new("TextLabel")
+		label.Name = name
+		label.LayoutOrder = order
+		label.Size = UDim2.new(1, 0, height, 0)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBlack
+		label.TextScaled = true
+		label.TextColor3 = color
+		label.Text = text
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 3
+		stroke.Color = COLORS.slate
+		stroke.Parent = label
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0.04, 0)
+		pad.PaddingRight = UDim.new(0.04, 0)
+		pad.PaddingTop = UDim.new(0.12, 0)
+		pad.PaddingBottom = UDim.new(0.12, 0)
+		pad.Parent = label
+		label.Parent = gui
+	end
+	row("Title", 0, "🏆 TOP FARMERS · ALL TIME", COLORS.gold, 0.15)
+	for i = 1, World.LEADERBOARD_ROWS do
+		row("Row" .. i, i, i .. ". ...", Color3.new(1, 1, 1), 0.085)
+	end
+	gui.Parent = board
+end
+
 local function buildHub(parent: Instance)
 	local hub = group("Hub", parent)
 
@@ -765,7 +836,8 @@ local function buildHub(parent: Instance)
 	for i = 0, 11 do
 		local a = i / 12 * math.pi * 2
 		local nearBuilding = math.abs(math.cos(a)) > 0.85
-		if not nearBuilding then
+		local atLeaderboard = math.abs(math.sin(a) + 1) < 0.05 -- north: the leaderboard stands there
+		if not nearBuilding and not atLeaderboard then
 			lamp(hub, Vector3.new(math.cos(a) * (HUB_RADIUS - 2.5), Y.plaza, math.sin(a) * (HUB_RADIUS - 2.5)))
 		end
 	end
@@ -866,6 +938,8 @@ local function buildHub(parent: Instance)
 	signText(coinPart, Enum.NormalId.Left, "$", COLORS.goldDark)
 	signText(coinPart, Enum.NormalId.Right, "$", COLORS.goldDark)
 	pad(hub, "SellPad", (sellFrame * CFrame.new(0, 0, -10.4)).Position, 3.6, COLORS.gold, "SELL", "sell", Vector3.zero)
+
+	leaderboard(hub)
 end
 
 ---------------------------------------------------------------------------- plots

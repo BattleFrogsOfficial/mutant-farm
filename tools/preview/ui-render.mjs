@@ -26,7 +26,7 @@ const checkSizes = [
   ["hd", 1920, 1080],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
-const ZONES = ["Cash", "RebirthStrip", "Gems", "Daily", "Almanac", "Shop", "Weather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
+const ZONES = ["Cash", "RebirthStrip", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
 
 const html = `<!doctype html><html><head><style>
 * { box-sizing: border-box; }
