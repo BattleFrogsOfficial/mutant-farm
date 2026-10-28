@@ -24,6 +24,7 @@ Remotes.ClientToServer = {
 	"SkipTimers", -- () finish every growing egg now for Gems
 	"BuyUpgrade", -- (kind: "growthSpeed" | "mutationOdds") Cash upgrade
 	"ClaimGroupReward", -- ()
+	"Pin", -- (itemId: string, on: boolean) keep a bag mutant in the pen
 }
 
 -- server -> client
@@ -33,7 +34,7 @@ Remotes.ServerToClient = {
 	"Harvested", -- (item, valueNow, slotIndex, isNewSpecies, auto: boolean) auto = Auto-Harvest pass
 	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string, worthNow: number)
 	"Payout", -- (amount: number) pen income just paid
-	"WelcomeBack", -- ({ away: number, ready: number, mutations: number })
+	"WelcomeBack", -- ({ away, ready, mutations, capped, earned, autoHarvested })
 	"Rebirthed", -- (rebirths: number) celebration after a rebirth
 	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
 }

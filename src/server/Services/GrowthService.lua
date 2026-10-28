@@ -20,6 +20,7 @@ local Products = require(Shared.Config.Products)
 local Costs = require(Shared.Costs)
 local ShopRules = require(Shared.ShopRules)
 local Growth = require(Shared.Growth)
+local AutoHarvest = require(Shared.AutoHarvest)
 local Rolls = require(Shared.Rolls)
 local Rng = require(Shared.Rng)
 local Valuation = require(Shared.Valuation)
@@ -147,12 +148,13 @@ function GrowthService.weatherRoll(player: Player, data: Types.Profile, mutation
 	return any
 end
 
--- Plants one egg in an empty slot. Returns false (with no change) if it can't.
-local function plant(player: Player, data: Types.Profile, key: string, eggId: string): boolean
+-- Plants one egg in an empty slot (at server time `at`, default now). Returns false (with no
+-- change) if it can't.
+local function plant(player: Player, data: Types.Profile, key: string, eggId: string, at: number?): boolean
 	if data.slots[key] or not Eggs.tiers[eggId] or (data.eggs[eggId] or 0) < 1 then
 		return false
 	end
-	local now = DataService.now()
+	local now = at or DataService.now()
 	data.eggs[eggId] -= 1
 	if data.eggs[eggId] <= 0 then
 		data.eggs[eggId] = nil
@@ -222,8 +224,17 @@ local function almanacMilestone(player: Player, data: Types.Profile)
 	end
 end
 
--- Returns the harvested item, or nil (and a reason) if the slot can't be harvested.
-local function harvest(player: Player, data: Types.Profile, key: string, auto: boolean?): (Types.Item?, string?)
+-- Returns the harvested item, or nil (and a reason) if the slot can't be harvested. `at` is the
+-- harvest time (default now); `quiet` skips the per-item messages (offline catch-up sends one
+-- summary and the full Almanac instead).
+local function harvest(
+	player: Player,
+	data: Types.Profile,
+	key: string,
+	auto: boolean?,
+	at: number?,
+	quiet: boolean?
+): (Types.Item?, string?)
 	local slot = data.slots[key]
 	if not slot or not isMature(slot) then
 		return nil, nil
@@ -241,7 +252,7 @@ local function harvest(player: Player, data: Types.Profile, key: string, auto: b
 		species = slot.species or rollSpecies(slot.eggId, slot.rarity),
 		mutations = slot.mutations,
 		size = Rolls.rollSize(rng, luck(data)),
-		harvestedAt = DataService.now(),
+		harvestedAt = at or DataService.now(),
 	}
 	data.inventory[id] = item
 	data.slots[key] = nil
@@ -258,11 +269,13 @@ local function harvest(player: Player, data: Types.Profile, key: string, auto: b
 	end
 	entry.n += 1
 	entry.best = math.max(entry.best, item.size)
-	Net.fire(player, "Almanac", { [speciesId] = entry })
 	if isNew then
 		almanacMilestone(player, data)
 	end
-
+	if quiet then
+		return item, nil
+	end
+	Net.fire(player, "Almanac", { [speciesId] = entry })
 	Net.fire(
 		player,
 		"Harvested",
@@ -287,24 +300,60 @@ local function onHarvest(player: Player, data: Types.Profile, slotIndex: any)
 	DataService.changed(player)
 end
 
+-- Auto-Harvest replants the same egg: one from the bag of eggs if there is one, else it buys one
+-- with Cash (never Gems) when the player can. Returns true if it planted.
+local function replant(player: Player, data: Types.Profile, key: string, eggId: string, at: number?): boolean
+	if (data.eggs[eggId] or 0) < 1 then
+		local ok = ShopRules.canBuy(eggId, 1, {
+			rebirths = data.rebirths,
+			totalCashEarned = data.stats.totalCashEarned,
+			cash = data.cash,
+			gems = data.gems,
+			paidRandomRestricted = true, -- Gem eggs are never bought automatically
+		})
+		local currency, price = ShopRules.price(eggId, 1)
+		if
+			not ok
+			or currency ~= "Cash"
+			or not EconomyService.spendCash(player, data, price, "Shop", "Egg_" .. eggId)
+		then
+			return false
+		end
+		data.eggs[eggId] = (data.eggs[eggId] or 0) + 1
+		data.stats.eggsBought += 1
+	end
+	return plant(player, data, key, eggId, at)
+end
+
 -- Auto-Harvest pass: hatch every mature egg (no cutscene, just a toast) and replant the same egg
--- if you still have one. Stops quietly when the bag is full.
-local function autoHarvest(player: Player, data: Types.Profile)
-	local changed = false
-	for key, slot in table.clone(data.slots) do
+-- (see replant) while the bag has room. Stops quietly when the bag is full. `at`/`quiet` are for
+-- the offline catch-up. Returns how many it harvested.
+local function autoHarvest(player: Player, data: Types.Profile, at: number?, quiet: boolean?): number
+	local harvested = 0
+	local keys = {}
+	for key, slot in data.slots do
 		if isMature(slot) then
-			local eggId = slot.eggId
-			local item = harvest(player, data, key, true)
-			if not item then
-				break
-			end
-			changed = true
-			plant(player, data, key, eggId)
+			table.insert(keys, key)
 		end
 	end
-	if changed then
+	table.sort(keys, function(a, b)
+		return (tonumber(a) or 0) < (tonumber(b) or 0)
+	end)
+	for _, key in keys do
+		local eggId = data.slots[key].eggId
+		local item = harvest(player, data, key, true, at, quiet)
+		if not item then
+			break
+		end
+		harvested += 1
+		if inventoryCount(data) < GameConfig.inventoryCap then
+			replant(player, data, key, eggId, at)
+		end
+	end
+	if harvested > 0 then
 		DataService.changed(player)
 	end
+	return harvested
 end
 
 local function onHarvestAll(player: Player, data: Types.Profile)
@@ -430,34 +479,49 @@ local function onWater(player: Player, data: Types.Profile)
 	DataService.changed(player)
 end
 
--- Offline catch-up: mutation rolls run for the first offlineMutationCap seconds away
--- (or the whole time with the Offline Mutations pass); growth always runs.
+-- Offline catch-up, run at join. Pays the offline pen income (from the pen as you left it), then
+-- replays the time away: with Auto-Harvest, every grow cycle in order (AutoHarvest.run: harvest
+-- to the bag, replant, buying eggs with Cash when out); then grows everything to now. Mutation
+-- rolls run only for the first offlineMutationCap seconds away (the whole time with the Offline
+-- Mutations pass), including on eggs replanted while away.
 local function catchUp(player: Player, data: Types.Profile)
 	local now = DataService.now()
-	local events = {}
-	local capped = false
-	if data.lastSeen > 0 and not data.ownedPasses.OfflineMutations then
-		local capAt = data.lastSeen + GameConfig.offlineMutationCap
-		if now > capAt then
-			events = GrowthService.settle(data, capAt)
-			GrowthService.settle(data, now, false)
-			capped = next(data.slots) ~= nil
-		end
-	end
-	if not capped then
-		events = GrowthService.settle(data, now)
-	end
-
-	-- Offline pen income: a fraction of the online rate, for up to offlineIncomeCap.
 	local away = if data.lastSeen > 0 then now - data.lastSeen else 0
+
+	-- Offline pen income: the offline rate for the whole time away (no cap).
 	local earned = 0
 	if away > 0 then
-		local minutes = math.min(away, GameConfig.offlineIncomeCap) / 60
-		earned = math.floor(DataService.incomePerMinute(data) * GameConfig.offlineIncomeFactor * minutes)
+		earned = math.floor(DataService.penIncome(data, true) * away / 60)
 		if earned <= 0 or not EconomyService.addCash(player, data, earned, "Gameplay", "OfflineIncome") then
 			earned = 0
 		end
 	end
+
+	local capAt = if data.lastSeen > 0 and not data.ownedPasses.OfflineMutations
+		then data.lastSeen + GameConfig.offlineMutationCap
+		else math.huge
+	local events = {}
+	local function settleTo(at: number)
+		local rolled
+		if at > capAt then
+			rolled = GrowthService.settle(data, capAt) -- slots planted after the cap are skipped here
+			GrowthService.settle(data, at, false)
+		else
+			rolled = GrowthService.settle(data, at)
+		end
+		table.move(rolled, 1, #rolled, #events + 1, events)
+	end
+
+	local autoHarvested = 0
+	if away > 0 and data.ownedPasses.AutoHarvest then
+		local plot = { slots = data.slots, wateredUntil = data.wateredUntil, speed = DataService.speed(data) }
+		autoHarvested = AutoHarvest.run(plot, data.lastSeen, now, function(at)
+			settleTo(at)
+			return autoHarvest(player, data, at, true)
+		end)
+	end
+	settleTo(now)
+	local capped = now > capAt and next(data.slots) ~= nil
 
 	-- "Welcome back" summary after a real break.
 	if away >= Daily.welcomeBackSeconds then
@@ -467,11 +531,14 @@ local function catchUp(player: Player, data: Types.Profile)
 				ready += 1
 			end
 		end
-		Net.fire(
-			player,
-			"WelcomeBack",
-			{ away = away, ready = ready, mutations = #events, capped = capped, earned = earned }
-		)
+		Net.fire(player, "WelcomeBack", {
+			away = away,
+			ready = ready,
+			mutations = #events,
+			capped = capped,
+			earned = earned,
+			autoHarvested = autoHarvested,
+		})
 	end
 end
 

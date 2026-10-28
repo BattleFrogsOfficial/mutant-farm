@@ -1,6 +1,7 @@
 --!strict
 -- "Welcome back!" card shown after a break: how long you were away, how many eggs are ready to
--- hatch, and how many mutations happened while you were gone. One tap goes straight to hatching.
+-- hatch (or, with Auto-Harvest, how many it hatched into your bag), and how many mutations
+-- happened while you were gone. One tap goes straight to hatching.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -14,7 +15,7 @@ local C = require(script.Parent.Components)
 
 local New, Children, Computed = Fusion.New, Fusion.Children, Fusion.Computed
 
-local function stat(order: number, icon: string, value: any, label: string, color: Color3)
+local function stat(order: number, icon: string, value: any, label: any, color: Color3)
 	return New("Frame")({
 		LayoutOrder = order,
 		Size = UDim2.fromOffset(160, 120),
@@ -99,9 +100,12 @@ return function()
 						1,
 						"🥚",
 						Computed(function()
-							return tostring(get().ready)
+							local auto = get().autoHarvested or 0
+							return tostring(if auto > 0 then auto else get().ready)
 						end),
-						"ready to hatch",
+						Computed(function()
+							return if (get().autoHarvested or 0) > 0 then "auto-hatched" else "ready to hatch"
+						end),
 						Theme.colors.gold
 					),
 					stat(

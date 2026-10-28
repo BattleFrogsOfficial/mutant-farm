@@ -18,6 +18,8 @@ local Rarities = require(Shared.Config.Rarities)
 local Mutations = require(Shared.Config.Mutations)
 local Eggs = require(Shared.Config.Eggs)
 local Products = require(Shared.Config.Products)
+local GameConfig = require(Shared.Config.Game)
+local Pen = require(Shared.Pen)
 local MutantModel = require(Shared.MutantModel)
 local HatchIsland = require(Shared.HatchIsland)
 local State = require(script.Parent.Parent.State)
@@ -51,6 +53,9 @@ local playing = false
 local skip = false
 local skipAll = false
 local advance = false
+-- The mutant on the reveal right now (for the Pin button) and whether it's pinned.
+local revealItem: any = nil
+local revealPinned = false
 -- Taps only count once the reveal has been up briefly (players tap eggs by reflex).
 local revealedAt = math.huge
 -- Bumped per hatch so tweens spawned for an old hatch stop writing to the screen.
@@ -448,8 +453,18 @@ local function potionOffer(visible: boolean)
 	end
 end
 
+-- The Pin button on the reveal: pins (or unpins) the mutant being shown to the pen.
+local function pinOffer(visible: boolean)
+	screen.pin.Visible = visible and revealItem ~= nil
+	local label = screen.pin:FindFirstChild("Label") :: TextLabel?
+	if label then
+		label.Text = if revealPinned then "📌 PINNED" else "📌 PIN TO PEN"
+	end
+end
+
 local function setRevealVisible(visible: boolean)
 	potionOffer(visible)
+	pinOffer(visible)
 	screen.title.Visible = visible
 	screen.value.Visible = visible
 	screen.name.Visible = visible
@@ -464,6 +479,8 @@ end
 
 local function play(h: Hatch)
 	local item = h.item
+	revealItem = item
+	revealPinned = item.pinned == true
 	local rank = RANK[item.rarity] or 1
 	local rarityColor = Color3.fromHex(Rarities.info[item.rarity].color)
 	local species = MutantModel.species(item)
@@ -947,6 +964,21 @@ function HatchController.Init()
 		end
 		Remotes.get("BuyPotion"):FireServer()
 		screen.potion.Visible = false
+	end)
+	screen.pin.Activated:Connect(function()
+		local item = revealItem
+		local snap = State.get()
+		if not item or not snap then
+			return
+		end
+		local on = not revealPinned
+		if on and not Pen.canPin(snap.inventory, GameConfig.penDisplayCount) then
+			State.toast(string.format("Your pen holds %d. Unpin one first!", GameConfig.penDisplayCount), "info")
+			return
+		end
+		Remotes.get("Pin"):FireServer(item.id, on)
+		revealPinned = on
+		pinOffer(true)
 	end)
 	screen.fast.Activated:Connect(function()
 		-- Flip the local value (the snapshot lags a round trip; quick double taps must toggle).

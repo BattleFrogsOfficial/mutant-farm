@@ -121,7 +121,9 @@ local function itemValue(data: Types.Profile, item: Types.Item): number
 	return Valuation.sellValue(item, DataService.cashMultiplier(data))
 end
 
-local function sellItem(player: Player, data: Types.Profile, itemId: string): number?
+-- Sells one bag item at full value (Cash through addCash, so it's logged and counted in
+-- totalCashEarned). Returns the value, or nil if there's no such item or the sale was refused.
+function EconomyService.sellItem(player: Player, data: Types.Profile, itemId: string): number?
 	local item = data.inventory[itemId]
 	if not item then
 		return nil
@@ -176,17 +178,18 @@ local function onSell(player: Player, data: Types.Profile, itemId: any)
 	if not Validate.string(itemId, 16) then
 		return
 	end
-	local value = sellItem(player, data, itemId)
+	local value = EconomyService.sellItem(player, data, itemId)
 	if value then
 		Analytics.funnel(player, data, "FirstSell")
 		Net.notify(player, "Sold for " .. Format.cash(value), "success")
 	end
 end
 
+-- Sells the whole bag except pinned mutants.
 local function onSellAll(player: Player, data: Types.Profile)
 	local total, count = 0, 0
-	for itemId in table.clone(data.inventory) do
-		local value = sellItem(player, data, itemId)
+	for itemId, item in table.clone(data.inventory) do
+		local value = if item.pinned then nil else EconomyService.sellItem(player, data, itemId)
 		if value then
 			total += value
 			count += 1

@@ -21,6 +21,7 @@ export type Screen = {
 	valueScale: UIScale,
 	fast: TextButton,
 	potion: TextButton,
+	pin: TextButton,
 	newRibbon: Frame,
 	name: TextLabel,
 	chips: Frame,
@@ -279,6 +280,16 @@ function HatchScreen.new(): Screen
 		Visible = false,
 		Parent = root,
 	})
+	-- Pin the new mutant to the pen, under the potion offer. Navy: it doesn't spend.
+	local pin = button("Pin", "📌 PIN TO PEN", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 16, 0.5, 64),
+		Size = UDim2.fromOffset(190, 52),
+		BackgroundColor3 = Theme.colors.navy,
+		ZIndex = 10,
+		Visible = false,
+		Parent = root,
+	})
 	local skipAll = button("SkipAll", "Skip all", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -16, 0.5, 30),
@@ -320,6 +331,7 @@ function HatchScreen.new(): Screen
 		valueScale = valueScale,
 		fast = fast,
 		potion = potion,
+		pin = pin,
 		newRibbon = newRibbon,
 		name = name,
 		chips = chips,

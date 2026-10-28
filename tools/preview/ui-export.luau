@@ -267,6 +267,7 @@ for i, it in
 do
 	inventory[tostring(i)] = it
 end
+inventory["4"].pinned = true -- a low-value mutant kept in the pen
 
 local snapshot = {
 	serverTime = 1_800_000_000,
@@ -539,6 +540,7 @@ do
 	screen.queue.Text = "+2 more"
 	screen.skipAll.Visible = true
 	screen.potion.Visible = true
+	screen.pin.Visible = true
 	HatchScreen.setChips(screen, {
 		{ text = "x2.31 size", color = Theme.colors.slateLight },
 		{ text = "47 studs tall", color = Theme.colors.slateLight },

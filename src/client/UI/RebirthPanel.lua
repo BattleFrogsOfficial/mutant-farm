@@ -165,7 +165,7 @@ return function()
 			column(UDim2.new(0.5, 8, 0, 80), "RESETS", Theme.colors.danger, {
 				line(1, "Cash, eggs and growing plants", Theme.colors.cream),
 				line(2, "Bought soil patches", Theme.colors.cream),
-				line(3, "Bag (except your pen's mutants)", Theme.colors.cream),
+				line(3, "Bag is sold (your pen stays)", Theme.colors.cream),
 			}),
 			C.button({
 				AnchorPoint = Vector2.new(0.5, 1),

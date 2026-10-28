@@ -13,6 +13,7 @@ local Upgrades = require(Shared.Config.Upgrades)
 local Growth = require(Shared.Growth)
 local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
+local Pen = require(Shared.Pen)
 local Streak = require(Shared.Streak)
 local Daily = require(Shared.Config.Daily)
 local Products = require(Shared.Config.Products)
@@ -20,6 +21,7 @@ local Signal = require(Shared.Signal)
 local Types = require(Shared.Types)
 local Remotes = require(Shared.Remotes)
 local Net = require(script.Parent.Parent.Util.Net)
+local Validate = require(script.Parent.Parent.Util.Validate)
 
 local DataService = {}
 
@@ -141,35 +143,26 @@ function DataService.nextSlotCost(data: Types.Profile): number?
 	return Costs.slot(data.slotCount + 1, data.rebirths)
 end
 
--- The mutants standing in the pen: the owner's most valuable bag items, up to penDisplayCount.
--- Stable order (ties broken by id) so the pen doesn't reshuffle.
+-- The mutants standing in the pen: pinned ones, then the owner's most valuable bag items, up to
+-- penDisplayCount (shared/Pen.lua). Stable order so the pen doesn't reshuffle.
 function DataService.penItems(data: Types.Profile): { Types.Item }
-	local items = {}
-	for _, item in data.inventory do
-		table.insert(items, item)
-	end
-	table.sort(items, function(a, b)
-		local va, vb = Valuation.sellValue(a, 1), Valuation.sellValue(b, 1)
-		if va ~= vb then
-			return va > vb
-		end
-		return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
-	end)
-	local out = {}
-	for i = 1, math.min(#items, GameConfig.penDisplayCount) do
-		out[i] = items[i]
-	end
-	return out
+	return Pen.select(data.inventory, GameConfig.penDisplayCount) :: any
 end
 
--- Cash the pen pays every minute while you're online.
-function DataService.incomePerMinute(data: Types.Profile): number
-	local mult = DataService.cashMultiplier(data)
+-- Cash the pen pays per minute (not rounded): online, or at the offline rate.
+function DataService.penIncome(data: Types.Profile, offline: boolean?): number
+	local mult = Valuation.rebirthMultiplier(data.rebirths)
+	local rate = if offline then GameConfig.penIncomePerMinuteOffline else GameConfig.penIncomePerMinute
 	local total = 0
 	for _, item in DataService.penItems(data) do
-		total += Valuation.penIncome(item, mult, GameConfig.penIncomePerMinute)
+		total += Valuation.penIncome(item, mult, rate)
 	end
-	return math.floor(total)
+	return total
+end
+
+-- Cash the pen pays every minute while you're online, rounded down for display.
+function DataService.incomePerMinute(data: Types.Profile): number
+	return math.floor(DataService.penIncome(data))
 end
 
 -- PolicyService result per online player (MonetizationService fills it on join): true when paid
@@ -331,6 +324,23 @@ function DataService.Start()
 			data.fastHatch = on
 			DataService.changed(player)
 		end
+	end)
+	-- Pin / unpin a bag mutant: pinned ones always stand in the pen (at most penDisplayCount),
+	-- are skipped by Sell All and stay through rebirth.
+	Net.on("Pin", function(player, data, itemId, on)
+		if not Validate.string(itemId, 16) or typeof(on) ~= "boolean" then
+			return
+		end
+		local item = data.inventory[itemId]
+		if not item or (item.pinned == true) == on then
+			return
+		end
+		if on and not Pen.canPin(data.inventory, GameConfig.penDisplayCount) then
+			Net.notify(player, string.format("Your pen holds %d. Unpin one first!", GameConfig.penDisplayCount), "info")
+			return
+		end
+		item.pinned = if on then true else nil
+		DataService.changed(player)
 	end)
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)

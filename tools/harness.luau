@@ -7,7 +7,6 @@ local luau = require("@lune/luau")
 
 local harness = {}
 
-local cache: { [string]: any } = {}
 local PATH = newproxy(true)
 
 local function dirname(path: string): string
@@ -46,29 +45,59 @@ function makeScript(path: string)
 	})
 end
 
-local function requireModule(target)
-	if type(target) == "string" then
-		return require(target)
+-- ReplicatedStorage.Shared is src/shared (what Rojo maps it to).
+local ALIASES = { ["@RS/Shared"] = "src/shared" }
+
+local function unalias(path: string): string
+	for from, to in ALIASES do
+		if path == from or path:sub(1, #from + 1) == from .. "/" then
+			return to .. path:sub(#from + 1)
+		end
 	end
-	local path = rawget(target, PATH)
-	assert(path, "harness require expects a script path object")
-	if cache[path] ~= nil then
-		return cache[path]
-	end
-	local file = resolve(path)
-	assert(file, "module not found: " .. path)
-	local chunk = luau.load(fs.readFile(file), {
-		debugName = file,
-		environment = { script = makeScript(path), require = requireModule },
-	})
-	local result = chunk()
-	cache[path] = result
-	return result
+	return path
 end
 
--- harness.require("src/shared/Format") -> module
-function harness.require(path: string)
-	return requireModule(makeScript(path))
+-- A module loader with its own cache, extra globals and whole-module overrides (keyed by path,
+-- e.g. "src/shared/Remotes").
+function harness.loader(env: { [string]: any }?, overrides: { [string]: any }?)
+	local cache: { [string]: any } = {}
+	local function requireModule(target)
+		if type(target) == "string" then
+			return require(target)
+		end
+		local path = rawget(target, PATH)
+		assert(path, "harness require expects a script path object")
+		if overrides and overrides[path] ~= nil then
+			return overrides[path]
+		end
+		path = unalias(path)
+		if overrides and overrides[path] ~= nil then
+			return overrides[path]
+		end
+		if cache[path] ~= nil then
+			return cache[path]
+		end
+		local file = resolve(path)
+		assert(file, "module not found: " .. path)
+		local environment = if env then table.clone(env) else {}
+		environment.script = makeScript(path)
+		environment.require = requireModule
+		local chunk = luau.load(fs.readFile(file), { debugName = file, environment = environment })
+		local result = chunk()
+		cache[path] = result
+		return result
+	end
+	return function(path: string)
+		return requireModule(makeScript(path))
+	end
+end
+
+-- harness.require("src/shared/Format") -> module (one shared cache for tests and the sim)
+harness.require = harness.loader()
+
+-- A script path object, e.g. harness.script("@RS") stands in for ReplicatedStorage.
+function harness.script(path: string)
+	return makeScript(path)
 end
 
 return harness

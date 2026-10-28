@@ -29,9 +29,14 @@ function Valuation.baseValue(mutant: Mutant): number
 	return Eggs.tiers[mutant.tier].baseValue * Rarities.info[mutant.rarity].valueMultiplier
 end
 
+-- +0.5x per rebirth: 1, 1.5, 2, ...
+function Valuation.rebirthMultiplier(rebirths: number): number
+	return 1 + Rebirths.cashBonusPerRebirth * rebirths
+end
+
 -- groupBonus: the group member bonus (e.g. 0.1), 0 for non-members.
 function Valuation.cashMultiplier(rebirths: number, hasVip: boolean, groupBonus: number?): number
-	return (1 + Rebirths.cashBonusPerRebirth * rebirths) * (if hasVip then 1.5 else 1) * (1 + (groupBonus or 0))
+	return Valuation.rebirthMultiplier(rebirths) * (if hasVip then 1.5 else 1) * (1 + (groupBonus or 0))
 end
 
 function Valuation.sellValue(mutant: Mutant, cashMultiplier: number): number
@@ -40,9 +45,10 @@ function Valuation.sellValue(mutant: Mutant, cashMultiplier: number): number
 	)
 end
 
--- Cash per payout (one minute) from one mutant standing in the pen.
-function Valuation.penIncome(mutant: Mutant, cashMultiplier: number, ratePerMinute: number): number
-	return Valuation.baseValue(mutant) * mutant.size * ratePerMinute * cashMultiplier
+-- Cash per minute from one mutant standing in the pen: base value (tier x rarity) x rate x the
+-- rebirth multiplier. Size, mutations, VIP and the group bonus don't count.
+function Valuation.penIncome(mutant: Mutant, rebirthMultiplier: number, ratePerMinute: number): number
+	return Valuation.baseValue(mutant) * ratePerMinute * rebirthMultiplier
 end
 
 -- Upper bound on a single sale for a player at this rebirth count. Used as a server sanity check.

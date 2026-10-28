@@ -24,6 +24,7 @@ export type Item = {
 	size: number,
 	harvestedAt: number,
 	egg: string?, -- the egg it hatched from (a Gem variant's id; tier is always the base tier)
+	pinned: boolean?, -- always stands in the pen; skipped by Sell All and kept on rebirth
 }
 
 export type AlmanacEntry = { n: number, first: number, best: number }

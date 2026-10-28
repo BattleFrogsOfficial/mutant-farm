@@ -1,6 +1,7 @@
 return function(t)
 	local Valuation = t.require("src/shared/Valuation")
 	local Costs = t.require("src/shared/Costs")
+	local GameConfig = t.require("src/shared/Config/Game")
 	return {
 		["Golden Legendary Toxic is about 160M"] = function()
 			local v =
@@ -22,10 +23,20 @@ return function(t)
 			t.eq(Valuation.cashMultiplier(4, true), 4.5)
 			t.near(Valuation.cashMultiplier(0, false, 0.1), 1.1, 1e-9)
 		end,
-		["pen income: 2% of base value x size per minute, mutations ignored"] = function()
+		["pen income: 0.05% of base value per minute x rebirth multiplier, size and mutations ignored"] = function()
 			local m = { tier = "Toxic", rarity = "Rare", mutations = { "Golden" }, size = 1.5 }
-			-- base 130K x Rare 10 = 1.3M; x1.5 size x 2% = 39K; x2 cash multiplier
-			t.near(Valuation.penIncome(m, 2, 0.02), 78_000, 1e-6)
+			-- base 130K x Rare 10 = 1.3M; x 0.0005 = 650/min; x2 rebirth multiplier (2 rebirths)
+			t.near(Valuation.penIncome(m, Valuation.rebirthMultiplier(2), GameConfig.penIncomePerMinute), 1_300, 1e-6)
+			t.near(Valuation.penIncome(m, 1, GameConfig.penIncomePerMinuteOffline), 130, 1e-6)
+		end,
+		["a kept mutant pays back its sell value in ~33 hours online"] = function()
+			for _, rebirths in { 0, 3 } do
+				local m = { tier = "Swamp", rarity = "Epic", mutations = {}, size = 1 }
+				local mult = Valuation.rebirthMultiplier(rebirths)
+				local perMinute = Valuation.penIncome(m, mult, GameConfig.penIncomePerMinute)
+				local hours = Valuation.sellValue(m, mult) / perMinute / 60
+				t.near(hours, 33.3, 0.1, "payback hours at rebirth " .. rebirths)
+			end
 		end,
 		["slot costs start at 200 and grow 1.5x"] = function()
 			t.eq(Costs.slot(6, 0), nil)

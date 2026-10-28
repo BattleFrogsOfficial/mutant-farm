@@ -20,12 +20,13 @@ return {
 	inventoryCap = 200,
 	penSlots = 8,
 	-- Pen income: every mutant standing in your pen pays this fraction of its base value
-	-- (tier x rarity x size; mutations only boost the sale price) every payout, times the
-	-- cash multiplier. Offline it pays offlineIncomeFactor of that, for up to offlineIncomeCap.
-	penIncomePerMinute = 0.02,
+	-- (tier x rarity only: size and mutations only boost the sale price) per minute, times the
+	-- rebirth multiplier, paid every payoutSeconds while online. A plain size-1 mutant pays back
+	-- its sell value in 1 / 0.0005 = 2,000 min (~33 h) online. Offline it earns at
+	-- penIncomePerMinuteOffline for the whole time away (paid at join), with no cap.
+	penIncomePerMinute = 0.0005,
+	penIncomePerMinuteOffline = 0.0001,
 	payoutSeconds = 60,
-	offlineIncomeFactor = 0.2,
-	offlineIncomeCap = 8 * 60 * 60,
 
 	-- World
 	islandCount = 12,

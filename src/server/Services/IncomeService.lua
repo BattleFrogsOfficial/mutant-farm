@@ -13,12 +13,17 @@ local Net = require(script.Parent.Parent.Util.Net)
 
 local IncomeService = {}
 
+-- Fractions of a Cash carried to the next payout (a small pen earns well under $1/min).
+local carry: { [Player]: number } = {}
+
 local function pay(player: Player)
 	local data = DataService.get(player)
 	if not data then
 		return
 	end
-	local amount = DataService.incomePerMinute(data)
+	local exact = DataService.penIncome(data) * GameConfig.payoutSeconds / 60 + (carry[player] or 0)
+	local amount = math.floor(exact)
+	carry[player] = exact - amount
 	if amount > 0 and EconomyService.addCash(player, data, amount, "Gameplay", "PenIncome") then
 		Net.fire(player, "Payout", amount)
 	end
@@ -28,6 +33,7 @@ end
 function IncomeService.Init()
 	Players.PlayerRemoving:Connect(function(player)
 		DataService.nextPayoutAt[player] = nil
+		carry[player] = nil
 	end)
 end
 

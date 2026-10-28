@@ -16,7 +16,7 @@ export PATH="$HOME/.cargo/bin:$PATH"
 
 cargo install --locked lune --version 0.11.1
 cargo install --locked rojo --version 7.7.1
-cargo install --locked stylua --version 2.6.0
+cargo install --locked stylua --version 2.6.0 --features luau # without the feature it cannot parse Luau
 cargo install --locked selene --version 0.31.0
 
 # Preview renderers (Chromium + Playwright are preinstalled in cloud sessions).

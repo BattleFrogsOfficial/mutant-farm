@@ -2,6 +2,7 @@
 local fs = require("@lune/fs")
 local process = require("@lune/process")
 local harness = require("./harness")
+local ServerHarness = require("./server-harness")
 
 local passed, failed = 0, 0
 
@@ -60,6 +61,11 @@ function t.ok(value, label: string?)
 end
 
 t.require = harness.require
+
+-- A fresh headless server (real services, fake Roblox): see tools/server-harness.luau.
+function t.server(options)
+	return ServerHarness.new(options)
+end
 
 local files = fs.readDir("tests")
 table.sort(files)

@@ -1,8 +1,10 @@
 --!strict
 -- Rebirth: pay Costs.rebirth(n) Cash to start over with a permanent +0.5x Cash multiplier and the
--- next egg tier. Resets Cash (to startingCash), bought slots, upgrades, eggs (back to the starter
--- eggs) and growing plants; the bag is sold off except the mutants standing in the pen.
--- Keeps the pen, passes, Gems, the Almanac and the daily streak.
+-- next egg tier. First the bag is sold at full value through EconomyService (logged, and counted
+-- in stats.totalCashEarned), except the mutants standing in the pen (pinned ones always are).
+-- Then it resets Cash (to startingCash, so the sale's Cash goes with the rest), bought slots,
+-- upgrades, eggs (back to the starter eggs) and growing plants. Keeps the pen, passes, Gems, the
+-- Almanac and the daily streak.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -24,10 +26,15 @@ local function onRebirth(player: Player, data: Types.Profile)
 	if data.cash < cost then
 		return
 	end
-	-- The pen's mutants stay; the rest of the bag goes.
+	-- The pen's mutants stay; the rest of the bag is sold before the reset.
 	local keep = {}
 	for _, item in DataService.penItems(data) do
 		keep[item.id] = item
+	end
+	for itemId in table.clone(data.inventory) do
+		if not keep[itemId] then
+			EconomyService.sellItem(player, data, itemId)
+		end
 	end
 	data.inventory = keep
 	EconomyService.resetCash(player, data, GameConfig.startingCash)
