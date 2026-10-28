@@ -1,20 +1,10 @@
 --!strict
--- Weather math shared by WeatherService, GrowthService and the tests: which event comes next,
--- the chance per roll for an egg, and how many rolls an event makes.
+-- Weather roll math shared by WeatherService, GrowthService and the tests: the chance per roll for
+-- an egg and how many rolls an event makes. The schedule (which event, when) is shared/Weather.lua.
 
 local Weather = require(script.Parent.Config.Weather)
-local Rng = require(script.Parent.Rng)
 
 local WeatherRules = {}
-
--- Weighted pick of the next event id.
-function WeatherRules.pick(rng: Rng.Rng): string
-	local weights = {}
-	for id, event in Weather.events :: any do
-		weights[id] = event.weight
-	end
-	return rng:weighted(Weather.order, weights)
-end
 
 -- Chance per roll for one egg: the event's chance x luck, capped.
 function WeatherRules.chance(eventId: string, luck: number): number

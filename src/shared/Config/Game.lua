@@ -66,4 +66,9 @@ return {
 	-- Global boards in the hub (Top Pens, Top Rebirths; OrderedDataStores): how often online
 	-- players' values are saved and the top 100 re-read and sent to clients.
 	leaderboardSeconds = 120,
+
+	-- Discord weather relay (tools/relay, a Cloudflare Worker): Glitch Storm is posted there at
+	-- T-5:00 by one server. "" = off. The key is the Roblox secret WEATHER_RELAY_KEY.
+	relayUrl = "",
+	gameLink = "https://www.roblox.com/games/0/Mutant-Farm", -- put the real place id here
 }

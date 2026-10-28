@@ -98,6 +98,11 @@ function ShopRules.canBuyPotion(paidRandomRestricted: boolean): boolean
 	return not paidRandomRestricted
 end
 
+-- Instant Weather is a paid mutation-odds boost too: gated exactly like the Luck Potion.
+function ShopRules.canBuyInstantWeather(paidRandomRestricted: boolean): boolean
+	return ShopRules.canBuyPotion(paidRandomRestricted)
+end
+
 -- Base tiers unlocked now that weren't before (e.g. Lab when lifetime earnings cross $25K).
 function ShopRules.newlyUnlocked(
 	before: { rebirths: number, totalCashEarned: number },

@@ -75,7 +75,7 @@ local function reconcile(data, template)
 	end
 end
 
-function ServerHarness.new(options: { now: number?, seed: number?, groupId: number? }?)
+function ServerHarness.new(options: { now: number?, seed: number?, groupId: number?, memory: any?, relayUrl: string? }?)
 	local opts = options or {}
 	local self = setmetatable({}, ServerHarness)
 	self.now = opts.now or 1_800_000_000
@@ -93,6 +93,10 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 	self.restricted = {} -- userId -> true: PolicyService restricts paid random items
 	self.economy = {} -- Analytics economy events
 	self.funnels = {} -- Analytics single-step funnel events
+	self.memory = opts.memory or {} -- MemoryStore sorted maps (share a table to link servers)
+	self.secrets = {} -- HttpService:GetSecret values
+	self.http = {} -- HttpService:RequestAsync calls
+	self.guids = 0
 	local world = self
 	local rng = Rng.new(opts.seed or 12345)
 
@@ -284,6 +288,41 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 			JSONEncode = function(_, v)
 				return require("@lune/serde").encode("json", v)
 			end,
+			GenerateGUID = function()
+				world.guids += 1
+				return "server-" .. world.guids
+			end,
+			-- world.secrets[name] = value (missing = GetSecret errors, like Roblox).
+			GetSecret = function(_, name)
+				local value = world.secrets[name]
+				assert(value ~= nil, "secret not found: " .. name)
+				return value
+			end,
+			-- Requests land in world.http.
+			RequestAsync = function(_, request)
+				table.insert(world.http, request)
+				return { Success = true, StatusCode = 200, Body = "" }
+			end,
+		},
+		-- One sorted map store, shareable between harness servers (options.memory) like the
+		-- real MemoryStore is shared between a game's servers. UpdateAsync is atomic here.
+		MemoryStoreService = {
+			GetSortedMap = function(_, name)
+				world.memory[name] = world.memory[name] or {}
+				local map = world.memory[name]
+				return {
+					UpdateAsync = function(_, key, transform, _expiry)
+						local new = transform(map[key])
+						if new ~= nil then
+							map[key] = new
+						end
+						return new
+					end,
+					GetAsync = function(_, key)
+						return map[key]
+					end,
+				}
+			end,
 		},
 		TextChatService = {},
 	}
@@ -299,6 +338,7 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 			return s
 		end,
 		BindToClose = function() end,
+		JobId = "",
 	}
 	self.services = services
 
@@ -409,6 +449,9 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 	if opts.groupId then
 		self.modules("src/shared/Config/Game").groupId = opts.groupId
 	end
+	if opts.relayUrl then
+		self.modules("src/shared/Config/Game").relayUrl = opts.relayUrl
+	end
 	self.service = {}
 	for _, name in SERVICES do
 		self.service[name] = self.modules("src/server/Services/" .. name)
@@ -516,6 +559,11 @@ function ServerHarness.received(self, player, name: string): { any }
 		end
 	end
 	return out
+end
+
+-- A module as this server loaded it (its own instance, e.g. "src/shared/Weather").
+function ServerHarness.modulesRequire(self, path: string)
+	return self.modules(path)
 end
 
 function ServerHarness.data(self, player)

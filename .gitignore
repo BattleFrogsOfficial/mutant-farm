@@ -7,3 +7,5 @@ roblox.yml
 .DS_Store
 build/
 tools/preview/node_modules/
+tools/relay/wrangler.toml
+tools/relay/.wrangler/

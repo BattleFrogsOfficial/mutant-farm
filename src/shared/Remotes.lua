@@ -27,6 +27,8 @@ Remotes.ClientToServer = {
 	"Pin", -- (itemId: string, on: boolean) keep a bag mutant in the pen
 	"ClaimVipGems", -- () VIP pass: the daily Gems
 	"SeenLimited", -- (eggId: string) the shop opened on this limited egg once (don't again)
+	"BuyInstantWeather", -- (eventId: string) a 120 s weather event on your own plot, for Gems
+	"RebirthNow", -- () rebirth at 50%+ of the cost, for Gems
 }
 
 -- server -> client
@@ -40,6 +42,7 @@ Remotes.ServerToClient = {
 	"Rebirthed", -- (rebirths: number) celebration after a rebirth
 	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
 	"GroupOffer", -- () first sale: offer the group (once)
+	"WeatherAnnounce", -- (text: string, chat: boolean) to everyone: a weather toast (+ chat line)
 	"PurchaseFx", -- (userId: number, chatLine: string?) to everyone: sparkle on the buyer's plot
 	"Leaderboards", -- ({ pens: { Leaderboards.Entry }, rebirths: { ... } }) top 100 of each, every 120 s
 }
