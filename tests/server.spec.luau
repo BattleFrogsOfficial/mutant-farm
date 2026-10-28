@@ -253,6 +253,57 @@ return function(t)
 			end
 		end,
 
+		["Rebirth Now: sells the bag first, rebirths, then takes 100 Gems"] = function()
+			local world = t.server()
+			local inventory = {}
+			for i = 1, 8 do
+				inventory[tostring(i)] = mutant(i, "Starter", "Common", { pinned = true })
+			end
+			inventory["9"] = mutant(9, "Swamp", "Epic")
+			local player, data = world:join(1, {
+				cash = 400_000, -- 57% of the 700K first rebirth
+				gems = 150,
+				inventory = inventory,
+				nextItemId = 10,
+			})
+			local earned = data.stats.totalCashEarned
+			local value = Valuation.sellValue(data.inventory["9"], 1)
+			world:send(player, "RebirthNow")
+			t.eq(data.rebirths, 1)
+			t.eq(data.gems, 50)
+			t.eq(data.cash, GameConfig.startingCash)
+			t.eq(data.stats.totalCashEarned - earned, value, "bag sold first and counted as earned")
+			t.eq(count(data.inventory), 8, "pen kept")
+			-- Logged: the sale (Source) before the Gems sink, which is logged as RebirthNow.
+			local saleAt, gemsAt
+			for i, e in world.economy do
+				if e.sku == "Sell_Swamp_Epic" then
+					saleAt = i
+				elseif e.sku == "RebirthNow" then
+					gemsAt = i
+					t.eq(e.amount, 100)
+				end
+			end
+			t.ok(saleAt and gemsAt and saleAt < gemsAt, "sale logged before the Gems")
+		end,
+
+		["Rebirth Now: not below 50% of the cost, not without the Gems, works when restricted"] = function()
+			local world = t.server()
+			local poor, poorData = world:join(1, { cash = 340_000, gems = 500 }) -- 48.6%
+			world:send(poor, "RebirthNow")
+			t.eq(poorData.rebirths, 0)
+			t.eq(poorData.gems, 500)
+			local broke, brokeData = world:join(2, { cash = 600_000, gems = 99 })
+			world:send(broke, "RebirthNow")
+			t.eq(brokeData.rebirths, 0)
+			t.eq(brokeData.cash, 600_000, "nothing reset")
+			world.restricted[3] = true -- no randomness: not policy-gated
+			local restricted, data = world:join(3, { cash = 350_000, gems = 100 })
+			world:send(restricted, "RebirthNow")
+			t.eq(data.rebirths, 1)
+			t.eq(data.gems, 0)
+		end,
+
 		["Auto-Harvest offline: 3 h of 5-minute eggs fills the bag and spends Cash"] = function()
 			local world = t.server()
 			local player, data = world:join(1, {

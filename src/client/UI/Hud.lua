@@ -6,8 +6,9 @@
 --                 (red dots). SHOP bottom-right (mid-right on touch screens). One toast lane.
 --   (the top row shares the top-bar strip with Roblox's buttons, which keep the top-left corner;
 --   the whole HUD hides while a panel is open)
---   right column  weather (hub; a countdown chip everywhere from 5 min before an event), Starter
---                 Bundle (always, while it runs), bag count (plot)
+--   right column  weather (hub; a countdown chip everywhere from 5 min before an event), Instant
+--                 Weather (pink, when no event is near), Starter Bundle (always, while it runs),
+--                 bag count (plot)
 --   plot          egg tray (the biggest thing: eggs, next locked tier, 2x Luck, HATCH), WATER with
 --                 its drain ring, the Next Up line above the tray, bag count top-left.
 --   hub           SHOP grows to the biggest button; weather countdown as plain text and the Starter
@@ -580,7 +581,7 @@ local function bundleRibbon()
 	end)
 	return New("Frame")({
 		Name = "Bundle",
-		LayoutOrder = 2,
+		LayoutOrder = 3,
 		Size = UDim2.fromOffset(176, 54),
 		BackgroundTransparency = 1,
 		-- Always on screen while the offer runs (hub and plot); gone when the timer ends.
@@ -1188,7 +1189,7 @@ local function bagChip()
 	end)
 	return New("Frame")({
 		Name = "BagChip",
-		LayoutOrder = 3,
+		LayoutOrder = 4,
 		Size = UDim2.fromOffset(130, 44),
 		BackgroundTransparency = 1,
 		Visible = atPlot,
@@ -1212,8 +1213,40 @@ local function bagChip()
 	})
 end
 
--- Right column under the Daily/Almanac icons: weather (hub), Starter Bundle (always, while it
--- runs), bag count (plot). Kept off the left side, which belongs to Roblox's buttons and chat.
+-- Instant Weather (pink: it spends Gems), under the weather line: only when no global event runs
+-- or starts within Weather.announceSeconds, no plot event of yours runs, and the player may buy
+-- paid odds boosts (PolicyService). Opens the picker.
+local function instantWeatherButton()
+	local shown = Computed(function()
+		State.now:get()
+		local snap = State.snapshot:get()
+		local w = State.weather:get()
+		local mine = State.plotWeather:get()
+		local now = workspace:GetServerTimeNow()
+		local globalSoon = (w.id ~= "" and now < w.endsAt)
+			or (w.nextAt > now and w.nextAt - now <= Weather.announceSeconds)
+		return snap ~= nil and snap.paidRandomRestricted == false and not globalSoon and mine.id == ""
+	end)
+	return New("Frame")({
+		Name = "InstantWeather",
+		LayoutOrder = 2,
+		Size = UDim2.fromOffset(240, 44),
+		BackgroundTransparency = 1,
+		Visible = shown,
+		[Children] = C.button({
+			Size = UDim2.fromScale(1, 1),
+			Color = Theme.colors.spend,
+			Text = string.format("☢ INSTANT WEATHER · %d 💎", Products.gems.InstantWeather.cost),
+			MaxTextSize = 17,
+			OnClick = function()
+				openPanel("instantWeather")
+			end,
+		}),
+	})
+end
+
+-- Right column under the Daily/Almanac icons: weather (hub), Instant Weather, Starter Bundle
+-- (always, while it runs), bag count (plot). Kept off the left side (Roblox's buttons and chat).
 local function rightColumn()
 	return New("Frame")({
 		Name = "RightColumn",
@@ -1228,6 +1261,7 @@ local function rightColumn()
 				Padding = UDim.new(0, 10),
 			}),
 			weatherText(),
+			instantWeatherButton(),
 			bundleRibbon(),
 			bagChip(),
 		},

@@ -19,6 +19,7 @@ local SlotOfferPanel = require(script.Parent.SlotOfferPanel)
 local RebirthPanel = require(script.Parent.RebirthPanel)
 local UpgradesPanel = require(script.Parent.UpgradesPanel)
 local GroupOfferPanel = require(script.Parent.GroupOfferPanel)
+local InstantWeatherPanel = require(script.Parent.InstantWeatherPanel)
 
 local New, Children, Computed = Fusion.New, Fusion.Children, Fusion.Computed
 
@@ -51,6 +52,7 @@ return function()
 			RebirthPanel(),
 			UpgradesPanel(),
 			GroupOfferPanel(),
+			InstantWeatherPanel(),
 			Toasts(),
 		},
 	})

@@ -31,10 +31,12 @@ State.almanacSeen = Value(-1)
 -- Last pen payout from the server: amount and client clock time it arrived (for the flash/pop).
 State.lastPayout = Value({ amount = 0, at = -10 })
 -- "none" | "shop" | "sell" | "almanac" | "daily" | "welcome" | "store" | "slotOffer" | "rebirth" | "upgrades"
--- | "groupOffer"
+-- | "groupOffer" | "instantWeather"
 State.panel = Value("none")
 -- Weather from Workspace attributes (WeatherService): the next event and the one running now.
 State.weather = Value({ nextId = "", nextAt = 0, id = "", endsAt = 0 })
+-- Your own Instant Weather event (player attributes PlotWeatherId / EndsAt): id "" when none.
+State.plotWeather = Value({ id = "", endsAt = 0 })
 State.toasts = Value({} :: { { id: number, text: string, kind: string } })
 -- "Next up" panel: { text, progress?, ui? } where ui names a HUD button to pulse.
 State.objective = Value({ text = "", progress = nil :: number?, ui = nil :: string?, hub = nil :: boolean? })

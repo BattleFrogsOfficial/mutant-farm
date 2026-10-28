@@ -3,6 +3,7 @@
 -- rules (unlocks, Cash vs Gems prices, the paid-random-item policy) live in one place.
 
 local Eggs = require(script.Parent.Config.Eggs)
+local Products = require(script.Parent.Config.Products)
 
 local ShopRules = {}
 
@@ -96,6 +97,12 @@ end
 -- The Luck Potion is a paid odds boost: refused where paid random items are restricted (or unknown).
 function ShopRules.canBuyPotion(paidRandomRestricted: boolean): boolean
 	return not paidRandomRestricted
+end
+
+-- Rebirth Now is offered (Rebirth panel, Rebirth Altar sign) while Cash is from minFraction (50%)
+-- of the next rebirth's cost up to just under it. The server accepts it from minFraction up.
+function ShopRules.rebirthNowOffered(cash: number, cost: number): boolean
+	return cost > 0 and cash >= cost * Products.gems.RebirthNow.minFraction and cash < cost
 end
 
 -- Instant Weather is a paid mutation-odds boost too: gated exactly like the Luck Potion.

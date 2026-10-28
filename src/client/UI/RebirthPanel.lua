@@ -1,6 +1,8 @@
 --!strict
 -- Rebirth: what it costs, how close you are, what you get (Cash multiplier, the next egg tier)
--- and what resets. The button needs a second tap to confirm.
+-- and what resets. The button needs a second tap to confirm. From 50% of the cost (ShopRules.
+-- rebirthNowOffered) a pink REBIRTH NOW · 100 💎 sits beside the progress bar (also two taps;
+-- short on Gems opens the Gem shop).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -8,6 +10,8 @@ local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Shared = ReplicatedStorage.Shared
 local Eggs = require(Shared.Config.Eggs)
 local Rebirths = require(Shared.Config.Rebirths)
+local Products = require(Shared.Config.Products)
+local ShopRules = require(Shared.ShopRules)
 local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local State = require(script.Parent.Parent.State)
@@ -55,8 +59,10 @@ end
 
 return function()
 	local confirming = Value(false)
+	local nowConfirming = Value(false)
 	Observer(State.panel):onChange(function()
 		confirming:set(false)
+		nowConfirming:set(false)
 	end)
 	local rebirths = Computed(function()
 		local snap = State.snapshot:get()
@@ -69,6 +75,10 @@ return function()
 	local progress = Computed(function()
 		local c = cost:get()
 		return if c > 0 then math.clamp(State.cash:get() / c, 0, 1) else 0
+	end)
+	local offerNow = Computed(function()
+		local snap = State.snapshot:get()
+		return snap ~= nil and ShopRules.rebirthNowOffered(snap.cash, snap.rebirthCost or 0)
 	end)
 	local unlock = Computed(function()
 		for _, eggId in Eggs.order do
@@ -104,7 +114,9 @@ return function()
 			New("Frame")({
 				Name = "Bar",
 				Position = UDim2.fromOffset(0, 38),
-				Size = UDim2.new(1, 0, 0, 24),
+				Size = Computed(function()
+					return if offerNow:get() then UDim2.new(1, -206, 0, 24) else UDim2.new(1, 0, 0, 24)
+				end),
 				BackgroundColor3 = Theme.colors.ink,
 				BorderSizePixel = 0,
 				ZIndex = 3,
@@ -132,6 +144,35 @@ return function()
 						ZIndex = 5,
 					}),
 				},
+			}),
+			-- Rebirth Now, beside the bar while 50% <= Cash < cost.
+			C.button({
+				Name = "RebirthNow",
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, 0, 0, 50),
+				Size = UDim2.fromOffset(196, 42),
+				Color = Theme.colors.spend,
+				Visible = offerNow,
+				MaxTextSize = 17,
+				ZIndex = 4,
+				Text = Computed(function()
+					return if nowConfirming:get()
+						then string.format("TAP AGAIN · %d 💎", Products.gems.RebirthNow.cost)
+						else string.format("REBIRTH NOW · %d 💎", Products.gems.RebirthNow.cost)
+				end),
+				OnClick = function()
+					if State.gems:get(false) < Products.gems.RebirthNow.cost then
+						State.panel:set("store") -- short on Gems: straight to the packs
+						return
+					end
+					if not nowConfirming:get(false) then
+						nowConfirming:set(true)
+						return
+					end
+					nowConfirming:set(false)
+					Remotes.get("RebirthNow"):FireServer()
+					State.panel:set("none")
+				end,
 			}),
 			column(UDim2.fromOffset(0, 80), "YOU GET", Theme.colors.toxic, {
 				C.label({

@@ -4,7 +4,8 @@
 -- in stats.totalCashEarned), except the mutants standing in the pen (pinned ones always are).
 -- Then it resets Cash (to startingCash, so the sale's Cash goes with the rest), bought slots,
 -- upgrades, eggs (back to the starter eggs) and growing plants. Keeps the pen, passes, Gems, the
--- Almanac and the daily streak.
+-- Almanac and the daily streak. Rebirth Now (Products.gems.RebirthNow) does the same from 50% of
+-- the cost, for Gems.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -13,6 +14,7 @@ local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
 local Eggs = require(Shared.Config.Eggs)
 local Costs = require(Shared.Costs)
+local Products = require(Shared.Config.Products)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
 local EconomyService = require(script.Parent.EconomyService)
@@ -21,11 +23,8 @@ local Analytics = require(script.Parent.Parent.Util.Analytics)
 
 local RebirthService = {}
 
-local function onRebirth(player: Player, data: Types.Profile)
-	local cost = Costs.rebirth(data.rebirths)
-	if data.cash < cost then
-		return
-	end
+-- The rebirth itself (both ways in: Cash, or Rebirth Now for Gems).
+local function rebirth(player: Player, data: Types.Profile)
 	-- The pen's mutants stay; the rest of the bag is sold before the reset.
 	local keep = {}
 	for _, item in DataService.penItems(data) do
@@ -74,10 +73,34 @@ local function onRebirth(player: Player, data: Types.Profile)
 	DataService.changed(player)
 end
 
+local function onRebirth(player: Player, data: Types.Profile)
+	if data.cash < Costs.rebirth(data.rebirths) then
+		return
+	end
+	rebirth(player, data)
+end
+
+-- Rebirth Now: from minFraction (50%) of the cost, for Gems. The normal rebirth runs exactly (bag
+-- sold first, the usual resets), then the Gems are taken (checked first, so it can't half-happen).
+local function onRebirthNow(player: Player, data: Types.Profile)
+	local offer = Products.gems.RebirthNow
+	if data.cash < Costs.rebirth(data.rebirths) * offer.minFraction then
+		return
+	end
+	if data.gems < offer.cost then
+		Net.notify(player, string.format("Need %d Gems to Rebirth Now", offer.cost), "info")
+		return
+	end
+	rebirth(player, data)
+	EconomyService.spendGems(player, data, offer.cost, "Shop", "RebirthNow")
+	DataService.changed(player)
+end
+
 function RebirthService.Init() end
 
 function RebirthService.Start()
 	Net.on("Rebirth", onRebirth)
+	Net.on("RebirthNow", onRebirthNow)
 end
 
 return RebirthService

@@ -559,6 +559,49 @@ capture("rebirth")
 set(State.panel, "upgrades")
 capture("upgrades")
 
+-- Instant Weather: the HUD button (no global event within 5 min, no plot event of yours) in the
+-- hub and on the plot, and the picker.
+set(State.panel, "none")
+set(State.weather, { nextId = "GlitchStorm", nextAt = 1_800_000_000 + 1200, id = "", endsAt = 0 })
+set(State.zone, "hub")
+captureHud("hud-instant-weather")
+set(State.zone, "plot")
+captureHud("hud-plot-instant-weather")
+set(State.zone, "hub")
+do -- a restricted player never sees it
+	local restrictedHud = table.clone(snapshot)
+	restrictedHud.paidRandomRestricted = true
+	set(State.snapshot, restrictedHud)
+	captureHud("hud-instant-weather-restricted")
+	set(State.snapshot, snapshot)
+end
+set(State.panel, "instantWeather")
+capture("instantWeather")
+set(State.panel, "none")
+set(State.weather, { nextId = "AcidRain", nextAt = 1_800_000_000 + 252, id = "", endsAt = 0 })
+
+-- Rebirth Now: Cash at 64% of the next rebirth, in the Rebirth panel and on the Altar sign.
+do
+	local nearly = table.clone(snapshot)
+	nearly.cash = 450_000
+	set(State.snapshot, nearly)
+	set(State.panel, "rebirth")
+	captureHud("rebirth-now")
+	set(State.panel, "none")
+	local AltarSign = requireModule(UI.AltarSign)
+	local saved = root
+	-- ui-render draws the root's children: wrap the sign (at its board's pixel size).
+	local holder = Instance.new("Frame")
+	holder.Name = "Root"
+	holder.Size = roblox.UDim2.fromScale(1, 1)
+	holder.BackgroundTransparency = 1
+	AltarSign.new().Parent = holder
+	root = holder
+	captureHud("rebirth-now-altar")
+	root = saved
+	set(State.snapshot, snapshot)
+end
+
 set(State.panel, "none")
 
 -- The hatch cinematic is plain Instances (HatchScreen), shown here at the reveal.

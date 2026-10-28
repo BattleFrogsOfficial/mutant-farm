@@ -14,6 +14,12 @@ return function(t)
 	end
 
 	return {
+		["Rebirth Now is offered from 50% of the cost to just under it"] = function()
+			t.eq(ShopRules.rebirthNowOffered(349_999, 700_000), false)
+			t.eq(ShopRules.rebirthNowOffered(350_000, 700_000), true)
+			t.eq(ShopRules.rebirthNowOffered(699_999, 700_000), true)
+			t.eq(ShopRules.rebirthNowOffered(700_000, 700_000), false, "can rebirth with Cash")
+		end,
 		["the Rebirth Altar names what each rebirth unlocks"] = function()
 			t.eq(ShopRules.unlockedAtRebirth(1), "Toxic")
 			t.eq(ShopRules.unlockedAtRebirth(2), nil)

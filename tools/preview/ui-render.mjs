@@ -26,7 +26,7 @@ const checkSizes = [
   ["hd", 1920, 1080],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
-const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
+const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "InstantWeather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
 
 const html = `<!doctype html><html><head><style>
 * { box-sizing: border-box; }
@@ -343,6 +343,29 @@ window.checkShop = (W, H) => {
   };
 };
 
+// A panel (or the Rebirth Altar sign): its controls don't overlap each other and stay on screen;
+// reports whether the Rebirth Now button is up.
+window.checkPanel = (W, H) => {
+  const problems = [];
+  const vis = (el) => el && el.offsetParent !== null && getComputedStyle(el).display !== "none";
+  const panel = [...document.querySelectorAll('.gui [title="Panel"]')].find((p) => vis(p));
+  const host = panel ? panel.querySelector('[title="Content"]') : document.querySelector('[title="AltarSign"]');
+  if (!host) return { problems: ["no panel or sign"], rebirthNow: false };
+  const inner = [...host.children].find((c) => c.classList.contains("inner")) || host;
+  const items = [...inner.children].filter((c) => c.title && vis(c)).map((c) => ({ name: c.title, r: paintedRect(c) })).filter((x) => x.r && x.r.right - x.r.left > 1);
+  for (let i = 0; i < items.length; i++) {
+    const a = items[i];
+    if (a.r.left < 0 || a.r.top < 0 || a.r.right > W || a.r.bottom > H) problems.push(\`\${a.name} goes off screen\`);
+    for (let j = i + 1; j < items.length; j++) {
+      const b = items[j];
+      const w = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
+      const h = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
+      if (w > 0.5 && h > 0.5) problems.push(\`\${a.name} overlaps \${b.name} (\${w.toFixed(0)}x\${h.toFixed(0)}px)\`);
+    }
+  }
+  return { problems, rebirthNow: vis(host.querySelector('[title="RebirthNow"]')) };
+};
+
 window.checkOverlaps = (W, H, touch) => {
   const problems = [];
   const rects = [];
@@ -434,6 +457,11 @@ for (const [sceneName, hudIndex] of hudScenes) {
     await page.setViewportSize({ width: W, height: H });
     await page.evaluate(([i, W, H]) => window.render(i, W, H), [hudIndex, W, H]);
     const problems = await page.evaluate(([W, H, t]) => window.checkOverlaps(W, H, t), [W, H, sceneName.split("@")[0].endsWith("touch")]);
+    // Instant Weather: shown in its scenes, never to a policy-restricted player.
+    const iw = await page.evaluate(() => { const e = document.querySelector('.gui [title="InstantWeather"]'); return !!e && e.offsetParent !== null; });
+    const kind = sceneName.split("@")[0];
+    if (kind.endsWith("restricted") && iw) problems.push("restricted player sees Instant Weather");
+    else if (kind.includes("instant-weather") && !kind.endsWith("restricted") && !iw) problems.push("Instant Weather button missing");
     for (const p of problems) console.log(`[overlap] ${sceneName} ${label} ${W}x${H}: ${p}`);
     issues += problems.length;
   }
@@ -489,4 +517,21 @@ for (const [sceneName, index] of shopScenes) {
   console.log(`[shop] ${sceneName}: focused ${r.focused} "${r.text}" at ${r.font.toFixed(1)}px; arrows ${r.arrows.join("+") || "none"}`);
 }
 console.log(`Shop check: ${shopIssues} issue(s) across ${shopChecked} scenes`);
+// Rebirth Now (panel and Altar sign) at every size, and the Instant Weather picker.
+let panelIssues = 0, panelChecked = 0;
+const panelScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("rebirth-now") || n === "instantWeather"));
+for (const [sceneName, index] of panelScenes) {
+  const sized = /^([\w-]+)@(\d+)x(\d+)$/.exec(sceneName);
+  for (const [label, W, H] of [...sizes, ...checkSizes]) {
+    if (sized && (+sized[2] !== W || +sized[3] !== H)) continue;
+    await page.setViewportSize({ width: W, height: H });
+    await page.evaluate(([i, W, H]) => window.render(i, W, H), [index, W, H]);
+    const r = await page.evaluate(([W, H]) => window.checkPanel(W, H), [W, H]);
+    if (sceneName.startsWith("rebirth-now") && !r.rebirthNow) r.problems.push("REBIRTH NOW button missing at 64% of the cost");
+    panelChecked++;
+    for (const p of r.problems) console.log(`[panel] ${sceneName} ${label}: ${p}`);
+    panelIssues += r.problems.length;
+  }
+}
+console.log(`Panel check: ${panelIssues} issue(s) across ${panelChecked} scenes`);
 await browser.close();

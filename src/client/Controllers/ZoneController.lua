@@ -1,7 +1,7 @@
 --!strict
 -- Decides whether the player is at their plot or in the hub (State.zone), so the HUD shows only
--- what that place needs. Also writes your bag's worth onto the Sell stall's sign, and your next
--- rebirth onto the Rebirth Altar's sign.
+-- what that place needs. Also writes your bag's worth onto the Sell stall's sign, and draws your
+-- own Rebirth Altar sign.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,8 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Format = require(ReplicatedStorage.Shared.Format)
 local Valuation = require(ReplicatedStorage.Shared.Valuation)
-local ShopRules = require(ReplicatedStorage.Shared.ShopRules)
-local Eggs = require(ReplicatedStorage.Shared.Config.Eggs)
+local AltarSign = require(script.Parent.Parent.UI.AltarSign)
 local State = require(script.Parent.Parent.State)
 local PlotController = require(script.Parent.PlotController)
 
@@ -59,36 +58,30 @@ local function bagSign()
 	update()
 end
 
--- "REBIRTH 1 · $700K · unlocks Toxic Egg" (or "· Cash x2" when it unlocks no tier) on the Rebirth
--- Altar's sign, and its bar filled to Cash / cost. Local text, like the Sell sign.
-function ZoneController.altarText(rebirths: number, cost: number): string
-	local tier = ShopRules.unlockedAtRebirth(rebirths + 1)
-	local reward = if tier
-		then "unlocks " .. Eggs.tiers[tier].name
-		else "Cash x" .. tostring(Valuation.rebirthMultiplier(rebirths + 1))
-	return string.format("REBIRTH %d · %s\n%s", rebirths + 1, Format.cash(cost), reward)
-end
-
+-- The Rebirth Altar's sign, per player (UI/AltarSign: your next rebirth, cost, unlock, bar and
+-- the Rebirth Now button): a SurfaceGui in PlayerGui adorned to the board, so it can be tapped;
+-- the board's own placeholder face is switched off locally.
 local function altarSign()
 	local hub = workspace:WaitForChild("Map"):WaitForChild("Hub")
 	local sign = hub:WaitForChild("RebirthSign", 60)
-	local board = sign and sign:WaitForChild("Board", 60)
-	local gui = board and board:WaitForChild("AltarGui", 60)
-	local title = gui and gui:FindFirstChild("Title") :: TextLabel?
-	local fill = gui and gui:FindFirstChild("Bar") and gui.Bar:FindFirstChild("Fill") :: Frame?
-	if not title or not fill then
+	local board = sign and sign:WaitForChild("Board", 60) :: BasePart?
+	if not board then
 		return
 	end
-	local function update()
-		local snap = State.snapshot:get(false)
-		if not snap then
-			return
-		end
-		title.Text = ZoneController.altarText(snap.rebirths, snap.rebirthCost)
-		fill.Size = UDim2.fromScale(math.clamp(snap.cash / math.max(snap.rebirthCost, 1), 0, 1), 1)
+	local placeholder = board:FindFirstChild("AltarGui") :: SurfaceGui?
+	if placeholder then
+		placeholder.Enabled = false
 	end
-	Observer(State.snapshot):onChange(update)
-	update()
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "RebirthAltarSign"
+	gui.Adornee = board
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	gui.CanvasSize = AltarSign.SIZE
+	gui.LightInfluence = 0.15
+	gui.ResetOnSpawn = false
+	AltarSign.new().Parent = gui
+	gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 end
 
 function ZoneController.Init() end

@@ -22,8 +22,11 @@ return {
 		-- eggs clears for ~120 Robux of Gems. If Skip revenue is high while day-3 return is low, it's
 		-- eating the timers that bring people back: price on total remaining minutes instead.
 		SkipTimer = { costPer10Minutes = 5 },
+		-- A 120 s weather event (any of Config/Weather's) on your own plot only. Policy-gated.
 		InstantWeather = { cost = 400 },
-		RebirthNow = { cost = 100 },
+		-- Rebirth without the full Cash: offered from minFraction of the cost (50%) up. Not random,
+		-- so not policy-gated.
+		RebirthNow = { cost = 100, minFraction = 0.5 },
 		LimitedEgg = { minCost = 500, maxCost = 1_500 },
 	},
 }

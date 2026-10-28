@@ -335,6 +335,62 @@ local function potionCard()
 	})
 end
 
+-- Instant Weather: a 2-minute event on your own plot, for Gems (opens the picker). Hidden where
+-- PolicyService restricts paid odds boosts, like the potion.
+local function instantWeatherCard()
+	local cost = Products.gems.InstantWeather.cost
+	return box({
+		Name = "InstantWeather",
+		LayoutOrder = 8,
+		Size = UDim2.new(1, -8, 0, 84),
+		Visible = Computed(function()
+			local snap = State.snapshot:get()
+			return snap ~= nil and snap.paidRandomRestricted == false
+		end),
+		Children = {
+			C.label({
+				Text = "⛈",
+				Position = UDim2.fromOffset(10, 10),
+				Size = UDim2.fromOffset(64, 64),
+				MaxTextSize = 50,
+				ZIndex = 2,
+			}),
+			C.label({
+				Text = "INSTANT WEATHER · ON YOUR FARM",
+				Position = UDim2.fromOffset(84, 12),
+				Size = UDim2.new(1, -290, 0, 24),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				MaxTextSize = 18,
+				ZIndex = 2,
+			}),
+			C.label({
+				Text = "Acid Rain, Solar Flare or Glitch Storm for 2 minutes, just on your plot.",
+				Position = UDim2.fromOffset(84, 40),
+				Size = UDim2.new(1, -290, 0, 32),
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				TextWrapped = true,
+				TextColor3 = Theme.colors.cream,
+				StrokeThickness = 0,
+				MaxTextSize = 13,
+				ZIndex = 2,
+			}),
+			C.button({
+				AnchorPoint = Vector2.new(1, 0.5),
+				Position = UDim2.new(1, -14, 0.5, 0),
+				Size = UDim2.fromOffset(180, 54),
+				Color = PINK,
+				Text = string.format("%d 💎", cost),
+				MaxTextSize = 22,
+				ZIndex = 3,
+				OnClick = function()
+					State.panel:set("instantWeather")
+				end,
+			}),
+		},
+	})
+end
+
 local function row(order: number, height: number, children: { any })
 	table.insert(
 		children,
@@ -398,6 +454,7 @@ return function()
 					end)
 				),
 				potionCard(),
+				instantWeatherCard(),
 			},
 		}),
 	})
