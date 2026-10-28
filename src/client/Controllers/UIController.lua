@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local UI = script.Parent.Parent.UI
 local Root = require(UI.Root)
+local State = require(script.Parent.Parent.State)
 
 local New, Children, Value, Computed = Fusion.New, Fusion.Children, Fusion.Value, Fusion.Computed
 
@@ -48,9 +49,9 @@ function UIController.Start()
 	local gui = New("ScreenGui")({
 		Name = "MutantFarm",
 		ResetOnSpawn = false,
-		-- Respect Roblox's top bar: the HUD starts below it (the hatch cutscene is the only
-		-- full-screen GUI).
-		IgnoreGuiInset = false,
+		-- The top row shares the top-bar strip with Roblox's buttons (they keep the top-left
+		-- corner; nothing of ours goes there), so the HUD sits high instead of floating low.
+		IgnoreGuiInset = true,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
 		[Children] = New("Frame")({
@@ -68,13 +69,15 @@ function UIController.Start()
 		}),
 	})
 
-	-- Scale from the area the GUI actually covers (below the top bar).
+	-- Scale from the area the GUI actually covers (the full screen).
 	local function updateScale()
 		local size = gui.AbsoluteSize
 		if size.X < 1 or size.Y < 1 then
 			return
 		end
-		scale:set(math.clamp(math.min(size.X / DESIGN_SIZE.X, size.Y / DESIGN_SIZE.Y), 0.5, 1.4))
+		local s = math.clamp(math.min(size.X / DESIGN_SIZE.X, size.Y / DESIGN_SIZE.Y), 0.5, 1.4)
+		scale:set(s)
+		State.screen:set({ width = size.X, height = size.Y, scale = s })
 	end
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateScale)
 	updateScale()

@@ -33,14 +33,14 @@ const html = `<!doctype html><html><head><style>
 body { margin: 0; overflow: hidden; font-family: "Fredoka", "Arial Rounded MT Bold", "Nunito", Arial, sans-serif; }
 #screen { position: relative; overflow: hidden; background: #8fc96f center/cover no-repeat; }
 #topbar { position: absolute; left: 0; top: 0; right: 0; background: transparent; z-index: 1000; }
-#topbar i { position: absolute; top: 12px; width: 34px; height: 34px; border-radius: 10px; background: rgba(0,0,0,.45); }
+#topbar i { position: absolute; top: 4px; height: 38px; border-radius: 19px; background: rgba(0,0,0,.55); }
 .g { position: absolute; }
 .inner { position: absolute; }
 .txt { display: flex; width: 100%; height: 100%; overflow: hidden; line-height: 1.05; white-space: pre-wrap; word-break: break-word; }
 .vp { position: absolute; inset: 12%; border-radius: 50% 50% 46% 46% / 58% 58% 42% 42%;
   background: radial-gradient(circle at 35% 30%, #fff8, #aab3 60%, #6672); }
 .vp.sil { background: #000d; }
-</style></head><body><div id="screen"><div id="topbar"><i style="left:16px"></i><i style="left:58px"></i></div></div>
+</style></head><body><div id="screen"><div id="topbar"><i style="left:6px;width:36px"></i><i style="left:50px;width:108px"></i></div></div>
 <script>
 const data = ${ui};
 const rgba = (c, t) => c ? \`rgba(\${Math.round(c[0]*255)},\${Math.round(c[1]*255)},\${Math.round(c[2]*255)},\${1-(t??0)})\` : "transparent";
@@ -201,8 +201,9 @@ window.render = (sceneIndex, W, H) => {
   screen.style.backgroundImage = ${JSON.stringify(bg ? `url(${bg})` : "none")};
   document.getElementById("topbar").style.height = ${TOPBAR} + "px";
   for (const old of screen.querySelectorAll(".gui")) old.remove();
-  // The HUD sits below Roblox's top bar (IgnoreGuiInset off); only the hatch cutscene is full screen.
-  const full = data.scenes[sceneIndex].name === "hatch";
+  // Both ScreenGuis cover the full screen (IgnoreGuiInset on); the HUD's top row shares the
+  // top-bar strip with Roblox's buttons.
+  const full = true;
   const inset = full ? 0 : ${TOPBAR};
   const usableH = H - inset;
   const scale = Math.min(Math.max(Math.min(W / ${DESIGN.w}, usableH / ${DESIGN.h}), 0.5), 1.4);
@@ -236,7 +237,18 @@ function paintedRect(el) {
     const bgAlpha = /rgba\\([^)]*,\\s*([\\d.]+)\\)$/.exec(cs.backgroundColor);
     const painted = (cs.backgroundColor !== "transparent" && !(bgAlpha && +bgAlpha[1] === 0)) ||
       cs.boxShadow !== "none" || (d.tagName === "SPAN" && d.textContent.trim() !== "");
-    if (painted) add(d.getBoundingClientRect());
+    if (painted) {
+      // Clip by ancestors that clip (ClipsDescendants / ScrollingFrame), like Roblox draws it.
+      let b = d.getBoundingClientRect();
+      b = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+      for (let p = d.parentElement; p && p !== document.body; p = p.parentElement) {
+        if (getComputedStyle(p).overflow === "hidden" && p.id !== "screen") {
+          const c = p.getBoundingClientRect();
+          b = { left: Math.max(b.left, c.left), top: Math.max(b.top, c.top), right: Math.min(b.right, c.right), bottom: Math.min(b.bottom, c.bottom) };
+        }
+      }
+      add({ left: b.left, top: b.top, right: b.right, bottom: b.bottom, width: b.right - b.left, height: b.bottom - b.top });
+    }
   }
   return r;
 }
@@ -271,7 +283,12 @@ window.checkOverlaps = (W, H, touch) => {
   // Roblox's own UI the HUD must keep clear of (approximate footprints, in screen px):
   //   the chat window, moved to the bottom-left and shrunk (UIController.placeChat), and on touch
   //   screens the thumbstick (bottom-left) and jump button (bottom-right).
-  const robloxUi = [["Chat", 8, H - 8 - Math.min(190, H * 0.42), 8 + Math.min(215, W * 0.3), H - 8]];
+  // Chat is configured bottom-left; it's also checked top-left (Roblox's default) in case the
+  // new top bar keeps it there.
+  const robloxUi = [
+    ["Chat", 8, H - 8 - Math.min(190, H * 0.42), 8 + Math.min(215, W * 0.3), H - 8],
+    ["ChatTop", 0, 46, Math.min(230, W * 0.3), Math.min(220, H * 0.45)],
+  ];
   if (touch) {
     robloxUi.push(["Thumbstick", 30, H - 160, 160, H - 30]);
     robloxUi.push(["JumpButton", W - 120, H - 120, W - 20, H - 20]);
@@ -299,10 +316,16 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on("pageerror", (e) => console.error("page error:", e.message));
 await page.setContent(html);
 const count = await page.evaluate(() => window.sceneCount);
+// Scenes named "name@WxH" were exported for one screen size: render only at that size, saved
+// as name-<label>.png.
+const sceneNames = await page.evaluate(() => data.scenes.map((s) => s.name));
 for (let i = 0; i < count; i++) {
+  const sized = /^(.*)@(\d+)x(\d+)$/.exec(sceneNames[i]);
   for (const [label, W, H] of sizes) {
+    if (sized && (+sized[2] !== W || +sized[3] !== H)) continue;
     await page.setViewportSize({ width: W, height: H });
-    const name = await page.evaluate(([i, W, H]) => window.render(i, W, H), [i, W, H]);
+    let name = await page.evaluate(([i, W, H]) => window.render(i, W, H), [i, W, H]);
+    if (sized) name = sized[1];
     const file = path.join(outDir, `${name}-${label}.png`);
     if (process.env.DEBUG_NAME) console.log(await page.evaluate((n) => { const e = document.querySelector(`[title="${n}"]`); if (!e) return "missing"; const r = e.getBoundingClientRect(); const cs = getComputedStyle(e); return JSON.stringify({ r, bg: cs.backgroundColor, z: cs.zIndex, disp: cs.display }); }, process.env.DEBUG_NAME));
     await page.screenshot({ path: file });
@@ -313,11 +336,13 @@ for (let i = 0; i < count; i++) {
 let issues = 0, checked = 0;
 const hudScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("hud")));
 for (const [sceneName, hudIndex] of hudScenes) {
+  const sized = /@(\d+)x(\d+)$/.exec(sceneName);
   for (const [label, W, H] of [...sizes, ...checkSizes]) {
+    if (sized && (+sized[1] !== W || +sized[2] !== H)) continue;
     checked++;
     await page.setViewportSize({ width: W, height: H });
     await page.evaluate(([i, W, H]) => window.render(i, W, H), [hudIndex, W, H]);
-    const problems = await page.evaluate(([W, H, t]) => window.checkOverlaps(W, H, t), [W, H, sceneName.endsWith("touch")]);
+    const problems = await page.evaluate(([W, H, t]) => window.checkOverlaps(W, H, t), [W, H, sceneName.split("@")[0].endsWith("touch")]);
     for (const p of problems) console.log(`[overlap] ${sceneName} ${label} ${W}x${H}: ${p}`);
     issues += problems.length;
   }

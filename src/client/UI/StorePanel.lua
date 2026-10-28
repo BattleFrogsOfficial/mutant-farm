@@ -248,7 +248,7 @@ local function passCard(passId: string, order: number)
 					return if owned:get() then Theme.colors.navy else PINK
 				end),
 				Text = Computed(function()
-					return if owned:get() then "✓ OWNED" else "R$ " .. pass.price
+					return if owned:get() then "✅ OWNED" else "R$ " .. pass.price
 				end),
 				MaxTextSize = 18,
 				ZIndex = 3,

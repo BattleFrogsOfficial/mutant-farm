@@ -615,7 +615,7 @@ local function play(h: Hatch)
 					if hatchId == myId then
 						screen.valueScale.Scale = 1.7 - 0.7 * backOut(k)
 						screen.value.Text = string.format(
-							"%s x%d → %s",
+							"%s x%d = %s",
 							m:upper(),
 							info.multiplier,
 							Format.cash(math.floor(from + (target - from) * quadOut(k)))

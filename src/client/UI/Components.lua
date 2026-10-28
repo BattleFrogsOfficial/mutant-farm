@@ -1,6 +1,6 @@
 --!strict
 -- Building blocks shared by every screen, in one boxy style: square corners, 3px ink outlines,
--- hard offset shadows, and a darker "lip" under every button face. Chunky 3D buttons, menu tiles
+-- hard offset shadows, a darker "lip" under every button face, and a stud texture on buttons. Chunky 3D buttons, menu tiles
 -- with badges, stat boxes, panels that pop open over a dimmed screen, a drawn padlock, outlined
 -- labels, and a pulse helper for anything that wants attention. Everything uses Fusion 0.2.
 
@@ -126,6 +126,49 @@ function Components.shadow(_radius: number?, offset: number?)
 	})
 end
 
+-- Stud texture for button faces: a grid of small raised squares (classic Roblox studs, boxy).
+-- Sized from the button's offset size so no squares are wasted; scale-sized buttons get a
+-- default grid that the face clips.
+local STUD, STUD_GAP = 6, 10
+local function studs(size: any)
+	local w, h = 200, 80
+	local s = read(size)
+	if typeof(s) == "UDim2" and s.X.Offset > 0 and s.Y.Offset > 0 then
+		w, h = s.X.Offset, s.Y.Offset
+	end
+	local pitch = STUD + STUD_GAP
+	local count = math.min(math.ceil((w - 6) / pitch) * math.ceil((h - 6) / pitch), 96)
+	local children: { any } = {
+		New("UIGridLayout")({
+			CellSize = UDim2.fromOffset(STUD, STUD),
+			CellPadding = UDim2.fromOffset(STUD_GAP, STUD_GAP),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+		New("UIPadding")({ PaddingLeft = UDim.new(0, 6), PaddingTop = UDim.new(0, 6) }),
+	}
+	for i = 1, count do
+		table.insert(
+			children,
+			New("Frame")({
+				Name = "Stud",
+				LayoutOrder = i,
+				BorderSizePixel = 0,
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				BackgroundTransparency = 0.82,
+				ZIndex = 2,
+			})
+		)
+	end
+	return New("Frame")({
+		Name = "Studs",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		ZIndex = 2,
+		[Children] = children,
+	})
+end
+
 -- Chunky simulator-style button: a darker lip underneath and a face that presses down into it.
 -- props: Text, Icon (emoji), Color, Size, Position, AnchorPoint, LayoutOrder, Name, ZIndex, Visible,
 --        OnClick, Disabled (state), Selected (state: gold outline), Pulse (state), MaxTextSize, Children, Silent
@@ -243,6 +286,7 @@ function Components.button(props: { [string]: any })
 							return ColorSequence.new(c:Lerp(Color3.new(1, 1, 1), 0.18), c)
 						end),
 					}),
+					studs(props.Size),
 					Components.bevel(3, 0.55),
 					Components.label({
 						Name = "Text",
@@ -487,7 +531,7 @@ function Components.panel(
 				},
 			}),
 			Components.button({
-				Text = "✕",
+				Text = "X",
 				Color = Theme.colors.danger,
 				Size = UDim2.fromOffset(48, 48),
 				Position = UDim2.new(1, 10, 0, -10),

@@ -4,7 +4,9 @@
 --   always        top-center: Cash + income rate with a thin payout bar, a Rebirth strip under it
 --                 (after your first sale), Gems with the pink +. Top-right: Daily and Almanac icons
 --                 (red dots). SHOP bottom-right (mid-right on touch screens). One toast lane.
---   (the HUD sits below Roblox's top bar, and the whole HUD hides while a panel is open)
+--   (the top row shares the top-bar strip with Roblox's buttons, which keep the top-left corner;
+--   the whole HUD hides while a panel is open)
+--   right column  weather (hub), Starter Bundle (always, while it runs), bag count (plot)
 --   plot          egg tray (the biggest thing: eggs, next locked tier, 2x Luck, HATCH), WATER with
 --                 its drain ring, the Next Up line above the tray, bag count top-left.
 --   hub           SHOP grows to the biggest button; weather countdown as plain text and the Starter
@@ -35,8 +37,8 @@ local New, Children, Computed, ForPairs, Observer, Spring, OnEvent =
 
 local NAVY = Theme.colors.navy
 local SPEND = Theme.colors.spend
--- The HUD starts below Roblox's top bar (IgnoreGuiInset off), and the top-left corner is left to
--- Roblox: currencies sit top-center, Daily and Almanac top-right. Cash is centered CASH_X off the
+-- The top row sits in the top-bar strip itself (IgnoreGuiInset on), right of Roblox's buttons,
+-- which keep the top-left corner: currencies top-center, Daily and Almanac top-right. Cash is centered CASH_X off the
 -- middle, Gems right after it.
 local CASH_X = -70
 local CASH_W = 236
@@ -59,6 +61,17 @@ end)
 local almanacNew = Computed(function()
 	local seen = State.almanacSeen:get()
 	return seen >= 0 and almanacCount:get() > seen
+end)
+
+-- How far right (design px) the bottom-center tray and Next Up must shift so they clear the chat
+-- window in the bottom-left. 0 on most screens; only very narrow phones need it.
+local TRAY_HALF = 212
+local CHAT_WIDTH_PX = 215 -- the chat window at its smallest (WidthScale 0.5), plus margin below
+local trayShift = Computed(function()
+	local screen = State.screen:get()
+	local chatRight = (8 + math.min(CHAT_WIDTH_PX, screen.width * 0.3)) / screen.scale + 10
+	local trayLeft = screen.width / screen.scale / 2 - TRAY_HALF
+	return math.max(0, math.ceil(chatRight - trayLeft))
 end)
 
 local atPlot = Computed(function()
@@ -446,8 +459,7 @@ local function weatherText()
 	end)
 	return C.label({
 		Name = "Weather",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 74),
+		LayoutOrder = 1,
 		Size = UDim2.fromOffset(250, 22),
 		TextXAlignment = Enum.TextXAlignment.Right,
 		MaxTextSize = 17,
@@ -475,12 +487,12 @@ local function bundleRibbon()
 	end)
 	return New("Frame")({
 		Name = "Bundle",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -14, 0, 104),
+		LayoutOrder = 2,
 		Size = UDim2.fromOffset(176, 54),
 		BackgroundTransparency = 1,
+		-- Always on screen while the offer runs (hub and plot); gone when the timer ends.
 		Visible = Computed(function()
-			return inHub:get() and left:get() > 0
+			return left:get() > 0
 		end),
 		[Children] = C.button({
 			Size = UDim2.fromScale(1, 1),
@@ -673,7 +685,7 @@ local function luckBadge()
 			C.bevel(3, 0.55),
 			C.label({
 				Text = Computed(function()
-					return if owned:get() then "✓ 2x LUCK" else "🔒 2x LUCK"
+					return if owned:get() then "✅ 2x LUCK" else "🔒 2x LUCK"
 				end),
 				Size = UDim2.new(1, -8, 1, -6),
 				Position = UDim2.fromOffset(4, 3),
@@ -750,8 +762,10 @@ local function eggTray()
 	return New("Frame")({
 		Name = "EggTray",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -12),
-		Size = UDim2.fromOffset(424, 146),
+		Position = Computed(function()
+			return UDim2.new(0.5, trayShift:get(), 1, -12)
+		end),
+		Size = UDim2.fromOffset(TRAY_HALF * 2, 146),
 		BackgroundTransparency = 1,
 		Visible = atPlot,
 		[Children] = {
@@ -859,10 +873,13 @@ local function waterButton()
 	end
 	return New("Frame")({
 		Name = "Water",
-		AnchorPoint = Vector2.new(1, 1),
-		-- Right above Shop (which sits mid-right on touch screens, bottom-right otherwise).
+		-- Right above Shop on desktop; on touch screens beside it (mid-right), clear of the jump
+		-- button below and the right column above.
+		AnchorPoint = Computed(function()
+			return if State.touch:get() then Vector2.new(1, 0.5) else Vector2.new(1, 1)
+		end),
 		Position = Computed(function()
-			return if State.touch:get() then UDim2.new(1, -14, 0.5, -43) else UDim2.new(1, -14, 1, -92)
+			return if State.touch:get() then UDim2.new(1, -176, 0.5, 0) else UDim2.new(1, -14, 1, -92)
 		end),
 		Size = UDim2.fromOffset(86, 86),
 		BackgroundTransparency = 1,
@@ -944,7 +961,9 @@ local function nextUp()
 	return New("Frame")({
 		Name = "NextUp",
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -190),
+		Position = Computed(function()
+			return UDim2.new(0.5, trayShift:get(), 1, -190)
+		end),
 		Size = UDim2.fromOffset(400, 32),
 		BackgroundColor3 = Theme.colors.panel,
 		BackgroundTransparency = 0.1,
@@ -999,9 +1018,7 @@ local function bagChip()
 	end)
 	return New("Frame")({
 		Name = "BagChip",
-		-- Top-left, below Roblox's buttons: the chat window sits bottom-left and on touch screens
-		-- the thumbstick owns that corner.
-		Position = UDim2.fromOffset(14, 8),
+		LayoutOrder = 3,
 		Size = UDim2.fromOffset(130, 44),
 		BackgroundTransparency = 1,
 		Visible = atPlot,
@@ -1025,6 +1042,28 @@ local function bagChip()
 	})
 end
 
+-- Right column under the Daily/Almanac icons: weather (hub), Starter Bundle (always, while it
+-- runs), bag count (plot). Kept off the left side, which belongs to Roblox's buttons and chat.
+local function rightColumn()
+	return New("Frame")({
+		Name = "RightColumn",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -14, 0, 74),
+		Size = UDim2.fromOffset(250, 200),
+		BackgroundTransparency = 1,
+		[Children] = {
+			New("UIListLayout")({
+				SortOrder = Enum.SortOrder.LayoutOrder,
+				HorizontalAlignment = Enum.HorizontalAlignment.Right,
+				Padding = UDim.new(0, 10),
+			}),
+			weatherText(),
+			bundleRibbon(),
+			bagChip(),
+		},
+	})
+end
+
 return function()
 	return {
 		-- always
@@ -1035,12 +1074,10 @@ return function()
 		almanacButton(),
 		shopButton(),
 		-- hub
-		weatherText(),
-		bundleRibbon(),
+		rightColumn(),
 		-- plot
 		eggTray(),
 		waterButton(),
 		nextUp(),
-		bagChip(),
 	}
 end

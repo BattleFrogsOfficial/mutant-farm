@@ -134,7 +134,7 @@ return function()
 								return "You can afford it! Tap the patch."
 							elseif perMinute > 0 then
 								return string.format(
-									"≈ %d min of pen income, or hatch & sell",
+									"~ %d min of pen income, or hatch & sell",
 									math.ceil(short / perMinute)
 								)
 							end

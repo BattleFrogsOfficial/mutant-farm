@@ -3,18 +3,39 @@
   "tree": {
     "$className": "DataModel",
     "Workspace": {
-      "$properties": { "StreamingEnabled": false }
+      "$properties": {
+        "StreamingEnabled": false
+      }
     },
     "ReplicatedStorage": {
-      "Shared": { "$path": "src/shared" },
-      "Packages": { "$path": "Packages" }
+      "Shared": {
+        "$path": "src/shared"
+      },
+      "Packages": {
+        "$path": "Packages"
+      }
     },
     "ServerScriptService": {
-      "Server": { "$path": "src/server" }
+      "Server": {
+        "$path": "src/server"
+      }
     },
     "StarterPlayer": {
       "StarterPlayerScripts": {
-        "Client": { "$path": "src/client" }
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "TextChatService": {
+      "ChatWindowConfiguration": {
+        "$className": "ChatWindowConfiguration",
+        "$properties": {
+          "HorizontalAlignment": "Left",
+          "VerticalAlignment": "Bottom",
+          "WidthScale": 0.5,
+          "HeightScale": 0.5
+        }
       }
     }
   }

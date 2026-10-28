@@ -458,7 +458,7 @@ return function()
 				ZIndex = 11,
 				[Children] = {
 					C.button({
-						Text = "◀",
+						Text = "<",
 						Size = UDim2.fromOffset(70, 46),
 						Color = Theme.colors.purple,
 						Disabled = Computed(function()
@@ -478,7 +478,7 @@ return function()
 						end),
 					}),
 					C.button({
-						Text = "▶",
+						Text = ">",
 						Size = UDim2.fromOffset(70, 46),
 						Position = UDim2.fromOffset(250, 0),
 						Color = Theme.colors.purple,
@@ -505,7 +505,7 @@ return function()
 			}),
 			C.button({
 				Name = "Back",
-				Text = "◀ Back",
+				Text = "< Back",
 				Size = UDim2.fromOffset(120, 46),
 				Position = UDim2.fromOffset(0, 16),
 				Color = Theme.colors.purple,

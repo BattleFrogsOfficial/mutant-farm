@@ -35,6 +35,8 @@ State.almanac = Value({} :: { [string]: { n: number, first: number, best: number
 -- Where the player is: "hub" (the plaza and paths) or "plot" (on their own island). The HUD
 -- shows only what that place needs (ZoneController sets it).
 State.zone = Value("hub")
+-- Screen size in pixels and the HUD's design-to-pixel scale (UIController keeps it current).
+State.screen = Value({ width = 1280, height = 720, scale = 1 })
 -- Touch screen (phones/tablets): the thumbstick and jump button own the bottom corners.
 State.touch = Value(false)
 -- True while the hatch cutscene owns the camera (pens hold their update until it ends).

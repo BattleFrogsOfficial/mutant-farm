@@ -142,7 +142,7 @@ return function()
 						local now = if snap then snap.cashMultiplier else 1
 						local base = 1 + Rebirths.cashBonusPerRebirth * rebirths:get()
 						local nextMult = now * (base + Rebirths.cashBonusPerRebirth) / base
-						return string.format("💰 Cash x%s → x%s forever", tostring(now), tostring(nextMult))
+						return string.format("💰 Cash x%s = x%s forever", tostring(now), tostring(nextMult))
 					end),
 					Size = UDim2.new(1, 0, 0, 18),
 					TextXAlignment = Enum.TextXAlignment.Left,

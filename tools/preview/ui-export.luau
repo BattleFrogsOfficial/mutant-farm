@@ -428,14 +428,26 @@ set(State.toasts, {
 	{ id = 1, text = "GOLDEN x5 on your Swamp Egg · worth $4.5K now", kind = "success" },
 })
 set(State.panel, "none")
+-- HUD states, each captured once per screen size (some layout depends on the real screen size,
+-- e.g. the egg tray shifting clear of the chat). Named "hud...@WxH"; ui-render checks each at
+-- its own size. Keep this list in sync with ui-render's sizes + checkSizes.
+local SCREENS = { { 1280, 720 }, { 844, 390 }, { 667, 375 }, { 800, 360 }, { 1024, 768 }, { 1920, 1080 } }
+local function captureHud(name)
+	for _, wh in SCREENS do
+		local w, h = wh[1], wh[2]
+		set(State.screen, { width = w, height = h, scale = math.clamp(math.min(w / 900, h / 540), 0.5, 1.4) })
+		capture(string.format("%s@%dx%d", name, w, h))
+	end
+	set(State.screen, { width = 1280, height = 720, scale = 720 / 540 })
+end
 set(State.zone, "hub")
-capture("hud")
+captureHud("hud")
 set(State.zone, "plot")
-capture("hud-plot")
+captureHud("hud-plot")
 set(State.touch, true)
-capture("hud-plot-touch")
+captureHud("hud-plot-touch")
 set(State.zone, "hub")
-capture("hud-touch")
+captureHud("hud-touch")
 set(State.touch, false)
 
 set(State.toasts, {})
