@@ -10,6 +10,16 @@ Grow-and-mutate idle simulator for Roblox. Luau, synced into Studio with Rojo. O
 - Growth is a **pure function of timestamps** (`src/shared/Growth.lua`). No per-frame server work. `GrowthService.settle(data, now)` advances all slots and must run before anything that changes speed (watering, passes, upgrades) or reads maturity.
 - `Workspace.StreamingEnabled` is off (set in `default.project.json`): the map is small and PlotController expects every island to replicate. Client code may *preview* numbers with the shared modules (timers, sell values) but never decides outcomes.
 
+## Conventions (follow these in every change)
+
+- **Server-authoritative:** see above. New client actions are new intents through `Net.on` + `Validate`; the shared rule modules (`ShopRules`, `Costs`, `Valuation`, `Growth`) decide, the client only previews.
+- **Config, not logic:** every balance number lives in `src/shared/Config/*.lua` (UI layout numbers too, e.g. `Config/EggShopUI.lua`). Tuning never edits services or UI code. Keep the balance tables below in sync.
+- **Pink = spending only** (`Theme.colors.spend`): SHOP, Gems +, R$ and Gem buttons, bundle, 2x Luck badge. Navy for every other button, rarity colors only for rarity, red only for notification dots. Never show friction as a red error.
+- **HUD below the GuiService inset:** the main ScreenGui keeps `IgnoreGuiInset = false`; nothing of ours goes into Roblox's top-bar strip (only the hatch cutscene and the dim backdrop are full screen).
+- Boxy UI, no `UICorner`; only glyphs GothamBlack has; studs only on primary buttons; reuse `UI/Components.lua`.
+- Pure logic goes in `src/shared` with a `tests/*.spec.luau`; keep the UI preview and the world checker at 0 issues.
+- No model names in commits or code. Commit messages end with the attribution lines the session asks for.
+
 ## Layout
 
 ```
@@ -25,6 +35,8 @@ src/shared/          ReplicatedStorage.Shared — pure modules, usable on both s
   Costs.lua          slot / upgrade / rebirth cost curves
   Rng.lua            seeded mulberry32 (deterministic in Roblox and Lune)
   Format.lua         1.2K / 4.5M, durations, odds percentages
+  ShopRules.lua      egg unlocks, prices (Cash / Gems), canBuy / canBuyPotion (server, shop UI, tray, sim)
+  Carousel.lua       Egg Shop carousel math (snap, step, wheel, drag, auto-scroll, glide, scale)
   Remotes.lua Types.lua Signal.lua
 src/server/          ServerScriptService.Server
   Main.server.lua    loads services: Init() all, then Start() all, in dependency order
@@ -39,9 +51,11 @@ src/client/          StarterPlayerScripts.Client
   Controllers/       StateController PlotController (eggs, timers, pens, shop pads) HatchController (3D hatch
                      cutscene, mutation bursts) WeatherController (rain + tint) ZoneController (hub/plot)
                      TutorialController (Next up + beam) UIController
-  UI/                Fusion 0.2 screens: Hud EggShop SellPanel Toasts + Theme Components
+  UI/                Fusion 0.2: Root Backdrop Hud EggShop SellPanel Almanac DailyPanel WelcomePanel StorePanel
+                     SlotOfferPanel RebirthPanel UpgradesPanel Toasts HatchScreen + Theme Components Viewport
 Packages/            vendored: Fusion 0.2.0, ProfileStore 1.0.3 (no Wally step needed)
 tools/               Lune scripts: test, check, sim, harness, gen-mutants
+docs/HANDOFF.md      latest session handoff: what changed, what's untested, open decisions, next tasks
   preview/           export.luau + render.mjs: screenshots of the real World/MutantModel code;
                      check.luau: overlap/placement checker; ui-export + ui-render: HUD screenshots
 tests/               *.spec.luau unit tests for src/shared
@@ -61,6 +75,8 @@ Services/controllers are plain tables with `Init()` (no yielding, no cross-servi
 
 Template lives in `DataService.lua`. Rules: JSON-safe only, no arrays with holes, no mixed keys, so slots and inventory are **string-keyed maps** (`slots["3"]`, `inventory["17"]`). Fields already exist for later milestones (rarity, mutations, size, pen, gems, passes, streak, codes) so no migration is ever needed; add new fields to the template and `profile:Reconcile()` fills them. Autosave every `Game.autoSaveSeconds` (120); ProfileStore flushes on BindToClose. Studio without API access falls back to a mock store automatically.
 
+Plot attributes (server -> every client, written by `PlotService.refresh` after each batched change): plot `OwnerUserId WateredUntil Speed Pen(JSON) PenCenter PenSize`; slot part `Index State(owned|buy|locked) EggId Mutations Growth UpdatedAt Required Price`.
+
 ## Balance tables (source of truth is `src/shared/Config`; keep this in sync)
 
 Egg tiers
@@ -75,7 +91,7 @@ Egg tiers
 | Cosmic | R6 | 5M | 8 hr | 20M | 55 / 25 / 14 / 5.67 / 0.33 |
 
 - Unlocks are checked in one place, `shared/ShopRules.lua` (server buy handler, shop UI, tray, simulator). "Earned" is `stats.totalCashEarned`: every Cash gain through `EconomyService.addCash` (sells, pen income, rewards); spending never lowers it.
-- **Gem egg variants** (`<Tier>Gem`, generated in `Eggs.lua`): same design plus a crystal overlay, same species pool, grow time and values; rarity table = base Uncommon+ weights x2 then renormalized (a separate base table, so the 2x pass and potion still apply on top under the 6x cap). Prices 15 / 40 / 120 / 300 / 800 / 2,000 Gems (x5 = 5x), same unlock gates as the base tier. Paid random items: the Gem Eggs row is hidden and `BuyEgg` refuses them when PolicyService restricts paid random items or the check hasn't succeeded. Gems sink logged as `GemEgg_<Tier>`; funnel step `FirstGemEgg`. Harvested items carry the base tier (`item.tier`) and the egg (`item.egg`). Gem eggs survive rebirth (planted ones go back to the bag).
+- **Gem egg variants** (`<Tier>Gem`, generated in `Eggs.lua`): same design plus a crystal overlay, same species pool, grow time and values; rarity table = base Uncommon+ weights x2 then renormalized (a separate base table, so the 2x pass and potion still apply on top under the 6x cap). Prices 15 / 40 / 120 / 300 / 800 / 2,000 Gems (x5 = 5x), same unlock gates as the base tier. Paid random items: the shop's Gems switch is hidden and `BuyEgg` refuses them when PolicyService restricts paid random items or the check hasn't succeeded. Gems sink logged as `GemEgg_<Tier>`; funnel step `FirstGemEgg`. Harvested items carry the base tier (`item.tier`) and the egg (`item.egg`). Gem eggs survive rebirth (planted ones go back to the bag).
 
 - Rarity value x1 / x3 / x10 / x40 / x250; grow time x1 / x1.25 / x1.5 / x2 / x3. Rarity is rolled **at planting**, revealed at harvest.
 - Luck multiplies Uncommon+ weights, then renormalizes to 100%. Total luck capped at 6x.
@@ -84,13 +100,13 @@ Egg tiers
 - Value = base x rarity x mutations x size x cash multiplier. Cash multiplier = (1 + 0.5 x rebirths) x (1.5 if VIP) x (1.1 if in the group).
 - Watering: one tap, whole plot, 2x for 30s; stacks with the 2x speed pass (4x).
 - Upgrades: slots 7–40 from 200 Cash, x1.5 each; Growth Speed and Mutation Odds 5 levels, +10%/level, from 2,000, x3 each. All upgrade costs x(1 + 0.5 x rebirths).
-- Rebirth costs: Rebirth 1 = 700K, each next x5 (3.5M, 17.5M, 87.5M, ...): `Rebirths.firstCost x costGrowth ^ rebirths`. Rebirth (`RebirthService`) resets cash (to `startingCash`), bought slots, upgrades, eggs (back to the starter eggs) and growing plants, and clears the bag except the pen's mutants; keeps pen, passes, gems, Almanac, streak.
+- Rebirth costs: Rebirth 1 = **700K**, each next **x5** (3.5M, 17.5M, 87.5M, ...): `Rebirths.firstCost x costGrowth ^ rebirths`. Pacing is tuned with this, not egg prices (Lab stays 5K to keep the 50 -> 500 -> 5,000 ladder). Sim: first rebirth 25 sim-min (~33-40 real min, the 35-45 target); free Rebirth 4 day 3, Rebirth 10 past day 30; paying Rebirth 10 day 16 (see docs/HANDOFF.md, open decision on the x5 tail). Rebirth (`RebirthService`) resets cash (to `startingCash`), bought slots, upgrades, eggs (back to the starter eggs) and growing plants, and clears the bag except the pen's mutants; keeps pen, passes, gems, Almanac, streak.
 - Slots: `slotCount` is **bought** slots; `DataService.totalSlots` adds 10 for the PlotSlots10 pass (max 40) and is what plots/validation use. The next patch is priced by bought count (`DataService.nextSlotCost`).
 - Weather (`WeatherService`, `Config/Weather.lua`): an event every 20-30 min (first 6 min after server start); while it runs every growing egg rolls the event's `chancePerRoll` (x luck; Acid Rain 10%, Solar Flare 15%, Glitch Storm 5%) every 30 s for its mutation. Schedule replicates as Workspace attributes `WeatherNextId/NextAt/Id/EndsAt`.
 - Monetization (`Config/Passes.lua`, `Config/Products.lua`, **ids are 0 until created in Creator Hub**): passes Luck2x, AutoHarvest (server hatches + replants every growth tick, toast instead of cutscene), GrowthSpeed2x, OfflineMutations, PlotSlots10, VIP; Gem packs; Starter Bundle (offer window 10 min from first join, once).
 - Pen income: the pen (your `penDisplayCount` = 8 most valuable mutants) pays 2%/min of base value (tier x rarity x size; mutations ignored) x cash multiplier, every 60 s while online (`IncomeService`), and 20% of that while offline for up to 8 h (paid at join, shown on Welcome back). HUD: coin bar fills toward the next payout; chip shows $/min and the countdown.
 - Gem sinks: **Luck Potion** 25 Gems, 3x luck for 30 min (stacks time; x the 2x pass, capped at 6x), sold in the Shop and on the hatch reveal; **Skip Timer** 5 Gems per started 10 min left on each egg (**soft-launch tuning flag**: if Skip revenue is high while day-3 return is low, it's eating the timers that bring people back; reprice on total remaining minutes), finishes every growing egg (the skipped mutation rolls still happen), badge on the egg tray when the longest wait is 2+ min. Instant Weather and Rebirth Now are M5.
-- **PolicyService:** `MonetizationService` checks `ArePaidRandomItemsRestricted` on join (failure = restricted); restricted players never see or can buy the Luck Potion (`snapshot.paidRandomRestricted`). Eggs are only bought with Cash, so no other paid-random item exists yet.
+- **PolicyService:** `MonetizationService` checks `ArePaidRandomItemsRestricted` on join (failure or unknown = restricted, `snapshot.paidRandomRestricted`). Restricted players see no Gems switch in the Egg Shop and no Luck Potion, and the server refuses Gem eggs and potions (`ShopRules.canBuy` / `canBuyPotion`).
 - Cash upgrades (`BuyUpgrade`, Upgrades panel, ⬆️ icon with a red dot when affordable): Growth Speed / Mutation Odds, 5 levels, reset on rebirth.
 - Group (`Game.groupId`, 0 = off): members get **+10% Cash permanently** (`groupCashBonus`, part of the cash multiplier) while they're in the group, re-checked on every join with `GroupService:GetGroupsAsync` and when they tap Claim in the Daily panel (`profile.inGroup`; leaving the group drops it). The 2 Swamp eggs are a one-time extra.
 - Almanac milestones (`Game.almanacMilestones`, `profile.almanacRewards`): every 25 species pays 25 Gems, except the big ones: a Toxic egg at 100, a Void egg at 200, a Cosmic egg at 300 and **+10% luck forever** at 400 (`profile.almanacLuck`). The Almanac title shows the next one. Cosmetic egg skins are v1.5 (no cosmetics in v1).
@@ -103,13 +119,7 @@ Egg tiers
 - 400 species in `Config/Mutants.lua`: `species[id]` (looks) and `buckets[tier][rarity]` (ids). Rarity and species are rolled at planting; species is cosmetic (value = tier x rarity x mutations x size). `tools/gen-mutants.luau` regenerates the roster and **overwrites hand edits**.
 - Visual size (`Sizes.visual`) = tierScale x rarityScale x species.scale x size^1.6. A Titan Cosmic Legendary is ~40x a Starter Common. Giants overflowing the pen are intended.
 - Egg designs live in `Eggs.tiers[id].design` (pattern spots | blotches | hazard | cracks | stars | ring).
-- The pen shows the owner's `Game.penDisplayCount` most valuable bag items (server writes JSON to the plot's `Pen` attribute; clients build and animate them). Real "Keep in pen" + pen income is still to do.
-
-## Plot attributes (server → every client)
-
-Plot model: `OwnerUserId`, `WateredUntil`, `Speed`, `Pen` (JSON), `PenCenter` (Vector3), `PenSize` (Vector2).
-Slot part: `Index`, `State` (owned | buy | locked), `EggId`, `Mutations` (comma list), `Growth`, `UpdatedAt`, `Required`, `Price`.
-`PlotService.refresh` writes these after every batched data change (`DataService.Changed`).
+- The pen shows the owner's `Game.penDisplayCount` most valuable bag items (server writes JSON to the plot's `Pen` attribute; clients build and animate them). A player-chosen "Keep in pen" is still to do (pen income exists, see above).
 
 ## Art rules
 
@@ -134,6 +144,7 @@ Slot part: `Index`, `State` (owned | buy | locked), `EggId`, `Mutations` (comma 
 - **Color rule:** pink (`Theme.colors.spend`) only for spending (SHOP, Gems +, 2x Luck badge, bundle, every R$ button); rarity colors only for rarity; navy (`Theme.colors.navy`) for every other button. Notification dots are red. **Size equals priority.**
 - Never show friction as a red error: a patch you can't afford opens the SlotOffer panel (earn it vs +10 slots); egg prices say "Earn $X more" in gold.
 - `UI/Root.lua` mounts the HUD, all panels and toasts. The dim backdrop behind open panels (`UI/Backdrop.lua`, tap to close) is its own ScreenGui with `IgnoreGuiInset` under the main one (DisplayOrder 0 vs 1), so it covers the screen edge to edge including the top-bar strip. Every `C.panel` has a transparent full-size `Blocker` button behind its content so clicks on a panel never fall through to the backdrop. Panels (`State.panel`): EggShop `shop`, SellPanel `sell`, Almanac `almanac` (6x2 grid pages), DailyPanel `daily`, WelcomePanel `welcome`, StorePanel `store`, SlotOfferPanel `slotOffer`, RebirthPanel `rebirth` (tap twice to confirm), UpgradesPanel `upgrades`.
+- **Egg Shop** (`UI/EggShop.lua`, math in `shared/Carousel.lua`, numbers in `Config/EggShopUI.lua`): an 860x470 horizontal carousel, one card per tier, no looping. The center card (240x320) shows name, egg, price + x5 and odds (%); cards shrink to 0.6x and fade behind a 60% veil continuously with distance from the center. The strip glides toward a target (`Carousel.approach`, ~0.2 s, retargets mid-glide); drag 1:1 with a flick on release, tap a side card to center it, arrows (hidden at an end), wheel and Left/Right/Enter bound via `ContextActionService:BindActionAtPriority` + `Sink` while open; desktop-only edge-hover auto-scroll on the strip's outer 15% (paused after any click until the mouse leaves). Further-locked cards (silhouette, condition, `tagline`) never take focus; the next locked tier shows a progress card (Lab: `$12.4K / $25K earned`; rebirth tiers: Cash / next rebirth cost when one rebirth away). Cash | Gems switch (session only, policy-gated) morphs cards in place: Gem art + "2x RARITY ODDS" badge, pink Gem buttons (short on Gems opens the Gem shop); the name stays the tier name. Mid-session unlocks flash, play the Rare jingle and wear NEW for two more visits. Buying never closes the shop. Opens on the best egg the player can afford.
 - **Mutation pops**: `Mutated` carries the egg's worth now (size 1); the client bursts particles, rolls a ring over the soil and (Radioactive+) raises a beam, all in the mutation's color and scaled by its rank, plus a toast "GOLDEN x5 on your Swamp Egg · worth $4.5K now".
 - `UI/Components.lua`: chunky boxy buttons (hard shadow + lip + pressable face with bevel, hover, click sound, `Selected`, `Disabled`, `Pulse`), menu `tile` with badge + alert marker, `pill` (dark stat box with an accent stripe), `shadow`, `bevel`, `pulse`, `padlock`, `panel`. Reuse these; don't hand-roll buttons.
 - `UI/Viewport.lua`: live 3D previews of eggs/mutants (silhouette mode for locked/undiscovered).
@@ -142,85 +153,37 @@ Slot part: `Index`, `State` (owned | buy | locked), `EggId`, `Mutations` (comma 
 - Almanac data: `profile.almanac[speciesId] = { n, first, best }`, `Almanac` remote (full on join, one entry per change).
 - Farm income: `DataService.incomePerMinute` (shared `Expected.lua`), shown on each gate sign and under Cash.
 
-## Seeing the UI without Studio
+## Commands (tests, simulator, previews, checks)
 
 ```
+lune run tools/check                      # every .lua/.luau compiles
+lune run tools/test                       # tests/*.spec.luau (shared math, shop rules, carousel)
+stylua src tools tests                    # format; selene src needs `selene generate-roblox-std` once (internet)
+lune run tools/sim                        # economy pacing report (options in Tuning below)
 rojo build default.project.json -o build/preview.rbxl
-lune run tools/preview/ui-export -- build/preview.rbxl build/ui.json
-node tools/preview/ui-render.mjs build/ui.json build/ui-shots build/shots/spawn-view.png
-# ONLY=shop node tools/preview/ui-render.mjs ...   screenshots only scenes starting with "shop" (checks still run on all)
-```
-Runs the real Fusion UI headlessly (events, springs, sounds and viewports stubbed), sets mock game states (HUD, each panel, the hatch reveal), and lays each out in Chromium at desktop and phone sizes with the Roblox top bar. It also runs a **HUD overlap check** on every HUD state (hub, plot, and both again with touch controls) at 6 screen sizes (desktop, phones, tablet, 1080p), with the HUD below a 58 px top bar: every element (clipped like Roblox clips) against every other, the screen edge, the chat window both bottom-left and top-left, and, for touch states, the thumbstick and jump button, plus the items on the egg tray. HUD states are exported once per screen size (`hud…@WxH`) because some layout depends on the real screen size. Keep it at 0 issues after any UI change. Gradient text and 3D previews are approximations.
-
-## Seeing the world without Studio
-
-```
-rojo build default.project.json -o build/preview.rbxl
-lune run tools/preview/export -- build/preview.rbxl build/scene.json
-(cd tools/preview && npm install)   # once
-node tools/preview/render.mjs build/scene.json build/shots
-```
-`export.luau` runs the real `World.build()` and `MutantModel` under Lune's Roblox library and adds a showcase (eggs, a size crowd, a 40-species lineup). `render.mjs` draws it with three.js in headless Chromium, including SurfaceGui sign text on the right face. Set `SHOTS='[["name",[eyeX,eyeY,eyeZ],[atX,atY,atZ],fov]]'` for custom cameras (plot 1 is at angle 15° on the ring of radius 118). Add `hatch` as a third argument to export the hatch island with an egg on the stump instead (camera e.g. `[0,4.2,-12]` -> `[0,2.4,0]`, fov 50). No particles or lighting effects.
-
-Overlap / placement checker:
-```
-lune run tools/preview/check -- build/preview.rbxl
-```
-Builds the world and reports parts of different objects that intersect (oriented-box and ellipsoid tests), coplanar tops that would z-fight, props floating above or buried in the ground, eggs off their soil and mutants outside their pen. Allowed overlaps (hedge segments, mountains, fences, trees in the hedge) are listed in the script.
-
-## Tuning workflow
-
-1. Change numbers in `src/shared/Config/*.lua` only.
-2. `lune run tools/test` — unit tests for the shared math.
-3. `lune run tools/sim` — pacing report (first rebirth, day each rebirth is reached for free vs payer at 1.5 active h/day). `--first` reports only the time to Rebirth 1; `--lab-cost N` / `--first-cost N` try a Lab price or Rebirth 1 cost without editing Config.
-5. Update the tables above if anything changed.
-
-## Before opening a PR
-
-```
-lune run tools/check    # every .lua/.luau compiles
-lune run tools/test
-stylua src tools tests
-selene src              # needs `selene generate-roblox-std` once on a machine with internet
+lune run tools/preview/check -- build/preview.rbxl                    # world overlap/placement: keep 0 issues
+lune run tools/preview/ui-export -- build/preview.rbxl build/ui.json  # UI preview: export scenes
+node tools/preview/ui-render.mjs build/ui.json build/ui-shots         # render + HUD/shop checks (optional 3rd arg: background png)
+ONLY=shop node tools/preview/ui-render.mjs build/ui.json build/ui-shots  # screenshot only scenes starting "shop" (checks still all run)
+lune run tools/preview/export -- build/preview.rbxl build/scene.json && node tools/preview/render.mjs build/scene.json build/shots  # world shots
+(cd tools/preview && npm install)         # once, for the node renderers (Chromium + Playwright are preinstalled in cloud sessions)
+rojo build default.project.json -o MutantFarm.rbxl                    # place file for Studio
 ```
 
-Then playtest in Studio (Rojo serve + Play). There is no way to run the Roblox side headlessly; say so in the PR if it wasn't playtested.
+- **UI preview** runs the real Fusion UI headlessly (events, springs, sounds, viewports, ContextActionService stubbed), sets mock states and lays each out in Chromium with a 58 px Roblox top bar. Checks: every HUD state (hub, plot, both with touch) at 6 screen sizes against each other, the screen edge, chat (bottom-left and top-left) and touch controls; the Egg Shop (`shop`, `shop-gems`, `shop-restricted`, `shop-unlock`, `shop-next` at 6 sizes): no overlaps, one centered card, arrows >= 44 px, focused name >= 12 px, Cash/Gems card rects identical, policy and unlock states. Scenes named `name@WxH` render only at that size. Keep it at 0 issues; gradient text and 3D previews are approximations.
+- **World preview** runs the real `World.build()` + `MutantModel` in Lune and draws with three.js (SurfaceGui text on the right face; `SHOTS='[["name",[eye],[at],fov]]'` for cameras; 3rd arg `hatch` exports the hatch island). The **checker** reports intersecting parts, coplanar tops, floating/buried props, eggs off soil, mutants outside pens; allowed overlaps are listed in the script.
+- **Tuning:** change `src/shared/Config/*.lua` only, then `lune run tools/test` and `lune run tools/sim` (`--runs N --hours H --days D`, `--first` for only the time to Rebirth 1, and try-without-editing `--lab-cost N`, `--first-cost N`, `--growth X`). The sim plays perfectly; real players take ~1.3-1.6x its minutes. Update the tables above.
+- Before a PR / handoff: check, test, stylua, both previews at 0 issues, then playtest in Studio (Rojo serve + Play). Nothing on the Roblox side runs headlessly; say so if it wasn't playtested.
 
-## Balance revision 2026-10-28
+## Status by milestone (2026-10-28)
 
-- **Lab moved to Rebirth 0**, gated on $25,000 lifetime Cash earned (`stats.totalCashEarned`, migrated from the old `stats.cashEarned`). Toxic now Rebirth 1, Void 3, Cosmic 6. Daily Day 5 (Lab) and Day 7 (Toxic) unchanged.
-- **Rebirth cost** replaced: 700K, then x5 each (was a hand-tuned table from 800K). Still +50% additive Cash multiplier per rebirth.
-- **Pacing lever is the Rebirth 1 cost, not the Lab price.** Lab stays at 5K so the 50 -> 500 -> 5,000 ladder holds and the third egg is worth reaching (at 45K the sim's player barely bought it). Rebirth 1 = 700K: **25 sim-minutes** to the first rebirth (60 runs). The sim plays perfectly; a real player walking, reading, idling and watching hatches takes ~33-40 real minutes, the 35-45 target. (Earlier tries: Lab 45K with Rebirth 1 at 250K gave 31 min; Lab 5K at 250K gave 19.)
-- **Later curve at 700K x5** (`lune run tools/sim -- --runs 60`): free Rebirth 1 day 1 (0.4 h), Rebirth 4 **day 3**, Rebirth 9 day 17, Rebirth 10 **not within 30 days**; paying Rebirth 4 day 2, Rebirth 10 **day 16**. Before (250K x5): free Rebirth 4 day 3, Rebirth 10 day 22; paying Rebirth 10 day 11. Day 3 held; the tail moved because every later rebirth is now 2.8x pricier. `--growth` (30 runs) to restore it: x4.3 gives free R10 day 18 / paying day 10, x4.6 day 26 / day 12, so ~x4.4-4.5 matches the old day-22 / day-11 tail. Not applied: x5 is the agreed chain.
-- **Egg Shop:** next-tier progress card, NEW ribbons and Gem eggs (layout since replaced by the carousel, see below).
-- **Gem egg variants** for every tier (see the balance section), with their own Gems prices, doubled-rare odds tables and odds panels, policy-gated.
-- Tests: `tests/shop.spec.luau` (Lab unlock on earnings regardless of balance, rebirth gates, Gem odds tables, policy refusal, gating) and the rebirth cost formula in `economy.spec.luau`. 
+Nothing below has been played end-to-end in Studio since the Egg Shop carousel; see docs/HANDOFF.md for the untested list.
 
-## Egg Shop carousel 2026-10-28
-
-The Egg Shop grid is replaced by a horizontal carousel (`src/client/UI/EggShop.lua`):
-
-- **Layout:** an 860x470 panel; one non-looping strip, one card per tier (Starter .. Cosmic). The center card is focused: 240x320, full opacity, with name, egg, price + x5 buttons and the odds (%) button. Cards shrink (to 0.6x one pitch away, smoothstep in between) and fade behind a panel-colored veil (to 60%) continuously with their distance from the center, so they grow and shrink as the strip moves. Side cards show only egg and name. The name is the tier's name in both modes ("Swamp Egg"): in Gem mode the gem is on the egg art and the badge. Dots under the strip (filled = unlocked, gold = focused). Title row: "Egg Shop", Cash | Gems switch, Luck Potion (pink), close. On open the shop focuses the best egg the player can afford, else Starter.
-- **Navigation:** the strip glides toward a target offset every frame (`Carousel.approach`, ease-out, ~0.2 s, never overshoots); input only moves the target, so repeated presses retarget mid-glide instead of restarting. Drag follows the pointer 1:1 and on release projects 0.12 s along its velocity (a flick carries) before settling on the nearest focusable card; a press that moves under 8 px is a tap, and tapping a side card brings it to the center. Edge arrows step one card from the card the strip is heading to (hidden when there's nothing focusable that way). Left/Right, Enter (buy x1) and the mouse wheel (one card per notch) are bound with `ContextActionService:BindActionAtPriority` (High) while the shop is open and return `Sink`, so the camera never turns or zooms on them; unbound on close. Desktop edge-hover auto-scroll only when `MouseEnabled and not TouchEnabled`: the outer 15% of the strip's width (not the arrow buttons, which made one click skip to the far end), one card per 0.6 s at the edge slowing to 1.2 s at the zone's inner boundary; stops when the mouse leaves, and pauses after any click, key or wheel until the mouse leaves the zone. No input ever settles on a further-locked card (focus moves on to the nearest focusable card in the direction of travel).
-- **Cash / Gems switch:** session only (`State.shopMode`), Cash by default. Flipping doesn't move the strip; cards morph in place (0.25 s dip): egg art swaps to the gem-crystal variant, prices change units, unlocked cards get a "2x RARITY ODDS" badge, and the odds panel shows that variant's table. Gem buy buttons pink (short on Gems: opens the Gem shop); Cash buttons green, grey when short; everything else navy. Restricted or unknown PolicyService: no switch, Cash forced, no potion button; the server refuses Gem eggs and potions (`ShopRules.canBuy` / `canBuyPotion`).
-- **Card states:** buyable (price + x5; short on x1: grey button and "Earn $X more" / "Need N more Gems", x5's shortfall shows on hover/press); next locked (full-color egg, progress card: "Lab Egg · $12.4K / $25K earned" with totalCashEarned / 25,000, or "Toxic Egg · Rebirth 1" with Cash / next rebirth cost, only when one rebirth away, else "N rebirths to go" and an empty bar; can take focus); further locked (silhouette, soft stroke, name, unlock condition, `tagline` from Eggs.lua; can't take focus). A tier unlocking mid-session flashes 0.5 s, plays the Rare jingle once, and wears NEW until the shop has been closed twice more (a visit ends when the panel goes to "none", so hopping to the Gem shop doesn't count; an unlock during a visit doesn't count that visit).
-- **Buying** never closes the shop or moves the strip; the price button pulses and the tray count updates from the snapshot. The HUD is hidden while any panel is open.
-- **Where things live:** pure carousel math (`offsetOf`, `settle`, `step`, `wheel`, `clampDrag`, `autoScroll`, `approach`, `scaleAt`, `veilAt`, `centered`) in `src/shared/Carousel.lua`; sizes, scale, opacity, tween times, edge zone and intervals in `Config/EggShopUI.lua`; prices, odds, unlocks and taglines stay in `Eggs.lua`.
-- **Checks:** `tests/carousel.spec.luau` (snap: exactly one card centered within 2 px after drag / arrow / wheel / key / auto-scroll; focus never on a further-locked card; switch keeps focus and offset; auto-scroll never on touch and gated by zone; drag, arrows and wheel each move the strip on their own; the glide lands exactly within ~0.35 s without overshoot and keeps going forward on retarget; scale shrinks with distance and neighbors never overlap mid-glide; restricted player: no Gem eggs, no potion; crossing $25K turns Lab buyable). UI preview (`shop`, `shop-gems`, `shop-restricted`, `shop-unlock`, `shop-next` at all 6 screen sizes): 0 issues — no overlaps between cards, inside the focused card or in the title row; one centered card; arrows >= 44 px (80 design px; 45 px at 800x360); focused name >= 12 px (16.8 px at 800x360 in both modes); Cash and Gems card rects identical; restricted shows no switch or potion; Lab buyable with NEW after crossing $25K. The preview renderer now applies UIScale about the AnchorPoint like Roblox.
-- **Fixes after first Studio play (2026-10-28):** clicks on the shop no longer close it (panel `Blocker`); one arrow click no longer runs to the far end (auto-scroll zone moved off the arrows and paused after clicks); bigger panel and cards; smoother motion (glide + continuous scale); the dim backdrop now reaches every screen edge.
-- Still worth a Studio pass: drag/flick feel, wheel notch direction.
-
-## Milestones
-
-- **M1 Skeleton (done):** Rojo repo, ProfileStore, plots, Starter + Swamp eggs, grow timers, watering, harvest, sell, Cash HUD, economy simulator.
-- **M1.5 Feel pass (done):** bounded world with fenced plots, spawn inside your own gate, 400 species, egg designs, giant visual scaling, rarity/species/mutation/size rolls (offline cap, guaranteed Rare 2nd egg), mid-grow mutation pops, hatch reveal with banner/sound/shake, pen display, buying soil patches, guided tutorial + Next up panel.
-- **M1.6 Polish (done):** softer lighting, solid hedge wall, rebuilt hub, HUD overhaul, locked egg cards, hatch cutscene, Almanac, income signs.
-- **M1.7 HUD + hatch (done):** zoned HUD, full-screen hatch cinematic, daily streak, welcome back, UI preview tool.
-- **M1.8 Boxy + island (done):** boxy HUD with currencies in the top strip, swamp-island 3D hatch cutscene, market-stall shops with step-on pads, layered ground with no z-fighting, overlap checker.
-- **M2.5 Spending (done, needs product ids):** Gems, Shop panel (bundle, Gem packs, passes), pass effects incl. Auto-Harvest and +10 slots, slot offer instead of errors, mutation celebrations with worth, weather events, rebirth.
-- **M2 The hook (remaining):** Keep-in-pen choice + pen income, Almanac completion rewards, final sounds.
-- **M3 Monetize (mostly done):** Luck Potion, Skip Timer, PolicyService check, group reward, upgrades, Almanac milestones, leaderboards, funnel done. Remaining: Gem products, Luck Potion, Skip Timer, Starter Bundle, purchase effects, friction-only prompt placement, PolicyService paid-random-item check.
-- **M4 Return loops:** rebirth, Lab + Toxic, weather, daily streak, leaderboards, slot/upgrade purchases.
-- **M5 Scale:** Void + Cosmic, Instant Weather, Rebirth Now, limited egg, Discord relay (Cloudflare Worker).
+- **M1 Skeleton, M1.5 Feel, M1.6 Polish, M1.7 HUD + hatch, M1.8 Boxy + island: done.** Rojo + ProfileStore, plots, eggs, growth, watering, harvest/sell, 400 species, rolls, hatch cutscene, Almanac, daily, welcome back, boxy HUD, market stalls with step-on pads, preview + overlap tools.
+- **M2 The hook: mostly done.** Pen display + pen income, Almanac milestone rewards. Remaining: player-chosen "Keep in pen", final sounds (placeholders in `Config/Assets`).
+- **M2.5 Spending: done, needs product ids.** Gems, Shop (bundle, Gem packs, passes), pass effects, slot offer, mutation celebrations, weather.
+- **M3 Monetize: built, needs ids + Studio test.** Luck Potion, Skip Timer, Gem egg variants, PolicyService gating, group reward, Cash upgrades, leaderboards, analytics funnel. Every pass/product id in `Config/Passes.lua` / `Config/Products.lua` and `Game.groupId` is still 0.
+- **M4 Return loops: built.** Rebirth (700K x5), Lab at $25K earned + Toxic R1, weather, daily streak, leaderboards, slot/upgrade purchases, Egg Shop carousel.
+- **M5 Scale: partly.** Void (R3) + Cosmic (R6) tiers exist. Remaining (week-6 list): limited egg, Instant Weather + Rebirth Now, weather announce + Discord relay (Cloudflare Worker), first-session phone check. Egg skins are v1.5.
 
 Scope rule: no cosmetics, quests, separate pets, or map beyond the hub ring in v1.
