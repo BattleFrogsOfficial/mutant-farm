@@ -4,7 +4,7 @@ Grow-and-mutate idle simulator for Roblox. Luau, synced into Studio with Rojo. O
 
 ## The one rule: the server is authoritative
 
-- Clients send **intents only**: `Plant(slotIndex, eggId)`, `Harvest(slotIndex)`, `HarvestAll()`, `Water()`, `BuyEgg(eggId, quantity)`, `BuySlot()`, `Sell(itemId)`, `SellAll()`, `ClaimDaily()`, `Rebirth()`, `SetFastHatch(on)`, `BuyPotion()`, `SkipTimers()`, `BuyUpgrade(kind)`, `ClaimGroupReward()`. Never a price, value, rarity or timestamp. Robux purchases are prompted by the client (`client/Purchase.lua`) and granted only by `MonetizationService` (`ProcessReceipt` once per PurchaseId; game passes on join and on `PromptGamePassPurchaseFinished`).
+- Clients send **intents only**: `Plant(slotIndex, eggId)`, `Harvest(slotIndex)`, `HarvestAll()`, `Water()`, `BuyEgg(eggId, quantity)`, `BuySlot()`, `Sell(itemId)`, `SellAll()`, `ClaimDaily()`, `Rebirth()`, `SetFastHatch(on)`, `BuyPotion()`, `SkipTimers()`, `BuyUpgrade(kind)`, `ClaimGroupReward()`, `Pin(itemId, on)`, `ClaimVipGems()`. Never a price, value, rarity or timestamp. Robux purchases are prompted by the client (`client/Purchase.lua`) and granted only by `MonetizationService` (`ProcessReceipt` once per PurchaseId; game passes on join and on `PromptGamePassPurchaseFinished`).
 - The server re-derives everything and rejects bad arguments silently (`src/server/Util/Validate.lua`). Every remote goes through `Net.on`, which rate-limits to `Game.remoteCallsPerSecond` per player and requires a loaded profile.
 - `EconomyService` is the **only** writer of `cash`/`gems`. `addCash` refuses any single amount above `Valuation.maxSingleSale` for the player's tier and logs every source/sink to Analytics.
 - Growth is a **pure function of timestamps** (`src/shared/Growth.lua`). No per-frame server work. `GrowthService.settle(data, now)` advances all slots and must run before anything that changes speed (watering, passes, upgrades) or reads maturity.
@@ -35,30 +35,38 @@ src/shared/          ReplicatedStorage.Shared — pure modules, usable on both s
   Costs.lua          slot / upgrade / rebirth cost curves
   Rng.lua            seeded mulberry32 (deterministic in Roblox and Lune)
   Format.lua         1.2K / 4.5M, durations, odds percentages
-  ShopRules.lua      egg unlocks, prices (Cash / Gems), canBuy / canBuyPotion (server, shop UI, tray, sim)
+  ShopRules.lua      egg unlocks, prices (Cash / Gems), canBuy / canBuyPotion, unlockedAtRebirth
   Carousel.lua       Egg Shop carousel math (snap, step, wheel, drag, auto-scroll, glide, scale)
+  Pen.lua            which mutants stand in the pen (pinned first, then by value); pin cap
+  AutoHarvest.lua    offline Auto-Harvest: replays grow cycles in time order
+  WeatherRules.lua   next event pick, chance per roll, rolls per event
+  Leaderboards.lua   pen value for Top Pens, rank lookup
   Remotes.lua Types.lua Signal.lua
 src/server/          ServerScriptService.Server
   Main.server.lua    loads services: Init() all, then Start() all, in dependency order
-  Services/          DataService EconomyService PlotService GrowthService DailyService IncomeService
-                     MonetizationService RebirthService WeatherService LeaderboardService
+  Services/          DataService GroupRewardService EconomyService PlotService GrowthService DailyService
+                     IncomeService MonetizationService RebirthService WeatherService LeaderboardService
   Util/              World (builds the map in code: valley, fence + invisible wall, hub, 12 fenced plots) Net RateLimiter Validate Analytics
 src/client/          StarterPlayerScripts.Client
   Main.client.lua    loads controllers the same way
   State.lua          Fusion Values fed by server snapshots
   Sfx.lua            one-shot sounds from Config/Assets
   Purchase.lua       opens Roblox purchase prompts by config id (ids of 0 = "not on sale yet")
-  Controllers/       StateController PlotController (eggs, timers, pens, shop pads) HatchController (3D hatch
-                     cutscene, mutation bursts) WeatherController (rain + tint) ZoneController (hub/plot)
-                     TutorialController (Next up + beam) UIController
+  Controllers/       StateController PlotController (eggs, timers, pens, step-on pads, purchase sparkles)
+                     HatchController (3D hatch cutscene, mutation bursts) WeatherController (rain + tint)
+                     ZoneController (hub/plot, Sell + Altar signs) LeaderboardController (hub boards)
+                     ChatController ([VIP] tag, purchase chat lines) TutorialController (Next up) UIController
   UI/                Fusion 0.2: Root Backdrop Hud EggShop SellPanel Almanac DailyPanel WelcomePanel StorePanel
-                     SlotOfferPanel RebirthPanel UpgradesPanel Toasts HatchScreen + Theme Components Viewport
+                     SlotOfferPanel RebirthPanel UpgradesPanel GroupOfferPanel Toasts HatchScreen + Theme
+                     Components Viewport
 Packages/            vendored: Fusion 0.2.0, ProfileStore 1.0.3 (no Wally step needed)
-tools/               Lune scripts: test, check, sim, harness, gen-mutants
+tools/               Lune scripts: test, check, sim, harness, server-harness, gen-mutants, install-tools.sh
+docs/DESIGN.md       the design doc: intent and targets (CLAUDE.md holds the live numbers)
 docs/HANDOFF.md      latest session handoff: what changed, what's untested, open decisions, next tasks
   preview/           export.luau + render.mjs: screenshots of the real World/MutantModel code;
                      check.luau: overlap/placement checker; ui-export + ui-render: HUD screenshots
-tests/               *.spec.luau unit tests for src/shared
+tests/               *.spec.luau: unit tests for src/shared, and server.spec / weather.spec, which drive the
+                     real server services through tools/server-harness.luau (fake players, clock, stores)
 ```
 
 Services/controllers are plain tables with `Init()` (no yielding, no cross-service calls) and `Start()` (may yield and use other services). Add new ones to the `order` list in `Main.*.lua`.
@@ -73,7 +81,7 @@ Services/controllers are plain tables with `Init()` (no yielding, no cross-servi
 
 ## Profile data (ProfileStore, store `PlayerData_v1`)
 
-Template lives in `DataService.lua`. Rules: JSON-safe only, no arrays with holes, no mixed keys, so slots and inventory are **string-keyed maps** (`slots["3"]`, `inventory["17"]`). Fields already exist for later milestones (rarity, mutations, size, pen, gems, passes, streak, codes) so no migration is ever needed; add new fields to the template and `profile:Reconcile()` fills them. Autosave every `Game.autoSaveSeconds` (120); ProfileStore flushes on BindToClose. Studio without API access falls back to a mock store automatically.
+Template lives in `DataService.lua`. Items can carry `pinned = true`. Rules: JSON-safe only, no arrays with holes, no mixed keys, so slots and inventory are **string-keyed maps** (`slots["3"]`, `inventory["17"]`). Fields already exist for later milestones (rarity, mutations, size, pen, gems, passes, streak, codes) so no migration is ever needed; add new fields to the template and `profile:Reconcile()` fills them. Autosave every `Game.autoSaveSeconds` (120); ProfileStore flushes on BindToClose. Studio without API access falls back to a mock store automatically.
 
 Plot attributes (server -> every client, written by `PlotService.refresh` after each batched change): plot `OwnerUserId WateredUntil Speed Pen(JSON) PenCenter PenSize`; slot part `Index State(owned|buy|locked) EggId Mutations Growth UpdatedAt Required Price`.
 
@@ -100,17 +108,17 @@ Egg tiers
 - Value = base x rarity x mutations x size x cash multiplier. Cash multiplier = (1 + 0.5 x rebirths) x (1.5 if VIP) x (1.1 if in the group).
 - Watering: one tap, whole plot, 2x for 30s; stacks with the 2x speed pass (4x).
 - Upgrades: slots 7–40 from 200 Cash, x1.5 each; Growth Speed and Mutation Odds 5 levels, +10%/level, from 2,000, x3 each. All upgrade costs x(1 + 0.5 x rebirths).
-- Rebirth costs: Rebirth 1 = **700K**, each next **x5** (3.5M, 17.5M, 87.5M, ...): `Rebirths.firstCost x costGrowth ^ rebirths`. Pacing is tuned with this, not egg prices (Lab stays 5K to keep the 50 -> 500 -> 5,000 ladder). Sim: first rebirth 25 sim-min (~33-40 real min, the 35-45 target); free Rebirth 4 day 3, Rebirth 10 past day 30; paying Rebirth 10 day 16 (see docs/HANDOFF.md, open decision on the x5 tail). Rebirth (`RebirthService`) resets cash (to `startingCash`), bought slots, upgrades, eggs (back to the starter eggs) and growing plants, and clears the bag except the pen's mutants; keeps pen, passes, gems, Almanac, streak.
+- Rebirth costs: Rebirth 1 = **700K**, each next **x5** (3.5M, 17.5M, 87.5M, ...): `Rebirths.firstCost x costGrowth ^ rebirths`. Pacing is tuned with this, not egg prices (Lab stays 5K to keep the 50 -> 500 -> 5,000 ladder). Sim: first rebirth 25 sim-min (~33-40 real min, the 35-45 target); free Rebirth 4 day 3, Rebirth 10 past day 30; paying Rebirth 10 day 16 (see docs/HANDOFF.md, open decision on the x5 tail). Rebirth (`RebirthService`) first **sells the bag at full value** through `EconomyService.sellItem` (logged, counted in `totalCashEarned`) except the pen's mutants (pinned ones always stay), then resets cash (to `startingCash`, so that Cash goes too), bought slots, upgrades, eggs (back to the starter eggs) and growing plants; keeps pen, passes, gems, Almanac, streak. Step on the **Rebirth Altar** (south edge of the plaza) to open the panel; its sign shows your next rebirth, cost, what it unlocks and a Cash/cost bar.
 - Slots: `slotCount` is **bought** slots; `DataService.totalSlots` adds 10 for the PlotSlots10 pass (max 40) and is what plots/validation use. The next patch is priced by bought count (`DataService.nextSlotCost`).
-- Weather (`WeatherService`, `Config/Weather.lua`): an event every 20-30 min (first 6 min after server start); while it runs every growing egg rolls the event's `chancePerRoll` (x luck; Acid Rain 10%, Solar Flare 15%, Glitch Storm 5%) every 30 s for its mutation. Schedule replicates as Workspace attributes `WeatherNextId/NextAt/Id/EndsAt`.
-- Monetization (`Config/Passes.lua`, `Config/Products.lua`, **ids are 0 until created in Creator Hub**): passes Luck2x, AutoHarvest (server hatches + replants every growth tick, toast instead of cutscene), GrowthSpeed2x, OfflineMutations, PlotSlots10, VIP; Gem packs; Starter Bundle (offer window 10 min from first join, once).
-- Pen income: the pen (your `penDisplayCount` = 8 most valuable mutants) pays 2%/min of base value (tier x rarity x size; mutations ignored) x cash multiplier, every 60 s while online (`IncomeService`), and 20% of that while offline for up to 8 h (paid at join, shown on Welcome back). HUD: coin bar fills toward the next payout; chip shows $/min and the countdown.
+- Weather (`WeatherService`, `Config/Weather.lua`, `shared/WeatherRules.lua`): an event every 20-30 min (first 6 min after server start), weights 50/50/20 so Glitch Storm is 1 in 6. Each lasts **120 s**; every growing egg rolls the event's `chancePerRoll` (x luck, capped at 0.9) at the start and every 30 s (4 rolls): Acid Rain 25% (Radioactive), Solar Flare 30% (Golden), Glitch Storm 10% (Glitched), ~68 / 76 / 34% per egg over a full event. A chance per tick, not a forced roll. HUD: plain countdown in the hub; a countdown chip in every zone from 5 min before until it ends. Schedule replicates as Workspace attributes `WeatherNextId/NextAt/Id/EndsAt`.
+- Monetization (`Config/Passes.lua`, `Config/Products.lua`, **ids are 0 until created in Creator Hub**; Studio's output lists every one still at 0 on startup): passes Luck2x, AutoHarvest (server hatches + replants the same egg every growth tick, buying it with Cash when out, toast instead of cutscene; offline it replays every cycle at join, `shared/AutoHarvest.lua`, until the bag is full or Cash runs out, mutation rolls under the 2 h cap), GrowthSpeed2x, OfflineMutations, PlotSlots10, VIP (gold `[VIP]` chat tag from the `VIP` player attribute, 1.5x Cash, **50 Gems/day** claimed from the Daily panel's VIP strip; the VIP egg is M5); Gem packs; Starter Bundle (offer window 10 min from first join, once). Every Robux purchase fires `PurchaseFx` to the whole server: a sparkle burst on the buyer's plot, and for VIP / the bundle a system chat line ("X just went VIP!").
+- Pen: the `penDisplayCount` = 8 mutants in the pen are the **pinned** ones (`Pin` intent, Sell panel row toggle or the hatch reveal; capped at 8; Sell All skips them; kept on rebirth), then the most valuable of the rest (`shared/Pen.lua`). Pen income: each pays **0.05%/min** of base value (tier x rarity only) x the **rebirth multiplier** (not VIP/group) online, every 60 s (`IncomeService`, fractions carry), and **0.01%/min** offline for the whole time away, no cap (paid at join, shown on Welcome back). A plain mutant pays back its sell value in ~33 h online. HUD: coin bar fills toward the next payout; chip shows $/min and the countdown.
 - Gem sinks: **Luck Potion** 25 Gems, 3x luck for 30 min (stacks time; x the 2x pass, capped at 6x), sold in the Shop and on the hatch reveal; **Skip Timer** 5 Gems per started 10 min left on each egg (**soft-launch tuning flag**: if Skip revenue is high while day-3 return is low, it's eating the timers that bring people back; reprice on total remaining minutes), finishes every growing egg (the skipped mutation rolls still happen), badge on the egg tray when the longest wait is 2+ min. Instant Weather and Rebirth Now are M5.
 - **PolicyService:** `MonetizationService` checks `ArePaidRandomItemsRestricted` on join (failure or unknown = restricted, `snapshot.paidRandomRestricted`). Restricted players see no Gems switch in the Egg Shop and no Luck Potion, and the server refuses Gem eggs and potions (`ShopRules.canBuy` / `canBuyPotion`).
 - Cash upgrades (`BuyUpgrade`, Upgrades panel, ⬆️ icon with a red dot when affordable): Growth Speed / Mutation Odds, 5 levels, reset on rebirth.
-- Group (`Game.groupId`, 0 = off): members get **+10% Cash permanently** (`groupCashBonus`, part of the cash multiplier) while they're in the group, re-checked on every join with `GroupService:GetGroupsAsync` and when they tap Claim in the Daily panel (`profile.inGroup`; leaving the group drops it). The 2 Swamp eggs are a one-time extra.
+- Group (`Game.groupId`, 0 = off; `GroupRewardService`): members get **+10% Cash permanently** (`groupCashBonus`, part of the cash multiplier) while they're in the group: checked on every join with `Player:IsInGroup`; offered once after the first sale ("Join the group for +10% Cash forever (+2 Swamp Eggs now)", `GroupOfferPanel` -> Roblox's join prompt -> `ClaimGroupReward`, also in the Daily panel); a non-member's sales re-check with `GetGroupsAsync` (at most every 30 s) so joining mid-session pays on the next sell. Badge beside the Cash panel. The 2 Swamp eggs are a one-time extra.
 - Almanac milestones (`Game.almanacMilestones`, `profile.almanacRewards`): every 25 species pays 25 Gems, except the big ones: a Toxic egg at 100, a Void egg at 200, a Cosmic egg at 300 and **+10% luck forever** at 400 (`profile.almanacLuck`). The Almanac title shows the next one. Cosmetic egg skins are v1.5 (no cosmetics in v1).
-- Leaderboards (`LeaderboardService`): `leaderstats` Rebirths + Cash in the player list; global all-time Cash earned (OrderedDataStore `CashEarned_v1`, saved every 120 s and on leave) on the board north of the fountain.
+- Leaderboards (`LeaderboardService`): `leaderstats` Rebirths + Cash in the player list; two global boards side by side at the north edge of the plaza, **Top Pens** (pen value at x1, `TopPens_v1`) and **Top Rebirths** (`TopRebirths_v1`), top 100 each, saved every 120 s and on leave and sent to clients (`Leaderboards` remote); `LeaderboardController` draws them as scrolling SurfaceGuis with your own rank at the bottom (`#100+` outside the top 100: OrderedDataStore has no cheap rank lookup).
 - Analytics funnel: Joined, FirstPlant, FirstHarvest, FirstSell, FirstRebirth, FirstPurchasePrompt (logged when any purchase prompt closes, bought or not). Every Cash and Gems source/sink goes through `EconomyService` and is logged.
 - Inventory cap 200. New player: 100 Cash + 2 Starter eggs.
 
@@ -119,7 +127,7 @@ Egg tiers
 - 400 species in `Config/Mutants.lua`: `species[id]` (looks) and `buckets[tier][rarity]` (ids). Rarity and species are rolled at planting; species is cosmetic (value = tier x rarity x mutations x size). `tools/gen-mutants.luau` regenerates the roster and **overwrites hand edits**.
 - Visual size (`Sizes.visual`) = tierScale x rarityScale x species.scale x size^1.6. A Titan Cosmic Legendary is ~40x a Starter Common. Giants overflowing the pen are intended.
 - Egg designs live in `Eggs.tiers[id].design` (pattern spots | blotches | hazard | cracks | stars | ring).
-- The pen shows the owner's `Game.penDisplayCount` most valuable bag items (server writes JSON to the plot's `Pen` attribute; clients build and animate them). A player-chosen "Keep in pen" is still to do (pen income exists, see above).
+- The pen shows the owner's `Game.penDisplayCount` pen mutants (pinned first, then the most valuable; `shared/Pen.lua`): the server writes JSON to the plot's `Pen` attribute; clients build and animate them.
 
 ## Art rules
 
@@ -159,7 +167,7 @@ Tools: lune 0.11.1, rojo 7.7.1, stylua 2.6.0, selene 0.31.0, installed by `bash 
 
 ```
 lune run tools/check                      # every .lua/.luau compiles
-lune run tools/test                       # tests/*.spec.luau (shared math, shop rules, carousel)
+lune run tools/test                       # tests/*.spec.luau (shared math, shop rules, carousel, server harness)
 stylua src tools tests                    # format; selene src needs `selene generate-roblox-std` once (internet)
 lune run tools/sim                        # economy pacing report (options in Tuning below)
 rojo build default.project.json -o build/preview.rbxl
@@ -174,18 +182,19 @@ rojo build default.project.json -o MutantFarm.rbxl                    # place fi
 
 - **UI preview** runs the real Fusion UI headlessly (events, springs, sounds, viewports, ContextActionService stubbed), sets mock states and lays each out in Chromium with a 58 px Roblox top bar. Checks: every HUD state (hub, plot, both with touch) at 6 screen sizes against each other, the screen edge, chat (bottom-left and top-left) and touch controls; the Egg Shop (`shop`, `shop-gems`, `shop-restricted`, `shop-unlock`, `shop-next` at 6 sizes): no overlaps, one centered card, arrows >= 44 px, focused name >= 12 px, Cash/Gems card rects identical, policy and unlock states. Scenes named `name@WxH` render only at that size. Keep it at 0 issues; gradient text and 3D previews are approximations.
 - **World preview** runs the real `World.build()` + `MutantModel` in Lune and draws with three.js (SurfaceGui text on the right face; `SHOTS='[["name",[eye],[at],fov]]'` for cameras; 3rd arg `hatch` exports the hatch island). The **checker** reports intersecting parts, coplanar tops, floating/buried props, eggs off soil, mutants outside pens; allowed overlaps are listed in the script.
-- **Tuning:** change `src/shared/Config/*.lua` only, then `lune run tools/test` and `lune run tools/sim` (`--runs N --hours H --days D`, `--first` for only the time to Rebirth 1, and try-without-editing `--lab-cost N`, `--first-cost N`, `--growth X`). The sim plays perfectly; real players take ~1.3-1.6x its minutes. Update the tables above.
+- **Tuning:** change `src/shared/Config/*.lua` only, then `lune run tools/test` and `lune run tools/sim` (`--runs N --hours H --days D`, `--first` for only the time to Rebirth 1, `--pen keep` for a bot that keeps its 8 best mutants in the pen instead of selling everything, and try-without-editing `--lab-cost N`, `--first-cost N`, `--growth X`). The sim plays perfectly; real players take ~1.3-1.6x its minutes. Update the tables above.
 - Before a PR / handoff: check, test, stylua, both previews at 0 issues, then playtest in Studio (Rojo serve + Play). Nothing on the Roblox side runs headlessly; say so if it wasn't playtested.
 
 ## Status by milestone (2026-10-28)
 
 Nothing below has been played end-to-end in Studio since the Egg Shop carousel; see docs/HANDOFF.md for the untested list.
 
+- **Reconciliation (2026-10-28):** code brought in line with docs/DESIGN.md: pen income 0.05% / 0.01% per min of base value x rebirth multiplier (no offline cap); rebirth sells the bag first; offline Auto-Harvest catch-up (buys eggs with Cash); VIP chat tag + 50 Gems/day; weather 120 s at 25 / 30 / 10% per tick, Glitch Storm 1 in 6, 5-min countdown chip; Top Pens + Top Rebirths boards; pins; purchase sparkle + chat lines; group offer at first sell; Rebirth Altar; unlinked-id warning in Studio. Sim re-run (60 runs): unchanged for the default bot, which sells everything (Rebirth 1 at 25 sim-min; Rebirth 4 day 3 free / day 2 paying; Rebirth 10 not in 30 days free / day 16 paying); a bot that keeps its 8 best in the pen is far slower (`--pen keep`: Rebirth 1 at 917 sim-min). Details in docs/HANDOFF.md.
 - **M1 Skeleton, M1.5 Feel, M1.6 Polish, M1.7 HUD + hatch, M1.8 Boxy + island: done.** Rojo + ProfileStore, plots, eggs, growth, watering, harvest/sell, 400 species, rolls, hatch cutscene, Almanac, daily, welcome back, boxy HUD, market stalls with step-on pads, preview + overlap tools.
-- **M2 The hook: mostly done.** Pen display + pen income, Almanac milestone rewards. Remaining: player-chosen "Keep in pen", final sounds (placeholders in `Config/Assets`).
+- **M2 The hook: mostly done.** Pen display + pen income + pins, Almanac milestone rewards. Remaining: final sounds (placeholders in `Config/Assets`).
 - **M2.5 Spending: done, needs product ids.** Gems, Shop (bundle, Gem packs, passes), pass effects, slot offer, mutation celebrations, weather.
-- **M3 Monetize: built, needs ids + Studio test.** Luck Potion, Skip Timer, Gem egg variants, PolicyService gating, group reward, Cash upgrades, leaderboards, analytics funnel. Every pass/product id in `Config/Passes.lua` / `Config/Products.lua` and `Game.groupId` is still 0.
-- **M4 Return loops: built.** Rebirth (700K x5), Lab at $25K earned + Toxic R1, weather, daily streak, leaderboards, slot/upgrade purchases, Egg Shop carousel.
+- **M3 Monetize: built, needs ids + Studio test.** Luck Potion, Skip Timer, Gem egg variants, PolicyService gating, group reward + offer, VIP tag + daily Gems, purchase effects, Cash upgrades, leaderboards, analytics funnel. Every pass/product id in `Config/Passes.lua` / `Config/Products.lua` and `Game.groupId` is still 0.
+- **M4 Return loops: built.** Rebirth (700K x5) + Rebirth Altar, Lab at $25K earned + Toxic R1, weather, daily streak, Top Pens / Top Rebirths boards, slot/upgrade purchases, Egg Shop carousel.
 - **M5 Scale: partly.** Void (R3) + Cosmic (R6) tiers exist. Remaining (week-6 list): limited egg, Instant Weather + Rebirth Now, weather announce + Discord relay (Cloudflare Worker), first-session phone check. Egg skins are v1.5.
 
 Scope rule: no cosmetics, quests, separate pets, or map beyond the hub ring in v1.

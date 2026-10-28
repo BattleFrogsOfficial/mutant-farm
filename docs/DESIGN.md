@@ -2,6 +2,8 @@
 
 Design doc. Source of truth for intent and balance targets; synced from the Claude doc on 2026-10-28. CLAUDE.md holds the live numbers.
 
+**Reconciliation (2026-10-28).** The code was brought in line with this doc, and the agreed rule changes were written back here: pen income at 0.05% / 0.01% per minute of base value x the rebirth multiplier, with no offline cap; rebirth sells the bag (outside the pen) first; offline Auto-Harvest catch-up; VIP chat tag and daily Gems (VIP egg stays M5); weather at 120 s with 25 / 30 / 10% per tick, Glitch Storm 1 in 6 and a 5-minute countdown chip; Top Pens and Top Rebirths boards with the viewer's own rank; pins; a server-wide sparkle for every Robux purchase plus chat lines for VIP and the Starter Bundle; the group offer at first sell; the Rebirth Altar; a Studio warning for unlinked product IDs. Still different from this doc and not part of the reconciliation: the daily streak pays eggs and Cash rather than Gems on days 1–6, and the Starter Bundle grants 550 Gems instead of 500 Gems + 2 Luck Potions.
+
 ## The pitch
 
 **Mutant Farm** is a grow-and-mutate idle simulator: you plant mutant eggs on your plot, they grow in real time (even while you're offline), random mutations multiply their value, and you sell them for cash to buy rarer eggs, bigger plots, and rebirths. The game is designed around one principle: every system either brings players back or gives them a reason to spend.
@@ -23,7 +25,7 @@ A full cycle takes 90 seconds in the first session and stretches to hours by day
 3. **Grow.** Grow time is set by the egg tier (1 minute to 8 hours), then multiplied by rarity: Uncommon 1.25x, Rare 1.5x, Epic 2x, Legendary 3x — rarer mutants take longer, which is where Skip Timer sells. Growth continues while offline. Watering (one free tap for the whole plot every 30 seconds while present) speeds growth 2x and stacks with the 2x Growth Speed pass for 4x, rewarding active play without punishing idle play.
 4. **Mutate.** Every mutant gets exactly 10 mutation rolls per grow, spaced evenly across its grow time, so a Starter egg and a Cosmic egg face the same odds. Each roll checks every mutation independently at its own base chance per roll: Shiny 1.5%, Golden 0.6%, Radioactive 0.25%, Glitched 0.08%, Cosmic 0.01% (about 14%, 6%, 2.5%, 0.8%, 0.1% per egg). Luck multiplies those chances. Mutations multiply each other, each type at most once per mutant (so the ceiling is x250,000): Shiny (x2), Golden (x5), Radioactive (x10), Glitched (x25), Cosmic (x100). Weather events give every growing mutant repeated high chances at one specific mutation for two minutes.
 5. **Harvest** when mature. The mutant goes to your inventory, with its mutations and a generated size value (size is a second multiplier, 0.8x to 3x).
-6. **Sell** at the Sell Pad, or **Keep** in your display pen where other players on the server can see it. The pen auto-fills with your most valuable mutants, and any mutant can be pinned to stay there. Kept mutants also generate passive Cash per minute, so keeping rare ones is both a flex and an income choice.
+6. **Sell** at the Sell Pad, or **Keep** in your display pen where other players on the server can see it. The pen auto-fills with your most valuable mutants, and any mutant can be pinned to stay there (from the bag or the hatch reveal; pins are capped at the pen's size, Sell All skips them, and a pinned mutant is never auto-replaced or auto-sold on rebirth; unpinning returns it to the bag). Kept mutants also generate passive Cash per minute, so keeping rare ones is both a flex and an income choice.
 7. **Upgrade**: more slots, faster growth, better mutation odds, a bigger pen.
 8. **Rebirth** at a Cash threshold: reset Cash, slots and eggs; keep display pen and game passes; gain a permanent multiplier and unlock the next egg tier. Each rebirth makes the loop faster and the numbers bigger, which keeps the sense of progress alive for weeks.
 
@@ -69,16 +71,16 @@ Sell values are the Common outcome; rarity multiplies them (Uncommon x3, Rare x1
 
 **Where the friction lives.** Friction is placed only where a product removes it: slots fill up (buy slots), growth is slow (buy speed), Legendaries are rare (buy luck), and you are away from the keyboard (buy auto-harvest and offline bonus). Nothing else should ever feel slow.
 
-**Passive income from the pen.** Each kept mutant pays 0.05% of its *base* value (tier x rarity, no mutations or size) per minute online and 0.01% offline, scaled by the rebirth multiplier. That is a 33-hour payback online, so selling stays the right call for most hatches, keeping the rarest is still worthwhile, and the pen never short-circuits a rebirth threshold. Pen starts at 8 slots; pen slots are sold in v1.5.
+**Passive income from the pen.** Each kept mutant pays 0.05% of its *base* value (tier x rarity, no mutations or size) per minute online and 0.01% offline, scaled by the rebirth multiplier. That is a 33-hour payback online, so selling stays the right call for most hatches, keeping the rarest is still worthwhile, and the pen never short-circuits a rebirth threshold. Offline income has no time cap (the rate itself is the limit). Pen starts at 8 slots; pen slots are sold in v1.5.
 
 **Cash upgrades (`Upgrades.lua`).** Slots 7–40 start at 200 Cash and each next slot costs 1.5x the last. Growth Speed and Mutation Odds upgrades have 5 levels each (+10% per level), starting at 2,000 Cash and tripling per level. All upgrade costs scale with the rebirth count so they stay relevant after a reset.
 
 **Other rules**
 
-- Auto-Harvest replants the same egg, paying from Cash, keeps working offline, and stops when the player cannot afford the next egg.
+- Auto-Harvest replants the same egg, paying from Cash, keeps working offline, and stops when the player cannot afford the next egg. Offline it is replayed at rejoin, cycle by cycle (mature → harvest to the bag → replant if Cash allows and the bag has room); mutation rolls on those cycles obey the 2-hour offline cap unless Offline Mutations is owned.
 - Size is rolled from bands: 0.8–1.0x (25%), 1.0–1.3x (55%), 1.3–2.0x (17%), 2.0–2.9x (2.5%), 3.0x "Titan" (0.5%). Luck multiplies the top two bands' weights, then weights renormalize.
 - VIP's 1.5x Cash and the rebirth multiplier multiply each other.
-- On rebirth, unsold inventory is sold automatically first, then Cash, slots, upgrades and eggs reset. The pen, passes, Gems and streak are kept.
+- On rebirth, unsold inventory (everything outside the pen) is sold automatically first, at full value through the economy service so it is logged and counted as Cash earned; then Cash, slots, upgrades and eggs reset. The pen (pinned mutants included), passes, Gems and streak are kept.
 - The day-7 streak Toxic egg is granted regardless of rebirth count, as a taste of the next tier.
 
 ## Retention systems
@@ -86,12 +88,12 @@ Sell values are the Common outcome; rarity multiplies them (Uncommon x3, Rare x1
 The game needs players to come back on day 1, 3, and 7 before any ad money is spent. Each system below targets one of those return points.
 
 - **Offline growth with a cap.** Mutants keep growing offline, but mutation rolls stop after 2 hours away unless the player owns the Offline Mutations pass. The cap creates the itch to log in; the pass sells the relief.
-- **Weather events** every 20–30 minutes per server, announced server-wide with a countdown: *Acid Rain (Radioactive), Solar Flare (Golden), Glitch Storm (Glitched, the rare one). Each event lasts 120 s with a roll every 30 s on every growing egg: 25% / 30% / 10% per tick, so about 68% / 76% / 34% of eggs that grow through the whole event get the mutation. Not a force-roll; the economy stays tunable.* Events are the day-3 hook — players learn they happen and leave the game open or come back for them. A Discord webhook posts "Glitch Storm in 5 min" to a community channel.
+- **Weather events** every 20–30 minutes per server, announced server-wide with a countdown (a chip on every player's HUD from 5 minutes before): *Acid Rain (Radioactive), Solar Flare (Golden), Glitch Storm (Glitched, the rare one: 1 event in 6). Each event lasts 120 s with a roll every 30 s on every growing egg: 25% / 30% / 10% per tick, so about 68% / 76% / 34% of eggs that grow through the whole event get the mutation. Not a force-roll; the economy stays tunable.* Events are the day-3 hook — players learn they happen and leave the game open or come back for them. A Discord webhook posts "Glitch Storm in 5 min" to a community channel.
 - **Daily login streak**: Gems on days 1–6, a free Toxic egg on day 7, resets on a miss. Cheap to build, proven, feeds the Gem economy.
 - **Session goals**: a "Next up" panel always shows the nearest unlock (next slot, next rebirth, next egg tier) with a progress bar. Players quit when they don't know what's next.
-- **Leaderboards: leaderstats (Rebirths, Cash) in the player list, plus two global top-100 boards side by side in the hub, Top Pens (current pen value) and Top Rebirths, each showing the viewer's own rank.** Being on the board is the free-player status loop; staying on it is the whale loop.
+- **Leaderboards: leaderstats (Rebirths, Cash) in the player list, plus two global top-100 boards side by side at the north edge of the plaza, Top Pens (current pen value) and Top Rebirths, refreshed every 120 s, each showing the viewer's own rank at the bottom (as "#100+" outside the top 100).** Being on the board is the free-player status loop; staying on it is the whale loop.
 - **Limited-time eggs** rotated weekly after launch (a holiday egg for Halloween week, then a Winter egg). Exclusivity is the strongest spend trigger in the genre; the limited egg should always be purchasable with Gems. Egg count grows on a cadence, not at launch: a limited egg every week, a permanent tier every 3–4 weeks (the seventh tier at Rebirth 10 is the first), and a Gem variant of each tier from launch (same species and values, Uncommon+ weights doubled then renormalized, policy-gated; 15 / 40 / 120 / 300 / 800 / 2,000 Gems by tier) that doubles the catalog at near-zero art cost.
-- **Group Reward.** No promo codes in this game. The free community lever is a Group Reward instead: members of the Roblox group get +10% Cash for as long as they stay in it (checked on join), shown as a badge on the Cash panel, plus 2 Swamp Eggs once as the hook. Offered once at first sell.
+- **Group Reward.** No promo codes in this game. The free community lever is a Group Reward instead: members of the Roblox group get +10% Cash for as long as they stay in it (checked on every join with IsInGroup), shown as a badge on the Cash panel, plus 2 Swamp Eggs once as the hook. Offered once at first sell with a prompt: "Join the group for +10% Cash forever (+2 Swamp Eggs now)". A player who joins mid-session gets the bonus on their next sell.
 - **Almanac milestones.** The 400 species are cosmetic within a rarity, so the Almanac is the collection goal: 25 Gems every 25 species, plus a Toxic egg at 100, a Void egg at 200, a Cosmic egg at 300, and permanent +10% luck at 400. No cosmetic rewards in v1.
 - **Trading (v1.5).** Player-to-player trading of mutants once there are enough players for a market. Trading makes rares feel like assets, which raises how much players will pay to get them.
 
@@ -108,7 +110,7 @@ Every product removes a friction the loop deliberately creates. Prices follow th
 | 2x Growth Speed | 299 | Halves all grow timers | Stacks visibly with watering; shown on every timer bar |
 | Offline Mutations | 199 | Mutation rolls continue while offline, no 2-hour cap | Sells at the exact moment the player sees the cap message |
 | +10 Plot Slots | 349 | Ten permanent extra slots | Capacity is the clearest "I'd earn more if" feeling |
-| VIP | 499 | Chat tag, 1.5x Cash, daily 50 Gems, and (M5) a VIP egg with an exclusive species pool | Status pass; the chat tag is advertising in every server |
+| VIP | 499 | Gold "[VIP]" chat tag, 1.5x Cash, 50 Gems a day (claimed from a VIP strip on the Daily panel), and (M5) a VIP egg with an exclusive species pool | Status pass; the chat tag is advertising in every server |
 | Starter Bundle | 599 | 2x Luck + Auto-Harvest + 500 Gems + 2 Luck Potions, offered once in the first 10 minutes and never again (the scarcity is the product) | Anchors the shop; about 32% off the 875-Robux list value |
 
 **Developer products (repeatable)**
@@ -138,7 +140,7 @@ Every product removes a friction the loop deliberately creates. Prices follow th
 
 **Paid-random-item policy.** Roblox requires odds to be shown for any random item bought directly or indirectly with Robux, and some countries restrict paid random items entirely. Rules: every egg shows its odds panel (the table above) before purchase; on join the server checks `PolicyService:GetPolicyInfoForPlayerAsync().ArePaidRandomItemsRestricted` and, when true, hides Gem-purchasable eggs and the Luck Potion for that player. The 2x Luck pass stays (it modifies Cash eggs, which are free to obtain) but should be re-checked against current policy text before launch.
 
-**Ownership and IDs.** The game is published under your personal account for v1 (DevEx goes to one verified account, no group payout split to configure); move it to a group only if a partner joins. `Passes.lua` and `Products.lua` hold placeholder IDs until the items are created in Creator Hub; Studio test purchases work with placeholders.
+**Ownership and IDs.** The game is published under your personal account for v1 (DevEx goes to one verified account, no group payout split to configure); move it to a group only if a partner joins. `Passes.lua` and `Products.lua` hold placeholder IDs (0) until the items are created in Creator Hub; Studio test purchases work with placeholders, and Studio's output lists every pass and product still at 0 on startup so nothing ships unlinked.
 
 ## Look & feel
 
@@ -146,7 +148,7 @@ Bright, low-poly, slightly gross. The art direction is "cute science accident": 
 
 **Palette.** Base: toxic green `#7CFF4A`, lab purple `#9B5CFF`, cream `#FFF4D6`, dark slate UI `#1E2230`. Mutation glows are the only saturated accents: Shiny white, Golden `#FFD24A`, Radioactive green, Glitched magenta/cyan flicker, Cosmic deep purple with stars. Rarity colors follow the platform convention (grey, green, blue, purple, gold) so players already know what they mean.
 
-**World.** One small island per player (their plot and pen) arranged in a ring around a central hub with the Egg Shop, Sell Pad, Rebirth Altar, and the global leaderboard. Servers hold 12 players so pens are visible and the hub feels busy. No terrain to design beyond the ring.
+**World.** One small island per player (their plot and pen) arranged in a ring around a central hub with the Egg Shop, Sell Pad, Rebirth Altar, and the global leaderboards. The Rebirth Altar is a glowing pad on the plaza's south edge, across the fountain from the boards, with a sign showing "Rebirth N · $cost · unlocks <next tier>" and a progress bar; stepping on it opens the Rebirth confirm panel. Servers hold 12 players so pens are visible and the hub feels busy. No terrain to design beyond the ring.
 
 **Mutants.** Built in code from Roblox primitives and free Toolbox meshes (blob, spiky, tall, flat), recolored and scaled per rarity, with mutation effects as particle emitters and surface materials. This gives 6 tiers x 5 rarities = 30 mutants from about 8 meshes, and every mutation is a shader change rather than new art.
 
@@ -194,7 +196,7 @@ src/
 - **ShopService** handles `MarketplaceService.ProcessReceipt` for dev products (idempotent on `PurchaseId`, stored in the profile so a rejoin never double-grants) and `UserOwnsGamePassAsync` with a cached result per session. Grant passes on `PromptGamePassPurchaseFinished` too so the effect is immediate.
 - **WeatherService** runs a per-server schedule, broadcasts the countdown, and applies the forced mutation through MutationService. It also fires the Discord webhook (via HttpService on a proxy) 5 minutes before Glitch Storm.
 - **RebirthService** validates the threshold, resets the right fields, bumps the multiplier.
-- **LeaderboardService** uses OrderedDataStore, refreshed every 60 seconds, with pen value and rebirths as two keys.
+- **LeaderboardService** uses OrderedDataStore, refreshed every 120 seconds, with pen value and rebirths as two stores.
 
 **Anti-exploit**
 

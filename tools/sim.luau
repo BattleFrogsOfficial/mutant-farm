@@ -4,10 +4,16 @@
 --   lune run tools/sim                         pacing report for the current config
 --   lune run tools/sim -- --runs 50 --hours 1.5 --days 30
 --
--- The bot: waters every 30s while online, sells everything at once, plants the egg with the
--- best expected profit per minute it can afford, buys the cheapest upgrade whenever it costs
--- under a quarter of its Cash, and rebirths the moment it can. Offline it does nothing unless
--- it owns Auto-Harvest. Weather, the pen and Gems are ignored (they only add upside).
+-- The bot: waters every 30s while online, sells everything at once (Sell All also sells the
+-- pen's auto-fill, so its pen stays empty), plants the egg with the best expected profit per
+-- minute it can afford, buys the cheapest upgrade whenever it costs under a quarter of its Cash,
+-- and rebirths the moment it can (the bag outside the pen is sold first and counted as earned;
+-- the pen stays). Offline it harvests only with Auto-Harvest (replanting from Cash). Weather and
+-- Gems are ignored.
+--
+--   --pen keep   a keeper instead: pins its Game.penDisplayCount most valuable mutants (a better
+--                one replaces the worst, which is sold). The pen pays penIncomePerMinute of base
+--                value x the rebirth multiplier online and penIncomePerMinuteOffline offline.
 
 local process = require("@lune/process")
 local harness = require("./harness")
@@ -35,6 +41,7 @@ local opts = {
 	labCost = nil :: number?,
 	firstCost = nil :: number?,
 	growth = nil :: number?,
+	pen = "sell",
 }
 do
 	local args = process.args
@@ -50,6 +57,9 @@ do
 			i += 1
 		elseif a == "--growth" then
 			opts.growth = tonumber(args[i + 1]) -- try a rebirth cost multiplier without editing Config
+			i += 1
+		elseif a == "--pen" then
+			opts.pen = args[i + 1] -- "sell" (default) or "keep"
 			i += 1
 		elseif a == "--lab-cost" then
 			opts.labCost = tonumber(args[i + 1]) -- try a Lab Egg price without editing Config
@@ -75,6 +85,7 @@ end
 ---------------------------------------------------------------------------- player model
 
 type Slot = { tier: string, rarity: string, mutations: { string }, growth: number, required: number, mature: boolean }
+type Mutant = { tier: string, rarity: string, mutations: { string }, size: number }
 
 type Player = {
 	rng: any,
@@ -85,8 +96,8 @@ type Player = {
 	slots: { [number]: Slot },
 	growthLevel: number,
 	oddsLevel: number,
-	pending: number, -- value harvested offline by Auto-Harvest, sold on return
-	pendingCount: number,
+	pending: { Mutant }, -- harvested offline by Auto-Harvest, sold (or penned) on return
+	pen: { Mutant }, -- kept mutants: pay pen income, survive rebirth
 	earned: number, -- lifetime Cash earned (unlocks Lab at Rebirth 0)
 	leftAt: number,
 	-- stats
@@ -113,8 +124,8 @@ local function newPlayer(seed: number, passes: { [string]: boolean }): Player
 		slots = {},
 		growthLevel = 0,
 		oddsLevel = 0,
-		pending = 0,
-		pendingCount = 0,
+		pending = {},
+		pen = {},
 		earned = 0,
 		leftAt = 0,
 		rebirthAt = {},
@@ -158,12 +169,57 @@ local function plant(p: Player, index: number, tierId: string)
 	}
 end
 
-local function harvestValue(p: Player, slot: Slot): number
-	local size = Rolls.rollSize(p.rng, luckOf(p))
-	return Valuation.sellValue(
-		{ tier = slot.tier, rarity = slot.rarity, mutations = slot.mutations, size = size },
-		cashMultiplier(p)
-	)
+local function harvestMutant(p: Player, slot: Slot): Mutant
+	return {
+		tier = slot.tier,
+		rarity = slot.rarity,
+		mutations = slot.mutations,
+		size = Rolls.rollSize(p.rng, luckOf(p)),
+	}
+end
+
+local function sell(p: Player, m: Mutant)
+	local value = Valuation.sellValue(m, cashMultiplier(p))
+	p.cash += value
+	p.earned += value
+end
+
+-- A new mutant: into the pen if it's worth more than the pen's worst (which is then sold),
+-- otherwise sold. Without `--pen keep` everything is sold.
+local function keepOrSell(p: Player, m: Mutant)
+	if opts.pen == "sell" then
+		sell(p, m)
+		return
+	end
+	if #p.pen < GameConfig.penDisplayCount then
+		table.insert(p.pen, m)
+		return
+	end
+	local worst, worstValue = 1, math.huge
+	for i, kept in p.pen do
+		local v = Valuation.sellValue(kept, 1)
+		if v < worstValue then
+			worst, worstValue = i, v
+		end
+	end
+	if Valuation.sellValue(m, 1) > worstValue then
+		sell(p, p.pen[worst])
+		p.pen[worst] = m
+	else
+		sell(p, m)
+	end
+end
+
+-- Pen income for `dt` seconds at the online or offline rate.
+local function penIncome(p: Player, dt: number, online: boolean)
+	local rate = if online then GameConfig.penIncomePerMinute else GameConfig.penIncomePerMinuteOffline
+	local mult = Valuation.rebirthMultiplier(p.rebirths)
+	local perMinute = 0
+	for _, m in p.pen do
+		perMinute += Valuation.penIncome(m, mult, rate)
+	end
+	p.cash += perMinute * dt / 60
+	p.earned += perMinute * dt / 60
 end
 
 -- Best tier by expected profit per second among unlocked, affordable tiers.
@@ -196,6 +252,11 @@ local function fullRate(p: Player): number
 end
 
 local function doRebirth(p: Player, now: number)
+	-- The bag outside the pen is sold first (counted as earned); then Cash resets.
+	for _, m in p.pending do
+		sell(p, m)
+	end
+	p.pending = {}
 	p.rebirths += 1
 	p.rebirthAt[p.rebirths] = now
 	p.activeAt[p.rebirths] = p.activeSeconds
@@ -271,13 +332,12 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 		end
 	end
 
+	penIncome(p, dt, online)
 	if online then
 		p.activeSeconds += dt
 		for i, slot in p.slots do
 			if slot.mature then
-				local value = harvestValue(p, slot)
-				p.cash += value
-				p.earned += value
+				keepOrSell(p, harvestMutant(p, slot))
 				p.slots[i] = nil
 			end
 		end
@@ -297,11 +357,11 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 		end
 	elseif p.passes.AutoHarvest then
 		for i, slot in p.slots do
-			if slot.mature and p.pendingCount < GameConfig.inventoryCap then
-				p.pending += harvestValue(p, slot)
-				p.pendingCount += 1
+			-- The bag holds the pen too.
+			if slot.mature and #p.pending + #p.pen < GameConfig.inventoryCap then
+				table.insert(p.pending, harvestMutant(p, slot))
 				p.slots[i] = nil
-				if p.cash >= Eggs.tiers[slot.tier].cost then
+				if p.cash >= Eggs.tiers[slot.tier].cost and #p.pending + #p.pen < GameConfig.inventoryCap then
 					plant(p, i, slot.tier)
 				end
 			end
@@ -310,10 +370,10 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 end
 
 local function login(p: Player)
-	p.cash += p.pending
-	p.earned += p.pending
-	p.pending = 0
-	p.pendingCount = 0
+	for _, m in p.pending do
+		keepOrSell(p, m)
+	end
+	p.pending = {}
 end
 
 -- Plays `days` days of `hoursPerDay` active play (one session a day) and returns the player.
@@ -397,10 +457,11 @@ end
 
 print(
 	string.format(
-		"Mutant Farm pacing — %d runs, %.1f active hours/day, up to %d days\n",
+		"Mutant Farm pacing — %d runs, %.1f active hours/day, up to %d days, pen: %s\n",
 		opts.runs,
 		opts.hours,
-		opts.days
+		opts.days,
+		if opts.pen == "sell" then "sell everything" else "keep the best " .. GameConfig.penDisplayCount
 	)
 )
 
