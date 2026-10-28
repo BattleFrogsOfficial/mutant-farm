@@ -83,7 +83,12 @@ function build(node, parentInner, parentLayout) {
   if (node.class === "ScrollingFrame" || p.ClipsDescendants) el.style.overflow = "hidden";
   if (p.Rotation && parentLayout) el.style.rotate = p.Rotation + "deg";
   if (mods.UICorner) { const [s, o] = mods.UICorner.CornerRadius; el.style.borderRadius = s >= 0.5 ? "9999px" : (s > 0 ? s*100 + "%" : o + "px"); }
-  if (mods.UIScale) { el.style.scale = mods.UIScale.Scale; el.style.transformOrigin = \`\${ax*100}% \${ay*100}%\`; }
+  // Roblox scales about the AnchorPoint: scale first (about the anchor), then the anchor shift.
+  if (mods.UIScale) {
+    el.style.transformOrigin = \`\${ax*100}% \${ay*100}%\`;
+    if (parentLayout) el.style.scale = mods.UIScale.Scale;
+    else el.style.transform += \` scale(\${mods.UIScale.Scale})\`;
+  }
   if (mods.UIGradient && mods.UIGradient.Color && (p.BackgroundTransparency ?? 0) < 1) {
     const ks = mods.UIGradient.Color.map(k => \`rgb(\${k[1]*255},\${k[2]*255},\${k[3]*255}) \${k[0]*100}%\`).join(",");
     const rot = (mods.UIGradient.Rotation ?? 0) + 90;
@@ -252,6 +257,73 @@ function paintedRect(el) {
   return r;
 }
 
+// Egg Shop carousel: panel on screen; cards in the strip don't overlap (as drawn, clipped by the
+// strip); nothing inside the focused card overlaps; title-row controls don't overlap; exactly one
+// card centered within 2px and it isn't a further-locked one; arrows >= 44px. Returns card rects
+// (for the Cash vs Gems switch comparison) and which controls are visible.
+window.checkShop = (W, H) => {
+  const problems = [];
+  const vis = (el) => el && el.offsetParent !== null && getComputedStyle(el).display !== "none";
+  const panel = [...document.querySelectorAll('.gui [title="Panel"]')].find((p) => vis(p) && p.querySelector('[title="Carousel"]'));
+  if (!panel) return { problems: ["shop panel not found"], font: 0, rects: {} };
+  const pr = panel.getBoundingClientRect();
+  if (pr.left < 0 || pr.top < 0 || pr.right > W || pr.bottom > H) problems.push("panel goes off screen");
+  const overlapPairs = (items, what) => {
+    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+      const a = items[i].r, b = items[j].r;
+      const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+      const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+      if (w > 0.5 && h > 0.5) problems.push(\`\${what}: \${items[i].name} overlaps \${items[j].name} (\${w.toFixed(0)}x\${h.toFixed(0)}px)\`);
+    }
+  };
+  const kidsOf = (el, what) => {
+    const inner = el && [...el.children].find((c) => c.classList.contains("inner"));
+    if (!inner) { problems.push(\`\${what} not found\`); return []; }
+    return [...inner.children];
+  };
+  const strip = panel.querySelector('[title="Strip"]');
+  const sr = strip.getBoundingClientRect();
+  const center = (sr.left + sr.right) / 2;
+  const cards = kidsOf(strip, "strip").filter((c) => c.classList.contains("g") && vis(c));
+  const drawn = cards.map((c) => ({ name: c.title, r: paintedRect(c), el: c })).filter((c) => c.r && c.r.right - c.r.left > 1);
+  overlapPairs(drawn, "cards");
+  const rects = {};
+  for (const c of cards) { const r = c.getBoundingClientRect(); rects[c.title] = [r.left, r.top, r.width, r.height]; }
+  // The focused card is the scaled-up one.
+  const focused = cards.reduce((best, c) => (!best || c.getBoundingClientRect().width > best.getBoundingClientRect().width ? c : best), null);
+  const centered = cards.filter((c) => { const r = c.getBoundingClientRect(); return Math.abs((r.left + r.right) / 2 - center) <= 2; });
+  if (centered.length !== 1) problems.push(\`\${centered.length} cards centered in the strip (want exactly 1)\`);
+  else if (centered[0] !== focused) problems.push(\`centered card \${centered[0].title} isn't the focused one\`);
+  if (vis(focused.querySelector('[title="Tagline"]'))) problems.push(\`focused card \${focused.title} is further-locked\`);
+  const parts = kidsOf(focused, "focused card")
+    .filter((c) => vis(c) && !["Veil", "Flash", "OddsOverlay", "New"].includes(c.title))
+    .map((c) => ({ name: c.title, r: paintedRect(c) })).filter((x) => x.r);
+  overlapPairs(parts, \`focused \${focused.title}\`);
+  const header = panel.querySelector('[title="Header"]');
+  const head = kidsOf(header, "header").filter((c) => vis(c) && ["Switch", "Potion", "TextLabel"].includes(c.title))
+    .map((c) => ({ name: c.title, r: paintedRect(c) }));
+  const close = kidsOf(panel, "panel").find((c) => c.title === "Button");
+  if (close) head.push({ name: "Close", r: paintedRect(close) });
+  overlapPairs(head.filter((x) => x.r), "title row");
+  for (const name of ["ArrowLeft", "ArrowRight"]) {
+    const el = panel.querySelector(\`[title="\${name}"]\`);
+    if (!vis(el)) continue;
+    const r = el.getBoundingClientRect();
+    if (Math.min(r.width, r.height) < 44) problems.push(\`\${name} is \${r.width.toFixed(0)}px (< 44)\`);
+  }
+  const label = focused.querySelector('[title="Title"] span');
+  // On-screen px: the fitted (design px) size times every scale above it (screen fit, card focus).
+  const font = label ? parseFloat(getComputedStyle(label.parentElement).fontSize) * (focused.getBoundingClientRect().width / focused.offsetWidth) : 0;
+  return {
+    problems, font, rects, focused: focused.title, text: label ? label.textContent : "",
+    switchVisible: vis(panel.querySelector('[title="Switch"]')),
+    potionVisible: vis(panel.querySelector('[title="Potion"]')),
+    labBuy: vis(strip.querySelector('[title="Lab"] [title="BuyRow"]')),
+    labNew: vis(strip.querySelector('[title="Lab"] [title="New"]')),
+    arrows: ["ArrowLeft", "ArrowRight"].filter((n) => vis(panel.querySelector(\`[title="\${n}"]\`))),
+  };
+};
+
 window.checkOverlaps = (W, H, touch) => {
   const problems = [];
   const rects = [];
@@ -320,6 +392,7 @@ const count = await page.evaluate(() => window.sceneCount);
 const sceneNames = await page.evaluate(() => data.scenes.map((s) => s.name));
 for (let i = 0; i < count; i++) {
   const sized = /^(.*)@(\d+)x(\d+)$/.exec(sceneNames[i]);
+  if (process.env.ONLY && !sceneNames[i].startsWith(process.env.ONLY)) continue; // ONLY=shop: just those screenshots
   for (const [label, W, H] of sizes) {
     if (sized && (+sized[2] !== W || +sized[3] !== H)) continue;
     await page.setViewportSize({ width: W, height: H });
@@ -347,4 +420,39 @@ for (const [sceneName, hudIndex] of hudScenes) {
   }
 }
 console.log(`HUD overlap check: ${issues} issue(s) across ${checked} state x screen-size combinations`);
+// Egg Shop carousel checks at every screen size, in Cash, Gems and policy-restricted modes, plus the
+// mid-session unlock scene.
+let shopIssues = 0, shopChecked = 0;
+const shopScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("shop")));
+const cashRects = {};
+for (const [sceneName, index] of shopScenes) {
+  const [, kind, w, h] = /^([\w-]+)@(\d+)x(\d+)$/.exec(sceneName);
+  const W = +w, H = +h;
+  await page.setViewportSize({ width: W, height: H });
+  await page.evaluate(([i, W, H]) => window.render(i, W, H), [index, W, H]);
+  const r = await page.evaluate(([W, H]) => window.checkShop(W, H), [W, H]);
+  const problems = r.problems;
+  if (kind === "shop") cashRects[`${W}x${H}`] = r;
+  if (kind === "shop-gems") {
+    // Switch test: same focused tier, same card positions.
+    const c = cashRects[`${W}x${H}`];
+    if (!c) problems.push("no Cash scene to compare");
+    else {
+      if (c.focused !== r.focused) problems.push(`switch moved focus ${c.focused} -> ${r.focused}`);
+      for (const [name, a] of Object.entries(c.rects)) {
+        const b = r.rects[name];
+        if (!b || a.some((v, k) => Math.abs(v - b[k]) > 0.5)) problems.push(`switch moved the ${name} card`);
+      }
+    }
+  }
+  if (kind === "shop-restricted" && (r.switchVisible || r.potionVisible)) problems.push("restricted player sees the Gems switch or the Luck Potion");
+  if (kind !== "shop-restricted" && !r.switchVisible) problems.push("switch missing");
+  if (kind === "shop-unlock" && !(r.labBuy && r.labNew)) problems.push("Lab isn't buyable with NEW after crossing $25K");
+  if (r.font < 12) problems.push(`focused name only ${r.font.toFixed(1)}px`);
+  shopChecked++;
+  for (const p of problems) console.log(`[shop] ${sceneName}: ${p}`);
+  shopIssues += problems.length;
+  console.log(`[shop] ${sceneName}: focused ${r.focused} "${r.text}" at ${r.font.toFixed(1)}px; arrows ${r.arrows.join("+") || "none"}`);
+}
+console.log(`Shop check: ${shopIssues} issue(s) across ${shopChecked} scenes`);
 await browser.close();

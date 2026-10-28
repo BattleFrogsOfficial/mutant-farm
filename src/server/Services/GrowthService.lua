@@ -18,6 +18,7 @@ local Mutants = require(Shared.Config.Mutants)
 local Daily = require(Shared.Config.Daily)
 local Products = require(Shared.Config.Products)
 local Costs = require(Shared.Costs)
+local ShopRules = require(Shared.ShopRules)
 local Growth = require(Shared.Growth)
 local Rolls = require(Shared.Rolls)
 local Rng = require(Shared.Rng)
@@ -47,8 +48,9 @@ local function oddsBonus(data: Types.Profile): number
 	return Upgrades.mutationOdds.bonusPerLevel * data.upgrades.mutationOdds
 end
 
+-- Gem variants hatch the base tier's species.
 local function rollSpecies(eggId: string, rarity: string): string
-	local bucket = Mutants.buckets[eggId][rarity]
+	local bucket = Mutants.buckets[Eggs.baseOf(eggId)][rarity]
 	return bucket[rng:integer(1, #bucket)]
 end
 
@@ -84,7 +86,7 @@ end
 -- What a growing egg would sell for right now (size is rolled at harvest, so size 1).
 local function worthNow(data: Types.Profile, slot: Types.Slot): number
 	return Valuation.sellValue(
-		{ tier = slot.eggId, rarity = slot.rarity, mutations = slot.mutations, size = 1 },
+		{ tier = Eggs.baseOf(slot.eggId), rarity = slot.rarity, mutations = slot.mutations, size = 1 },
 		DataService.cashMultiplier(data)
 	)
 end
@@ -233,7 +235,8 @@ local function harvest(player: Player, data: Types.Profile, key: string, auto: b
 	data.nextItemId += 1
 	local item: Types.Item = {
 		id = id,
-		tier = slot.eggId,
+		tier = Eggs.baseOf(slot.eggId), -- values, species and the Almanac use the base tier
+		egg = slot.eggId,
 		rarity = slot.rarity,
 		species = slot.species or rollSpecies(slot.eggId, slot.rarity),
 		mutations = slot.mutations,
@@ -328,7 +331,7 @@ end
 -- its duration (stacks time). Not sold where paid random items / paid odds are restricted.
 local function onBuyPotion(player: Player, data: Types.Profile)
 	local potion = Products.gems.LuckPotion
-	if DataService.paidRandomRestricted[player] ~= false then
+	if not ShopRules.canBuyPotion(DataService.paidRandomRestricted[player] ~= false) then
 		Net.notify(player, "Luck Potions aren't available in your region", "info")
 		return
 	end

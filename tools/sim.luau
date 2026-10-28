@@ -2,7 +2,6 @@
 -- so tuning Config/*.lua and re-running shows the effect immediately.
 --
 --   lune run tools/sim                         pacing report for the current config
---   lune run tools/sim -- --suggest            rebirth costs that hit Rebirths.targetPhaseMinutes
 --   lune run tools/sim -- --runs 50 --hours 1.5 --days 30
 --
 -- The bot: waters every 30s while online, sells everything at once, plants the egg with the
@@ -17,17 +16,25 @@ local shared = "src/shared"
 local Eggs = harness.require(shared .. "/Config/Eggs")
 local Upgrades = harness.require(shared .. "/Config/Upgrades")
 local GameConfig = harness.require(shared .. "/Config/Game")
-local Rebirths = harness.require(shared .. "/Config/Rebirths")
 local Rng = harness.require(shared .. "/Rng")
 local Rolls = harness.require(shared .. "/Rolls")
 local Growth = harness.require(shared .. "/Growth")
 local Valuation = harness.require(shared .. "/Valuation")
 local Costs = harness.require(shared .. "/Costs")
+local ShopRules = harness.require(shared .. "/ShopRules")
 local Format = harness.require(shared .. "/Format")
 
 ---------------------------------------------------------------------------- options
 
-local opts = { runs = 20, hours = 1.5, days = 30, rebirths = 10, suggest = false }
+local opts = {
+	runs = 20,
+	hours = 1.5,
+	days = 30,
+	rebirths = 10,
+	first = false,
+	labCost = nil :: number?,
+	firstCost = nil :: number?,
+}
 do
 	local args = process.args
 	local i = 1
@@ -35,8 +42,14 @@ do
 		local a = args[i]
 		if a == "--" then
 			-- separator passed through by `lune run tools/sim -- ...`
-		elseif a == "--suggest" then
-			opts.suggest = true
+		elseif a == "--first" then
+			opts.first = true -- only the time to Rebirth 1
+		elseif a == "--first-cost" then
+			opts.firstCost = tonumber(args[i + 1]) -- try a Rebirth 1 cost without editing Config
+			i += 1
+		elseif a == "--lab-cost" then
+			opts.labCost = tonumber(args[i + 1]) -- try a Lab Egg price without editing Config
+			i += 1
 		elseif a == "--runs" or a == "--hours" or a == "--days" or a == "--rebirths" then
 			opts[a:sub(3)] = tonumber(args[i + 1])
 			i += 1
@@ -70,6 +83,7 @@ type Player = {
 	oddsLevel: number,
 	pending: number, -- value harvested offline by Auto-Harvest, sold on return
 	pendingCount: number,
+	earned: number, -- lifetime Cash earned (unlocks Lab at Rebirth 0)
 	leftAt: number,
 	-- stats
 	rebirthAt: { number }, -- time (s) each rebirth happened
@@ -97,6 +111,7 @@ local function newPlayer(seed: number, passes: { [string]: boolean }): Player
 		oddsLevel = 0,
 		pending = 0,
 		pendingCount = 0,
+		earned = 0,
 		leftAt = 0,
 		rebirthAt = {},
 		activeAt = {},
@@ -154,7 +169,7 @@ local function bestTier(p: Player, budget: number): string?
 	local oddsBonus = Upgrades.mutationOdds.bonusPerLevel * p.oddsLevel
 	for _, id in Eggs.order do
 		local tier = Eggs.tiers[id]
-		if tier.unlockRebirth <= p.rebirths and tier.cost <= budget then
+		if ShopRules.isUnlocked(id, p.rebirths, p.earned) and tier.cost <= budget then
 			local value, time = eggEV(id, luckOf(p), oddsBonus)
 			local rate = (value * mult - tier.cost) / time
 			if rate > bestRate then
@@ -256,7 +271,9 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 		p.activeSeconds += dt
 		for i, slot in p.slots do
 			if slot.mature then
-				p.cash += harvestValue(p, slot)
+				local value = harvestValue(p, slot)
+				p.cash += value
+				p.earned += value
 				p.slots[i] = nil
 			end
 		end
@@ -290,6 +307,7 @@ end
 
 local function login(p: Player)
 	p.cash += p.pending
+	p.earned += p.pending
 	p.pending = 0
 	p.pendingCount = 0
 end
@@ -363,57 +381,11 @@ local scenarios = {
 	{ name = "Payer (2x Luck + Auto-Harvest)", passes = { Luck2x = true, AutoHarvest = true } },
 }
 
-if opts.suggest then
-	-- For each rebirth, bisect the cost until the median active time for that phase hits its target.
-	print("Rebirth cost suggestions from Config/Rebirths.lua targetPhaseMinutes\n")
-	print("rebirth   target    cost            phase (active)   Cash/min at end")
-	local suggested = {}
-	for r = 0, opts.rebirths - 1 do
-		local target = Rebirths.targetPhaseMinutes[r + 1] * 60
-		local lo, hi = 4, 18 -- log10 of cost
-		local phase, rate = 0, 0
-		for _ = 1, 16 do
-			local mid = (lo + hi) / 2
-			local times, rates = {}, {}
-			for run = 1, math.max(3, opts.runs // 4) do
-				local t, rr = playPhase(run * 7919 + r, {}, r, 10 ^ mid, target * 3)
-				table.insert(times, t)
-				table.insert(rates, rr)
-			end
-			phase, rate = median(times), median(rates)
-			if phase > target then
-				hi = mid
-			else
-				lo = mid
-			end
-		end
-		local cost = 10 ^ ((lo + hi) / 2)
-		-- Phases with no new tier come out flat; keep the table strictly rising.
-		if r > 0 then
-			cost = math.max(cost, suggested[r] * Rebirths.minCostGrowth)
-		end
-		-- round to 2 significant figures
-		local mag = 10 ^ (math.floor(math.log10(cost)) - 1)
-		cost = math.floor(cost / mag + 0.5) * mag
-		suggested[r + 1] = cost
-		print(
-			string.format(
-				"%-9d %-9s %-15s %-16s %s",
-				r + 1,
-				string.format("%dm", target / 60),
-				Format.cash(cost),
-				hours(phase),
-				Format.cash(rate)
-			)
-		)
-	end
-	print("\nPaste into Config/Rebirths.lua costs:")
-	local parts = {}
-	for _, c in suggested do
-		table.insert(parts, string.format("%.0f", c))
-	end
-	print("{ " .. table.concat(parts, ", ") .. " }")
-	return
+if opts.labCost then
+	Eggs.tiers.Lab.cost = opts.labCost
+end
+if opts.firstCost then
+	harness.require(shared .. "/Config/Rebirths").firstCost = opts.firstCost
 end
 
 print(
@@ -438,6 +410,9 @@ do
 			median(times) / 60
 		)
 	)
+	if opts.first then
+		return
+	end
 end
 
 for _, scenario in scenarios do

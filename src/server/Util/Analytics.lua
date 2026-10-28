@@ -12,7 +12,13 @@ Analytics.Funnel = {
 	FirstHarvest = 3,
 	FirstSell = 4,
 	FirstRebirth = 5, -- M4
-	FirstPurchasePrompt = 6, -- M3
+	FirstPurchasePrompt = 6,
+}
+
+-- Steps outside the onboarding funnel (they can happen in any order relative to it), each logged
+-- once per player as its own single-step funnel: name -> funnel name.
+Analytics.OtherFunnels = {
+	FirstGemEgg = "GemEggs",
 }
 
 function Analytics.funnel(player: Player, data: any, stepName: string)
@@ -21,7 +27,12 @@ function Analytics.funnel(player: Player, data: any, stepName: string)
 	end
 	data.funnel[stepName] = true
 	pcall(function()
-		AnalyticsService:LogOnboardingFunnelStepEvent(player, Analytics.Funnel[stepName], stepName)
+		local other = Analytics.OtherFunnels[stepName]
+		if other then
+			AnalyticsService:LogFunnelStepEvent(player, other, nil, 1, stepName)
+		else
+			AnalyticsService:LogOnboardingFunnelStepEvent(player, Analytics.Funnel[stepName], stepName)
+		end
 	end)
 end
 

@@ -39,6 +39,11 @@ State.zone = Value("hub")
 State.screen = Value({ width = 1280, height = 720, scale = 1 })
 -- Touch screen (phones/tablets): the thumbstick and jump button own the bottom corners.
 State.touch = Value(false)
+-- Egg Shop carousel: Cash/Gems switch (session only), focused tier (1..#Eggs.order) and the strip
+-- offset in design px (card i is centered at (i - 1) * EggShopUI.pitch).
+State.shopMode = Value("Cash")
+State.shopFocus = Value(1)
+State.shopOffset = Value(0)
 -- True while the hatch cutscene owns the camera (pens hold their update until it ends).
 State.hatching = Value(false)
 

@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Remotes = require(Shared.Remotes)
+local Eggs = require(Shared.Config.Eggs)
 local State = require(script.Parent.Parent.State)
 
 local StateController = {}
@@ -35,12 +36,15 @@ function StateController.Start()
 
 	Remotes.get("State").OnClientEvent:Connect(function(snapshot)
 		State.snapshot:set(snapshot)
-		-- Keep the selected egg valid: fall back to any egg the player owns.
+		-- Keep the selected egg valid: fall back to a Cash egg the player owns, cheapest tier first.
+		-- Never auto-select a Gem egg (bought with Gems): planting one must be the player's choice.
 		local selected = State.selectedEgg:get(false)
 		if not snapshot.eggs[selected] then
-			for eggId in snapshot.eggs do
-				State.selectedEgg:set(eggId)
-				break
+			for _, eggId in Eggs.order do
+				if snapshot.eggs[eggId] then
+					State.selectedEgg:set(eggId)
+					break
+				end
 			end
 		end
 	end)

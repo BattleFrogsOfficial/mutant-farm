@@ -53,7 +53,15 @@ local TEMPLATE: Types.Profile = {
 	grantedStarterEggs = false,
 	-- Almanac: speciesId -> { n = times hatched, first = timestamp, best = biggest size }
 	almanac = {},
-	stats = { eggsBought = 0, eggsPlanted = 0, harvested = 0, sold = 0, cashEarned = 0, waters = 0, slotsBought = 0 },
+	stats = {
+		eggsBought = 0,
+		eggsPlanted = 0,
+		harvested = 0,
+		sold = 0,
+		totalCashEarned = 0,
+		waters = 0,
+		slotsBought = 0,
+	},
 	nextItemId = 1,
 	bundleOfferEndsAt = 0,
 	bundleBought = false,
@@ -273,6 +281,12 @@ local function onPlayerAdded(player: Player)
 	end
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
+	-- Renamed stat: carry the old lifetime total over once.
+	local stats = profile.Data.stats :: any
+	if stats.cashEarned and stats.totalCashEarned == 0 then
+		stats.totalCashEarned = stats.cashEarned
+	end
+	stats.cashEarned = nil
 	-- The Starter Bundle is for new players: profiles from before it existed never get the window.
 	if profile.Data.bundleOfferEndsAt == 0 and profile.Data.grantedStarterEggs then
 		profile.Data.bundleOfferEndsAt = -1

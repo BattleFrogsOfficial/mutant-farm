@@ -467,7 +467,7 @@ local function play(h: Hatch)
 	local rank = RANK[item.rarity] or 1
 	local rarityColor = Color3.fromHex(Rarities.info[item.rarity].color)
 	local species = MutantModel.species(item)
-	local design = Eggs.tiers[item.tier].design
+	local design = Eggs.tiers[item.egg or item.tier].design
 	local snap = State.get()
 	fastHatchOn = snap ~= nil and snap.fastHatch == true
 	local fast = fastHatchOn
@@ -485,7 +485,7 @@ local function play(h: Hatch)
 	setFastLabel(fast)
 
 	-- The egg drops onto the stump while the camera settles in front of it.
-	local egg = MutantModel.buildEgg(item.tier, 1, item.mutations)
+	local egg = MutantModel.buildEgg(item.egg or item.tier, 1, item.mutations)
 	stripEffects(egg)
 	noPhysics(egg)
 	egg:PivotTo(STAGE)

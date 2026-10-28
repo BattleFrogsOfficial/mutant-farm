@@ -30,6 +30,7 @@ local GameConfig = require(Shared.Config.Game)
 local Growth = require(Shared.Growth)
 local Costs = require(Shared.Costs)
 local Products = require(Shared.Config.Products)
+local ShopRules = require(Shared.ShopRules)
 local State = require(script.Parent.Parent.State)
 local Purchase = require(script.Parent.Parent.Purchase)
 local Theme = require(script.Parent.Theme)
@@ -583,7 +584,8 @@ local function eggCard(eggId: string, count: number)
 	)
 	return New("Frame")({
 		Name = eggId,
-		LayoutOrder = table.find(Eggs.order, eggId),
+		-- Cash eggs first, then Gem eggs, each in tier order.
+		LayoutOrder = (table.find(Eggs.order, eggId) or ((table.find(Eggs.gemOrder, eggId) or 0) + 10)),
 		Size = UDim2.fromOffset(88, 104),
 		BackgroundTransparency = 1,
 		[Children] = New("Frame")({
@@ -644,13 +646,10 @@ end
 local function lockedCard()
 	local nextTier = Computed(function()
 		local snap = State.snapshot:get()
-		local rebirths = if snap then snap.rebirths else 0
-		for _, eggId in Eggs.order do
-			if Eggs.tiers[eggId].unlockRebirth > rebirths then
-				return eggId
-			end
+		if not snap then
+			return nil
 		end
-		return nil
+		return ShopRules.nextLocked(snap.rebirths, snap.stats.totalCashEarned or 0)
 	end)
 	return New("Frame")({
 		Name = "Locked",
@@ -665,7 +664,9 @@ local function lockedCard()
 			Color = Theme.colors.locked,
 			Text = "",
 			OnClick = function()
-				openPanel("rebirth")
+				-- Earnings-gated (Lab): the Egg Shop shows the progress; rebirth-gated: Rebirth panel.
+				local id = nextTier:get(false)
+				openPanel(if id and Eggs.tiers[id].unlockEarned then "shop" else "rebirth")
 			end,
 			Children = {
 				C.padlock({
@@ -688,7 +689,16 @@ local function lockedCard()
 				C.label({
 					Text = Computed(function()
 						local id = nextTier:get()
-						return if id then "REBIRTH " .. Eggs.tiers[id].unlockRebirth else ""
+						if not id then
+							return ""
+						end
+						local tier = Eggs.tiers[id]
+						if tier.unlockEarned and tier.unlockRebirth == 0 then
+							local snap = State.snapshot:get()
+							local earned = if snap then snap.stats.totalCashEarned or 0 else 0
+							return string.format("%s/%s", Format.cash(earned), Format.cash(tier.unlockEarned))
+						end
+						return "REBIRTH " .. tier.unlockRebirth
 					end),
 					Position = UDim2.new(0, 4, 0, 70),
 					Size = UDim2.new(1, -8, 0, 14),

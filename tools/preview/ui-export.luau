@@ -267,7 +267,7 @@ end
 local snapshot = {
 	serverTime = 1_800_000_000,
 	cash = 48_250,
-	gems = 0,
+	gems = 60,
 	rebirths = 0,
 	slotCount = 8,
 	cashMultiplier = 1,
@@ -285,14 +285,14 @@ local snapshot = {
 		eggsBought = 5,
 		waters = 6,
 		slotsBought = 2,
-		cashEarned = 60_000,
+		totalCashEarned = 12_400,
 	},
 	incomePerMinute = 3_400,
 	nextPayoutAt = 1_800_000_000 + 21,
 	payoutSeconds = 60,
 	totalSlots = 8,
 	ownedPasses = {},
-	rebirthCost = 800_000,
+	rebirthCost = 250_000,
 	bundleOfferEndsAt = 1_800_000_000 + 581,
 	daily = { day = 2, canClaim = true, streak = 1 },
 	potionUntil = 0,
@@ -444,7 +444,10 @@ local SCREENS = { { 1280, 720 }, { 844, 390 }, { 667, 375 }, { 800, 360 }, { 102
 local function captureHud(name)
 	for _, wh in SCREENS do
 		local w, h = wh[1], wh[2]
-		set(State.screen, { width = w, height = h - 58, scale = math.clamp(math.min(w / 900, (h - 58) / 540), 0.5, 1.4) })
+		set(
+			State.screen,
+			{ width = w, height = h - 58, scale = math.clamp(math.min(w / 900, (h - 58) / 540), 0.5, 1.4) }
+		)
 		capture(string.format("%s@%dx%d", name, w, h))
 	end
 	set(State.screen, { width = 1280, height = 720, scale = 720 / 540 })
@@ -460,8 +463,40 @@ captureHud("hud-touch")
 set(State.touch, false)
 
 set(State.toasts, {})
+-- Egg Shop carousel, per screen size: Cash mode, Gem mode (same focus and offset), and a player
+-- restricted by PolicyService (no switch, no potion). Opening focuses the best affordable egg.
 set(State.panel, "shop")
-capture("shop")
+captureHud("shop")
+set(State.shopMode, "Gems")
+captureHud("shop-gems")
+set(State.shopMode, "Cash")
+set(State.panel, "none")
+local restricted = table.clone(snapshot)
+restricted.paidRandomRestricted = true
+set(State.snapshot, restricted)
+set(State.panel, "shop")
+captureHud("shop-restricted")
+set(State.panel, "none")
+set(State.snapshot, snapshot)
+-- Mid-session unlock: crossing $25K earned while the shop is open turns Lab buyable with NEW.
+set(State.panel, "shop")
+do
+	local pitch = requireModule(game:GetService("ReplicatedStorage").Shared.Config.EggShopUI).pitch
+	local after = table.clone(snapshot)
+	after.stats = table.clone(snapshot.stats)
+	after.stats.totalCashEarned = 26_000
+	set(State.snapshot, after)
+	set(State.clock, (State.clock:get() or 0) + 1) -- past the unlock flash
+	set(State.shopFocus, 3)
+	set(State.shopOffset, 2 * pitch)
+	captureHud("shop-unlock")
+	-- Focus on the next locked tier (Lab, progress card) with a further-locked neighbor (Toxic).
+	set(State.snapshot, snapshot)
+	captureHud("shop-next")
+	set(State.snapshot, snapshot)
+	set(State.shopFocus, 2)
+	set(State.shopOffset, pitch)
+end
 set(State.panel, "sell")
 capture("sell")
 set(State.panel, "almanac")

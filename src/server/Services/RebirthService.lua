@@ -33,15 +33,27 @@ local function onRebirth(player: Player, data: Types.Profile)
 	EconomyService.resetCash(player, data, GameConfig.startingCash)
 	data.rebirths += 1
 	data.slotCount = Upgrades.slots.base
+	-- Gem eggs were bought with Gems: they survive the reset, including ones still growing.
+	local keptEggs = table.clone(GameConfig.startingEggs)
+	for eggId, count in data.eggs do
+		if Eggs.tiers[eggId] and Eggs.tiers[eggId].gemCost then
+			keptEggs[eggId] = (keptEggs[eggId] or 0) + count
+		end
+	end
+	for _, slot in data.slots do
+		if Eggs.tiers[slot.eggId] and Eggs.tiers[slot.eggId].gemCost then
+			keptEggs[slot.eggId] = (keptEggs[slot.eggId] or 0) + 1
+		end
+	end
 	data.slots = {}
 	data.upgrades = { growthSpeed = 0, mutationOdds = 0 }
-	data.eggs = table.clone(GameConfig.startingEggs)
+	data.eggs = keptEggs
 	data.wateredUntil = 0
 	Analytics.funnel(player, data, "FirstRebirth")
 
 	local unlocked = nil
 	for _, eggId in Eggs.order do
-		if Eggs.tiers[eggId].unlockRebirth == data.rebirths then
+		if Eggs.tiers[eggId].unlockRebirth == data.rebirths and not Eggs.tiers[eggId].unlockEarned then
 			unlocked = Eggs.tiers[eggId].name
 		end
 	end

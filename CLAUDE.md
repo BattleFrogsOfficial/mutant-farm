@@ -69,10 +69,13 @@ Egg tiers
 |---|---|---|---|---|---|
 | Starter | R0 | 50 | 1 min | 80 | 80 / 15 / 4.45 / 0.5 / 0.05 |
 | Swamp | R0 | 500 | 5 min | 900 | 75 / 18 / 6 / 0.93 / 0.07 |
-| Lab | R1 | 5K | 20 min | 11K | 70 / 20 / 8 / 1.9 / 0.1 |
-| Toxic | R2 | 50K | 1 hr | 130K | 65 / 22 / 10 / 2.875 / 0.125 |
-| Void | R4 | 500K | 3 hr | 1.6M | 60 / 24 / 12 / 3.8 / 0.2 |
-| Cosmic | R7 | 5M | 8 hr | 20M | 55 / 25 / 14 / 5.67 / 0.33 |
+| Lab | R0 + $25K earned | 45K | 20 min | 11K | 70 / 20 / 8 / 1.9 / 0.1 |
+| Toxic | R1 | 50K | 1 hr | 130K | 65 / 22 / 10 / 2.875 / 0.125 |
+| Void | R3 | 500K | 3 hr | 1.6M | 60 / 24 / 12 / 3.8 / 0.2 |
+| Cosmic | R6 | 5M | 8 hr | 20M | 55 / 25 / 14 / 5.67 / 0.33 |
+
+- Unlocks are checked in one place, `shared/ShopRules.lua` (server buy handler, shop UI, tray, simulator). "Earned" is `stats.totalCashEarned`: every Cash gain through `EconomyService.addCash` (sells, pen income, rewards); spending never lowers it.
+- **Gem egg variants** (`<Tier>Gem`, generated in `Eggs.lua`): same design plus a crystal overlay, same species pool, grow time and values; rarity table = base Uncommon+ weights x2 then renormalized (a separate base table, so the 2x pass and potion still apply on top under the 6x cap). Prices 15 / 40 / 120 / 300 / 800 / 2,000 Gems (x5 = 5x), same unlock gates as the base tier. Paid random items: the Gem Eggs row is hidden and `BuyEgg` refuses them when PolicyService restricts paid random items or the check hasn't succeeded. Gems sink logged as `GemEgg_<Tier>`; funnel step `FirstGemEgg`. Harvested items carry the base tier (`item.tier`) and the egg (`item.egg`). Gem eggs survive rebirth (planted ones go back to the bag).
 
 - Rarity value x1 / x3 / x10 / x40 / x250; grow time x1 / x1.25 / x1.5 / x2 / x3. Rarity is rolled **at planting**, revealed at harvest.
 - Luck multiplies Uncommon+ weights, then renormalizes to 100%. Total luck capped at 6x.
@@ -81,7 +84,7 @@ Egg tiers
 - Value = base x rarity x mutations x size x cash multiplier. Cash multiplier = (1 + 0.5 x rebirths) x (1.5 if VIP) x (1.1 if in the group).
 - Watering: one tap, whole plot, 2x for 30s; stacks with the 2x speed pass (4x).
 - Upgrades: slots 7–40 from 200 Cash, x1.5 each; Growth Speed and Mutation Odds 5 levels, +10%/level, from 2,000, x3 each. All upgrade costs x(1 + 0.5 x rebirths).
-- Rebirth costs: 800K, 20M, 90M, 140M, 530M, 1.6B, 4B, 25B, 100B, 400B, then x2 each. Rebirth (`RebirthService`) resets cash (to `startingCash`), bought slots, upgrades, eggs (back to the starter eggs) and growing plants, and clears the bag except the pen's mutants; keeps pen, passes, gems, Almanac, streak.
+- Rebirth costs: Rebirth 1 = 250K, each next x5 (1.25M, 6.25M, 31.25M, ...): `Rebirths.firstCost x costGrowth ^ rebirths`. Rebirth (`RebirthService`) resets cash (to `startingCash`), bought slots, upgrades, eggs (back to the starter eggs) and growing plants, and clears the bag except the pen's mutants; keeps pen, passes, gems, Almanac, streak.
 - Slots: `slotCount` is **bought** slots; `DataService.totalSlots` adds 10 for the PlotSlots10 pass (max 40) and is what plots/validation use. The next patch is priced by bought count (`DataService.nextSlotCost`).
 - Weather (`WeatherService`, `Config/Weather.lua`): an event every 20-30 min (first 6 min after server start); while it runs every growing egg rolls the event's `chancePerRoll` (x luck; Acid Rain 10%, Solar Flare 15%, Glitch Storm 5%) every 30 s for its mutation. Schedule replicates as Workspace attributes `WeatherNextId/NextAt/Id/EndsAt`.
 - Monetization (`Config/Passes.lua`, `Config/Products.lua`, **ids are 0 until created in Creator Hub**): passes Luck2x, AutoHarvest (server hatches + replants every growth tick, toast instead of cutscene), GrowthSpeed2x, OfflineMutations, PlotSlots10, VIP; Gem packs; Starter Bundle (offer window 10 min from first join, once).
@@ -123,7 +126,7 @@ Slot part: `Index`, `State` (owned | buy | locked), `EggId`, `Mutations` (comma 
 - Design canvas is **900x540**. The HUD ScreenGui keeps `IgnoreGuiInset = false`: everything sits **directly below Roblox's top bar**, never in its strip (the top bar changes width with chat, the menu, voice, captures and platform). Top-row panels are 36 tall so the HUD still sits high. Only the hatch cutscene's ScreenGui is full screen. Nothing of ours goes on the left side, where the chat window may be. The chat window is set to bottom-left at its smallest (`ChatWindowConfiguration` WidthScale 0.5, HeightScale 0.5, Bottom/Left) both in `default.project.json` and by `UIController` at runtime. `UIController` also publishes `State.screen` (pixel size + scale); on very narrow phones the egg tray and Next Up shift right to clear the chat. Panels stay <= 480 tall, and the HUD hides while any panel is open.
 - **Only use characters the font has.** GothamBlack has no ✕ ✓ ✔ → ≈ ◀ ▶ (they render as nothing); use plain letters/symbols (`X`, `=`, `<`, `>`) or real emoji (✅ ☢ ⚡ ...), which fall back to the emoji font.
 - Only the big primary buttons carry a **stud texture** (`Studs = true`: SHOP, HATCH, Claim, Rebirth, Welcome back, bundle R$); everything else stays flat.
-- **Fusion 0.2 gotcha:** a Computed must not read another Computed for the first time mid-update (e.g. only after the snapshot arrives): Fusion can't order a dependency it discovers late and the value stays stale (this showed "Earn $50 more" with plenty of Cash). Read `State.snapshot` directly inside such Computeds (see EggShop `locked`/`short`).
+- **Fusion 0.2 gotcha:** a Computed must not read another Computed for the first time mid-update (e.g. only after the snapshot arrives): Fusion can't order a dependency it discovers late and the value stays stale (this showed "Earn $50 more" with plenty of Cash). Read `State.snapshot` directly inside such Computeds (see EggShop `kindOfSnap`/`short`).
 - **HUD states** (`State.zone`, set by `ZoneController` from whether you stand on your own plot): each state shows only what that place needs, so the game stays visible.
   - **Always:** top-center Cash (amount + income rate on one 36 px row, thin payout bar), a Rebirth strip under it (shown from your first sale; tap: Rebirth panel) with the 👥 +10% group badge beside it, Gems with the pink +. Top-right: small Upgrades, Daily and Almanac icons (red dots), and under them the right column: weather (hub), the Starter Bundle ribbon (always, while its timer runs), bag count (plot). SHOP bottom-right, or mid-right on touch screens (`State.touch`), where the jump button owns the corner. One toast lane at the top center (y 74, 360 wide), one message at a time, queued in `State.toast`.
   - **Plot:** the egg tray (the biggest thing, 424 wide to clear the chat: eggs, the next locked tier, 2x Luck badge, HATCH, dimmed until something is ready; no countdown, each egg shows its own timer), WATER with a square drain ring above SHOP (beside it on touch screens), a one-line Next Up above the tray (`⭐ NEXT SOIL PATCH: $675 ▮▮▮▯`).
@@ -145,6 +148,7 @@ Slot part: `Index`, `State` (owned | buy | locked), `EggId`, `Mutations` (comma 
 rojo build default.project.json -o build/preview.rbxl
 lune run tools/preview/ui-export -- build/preview.rbxl build/ui.json
 node tools/preview/ui-render.mjs build/ui.json build/ui-shots build/shots/spawn-view.png
+# ONLY=shop node tools/preview/ui-render.mjs ...   screenshots only scenes starting with "shop" (checks still run on all)
 ```
 Runs the real Fusion UI headlessly (events, springs, sounds and viewports stubbed), sets mock game states (HUD, each panel, the hatch reveal), and lays each out in Chromium at desktop and phone sizes with the Roblox top bar. It also runs a **HUD overlap check** on every HUD state (hub, plot, and both again with touch controls) at 6 screen sizes (desktop, phones, tablet, 1080p), with the HUD below a 58 px top bar: every element (clipped like Roblox clips) against every other, the screen edge, the chat window both bottom-left and top-left, and, for touch states, the thumbstick and jump button, plus the items on the egg tray. HUD states are exported once per screen size (`hud…@WxH`) because some layout depends on the real screen size. Keep it at 0 issues after any UI change. Gradient text and 3D previews are approximations.
 
@@ -168,8 +172,7 @@ Builds the world and reports parts of different objects that intersect (oriented
 
 1. Change numbers in `src/shared/Config/*.lua` only.
 2. `lune run tools/test` — unit tests for the shared math.
-3. `lune run tools/sim` — pacing report (first rebirth, day each rebirth is reached for free vs payer at 1.5 active h/day).
-4. `lune run tools/sim -- --suggest` — rebirth costs that hit `Rebirths.targetPhaseMinutes`.
+3. `lune run tools/sim` — pacing report (first rebirth, day each rebirth is reached for free vs payer at 1.5 active h/day). `--first` reports only the time to Rebirth 1; `--lab-cost N` / `--first-cost N` try a Lab price or Rebirth 1 cost without editing Config.
 5. Update the tables above if anything changed.
 
 ## Before opening a PR
@@ -182,6 +185,28 @@ selene src              # needs `selene generate-roblox-std` once on a machine w
 ```
 
 Then playtest in Studio (Rojo serve + Play). There is no way to run the Roblox side headlessly; say so in the PR if it wasn't playtested.
+
+## Balance revision 2026-10-28
+
+- **Lab moved to Rebirth 0**, gated on $25,000 lifetime Cash earned (`stats.totalCashEarned`, migrated from the old `stats.cashEarned`). Toxic now Rebirth 1, Void 3, Cosmic 6. Daily Day 5 (Lab) and Day 7 (Toxic) unchanged.
+- **Rebirth cost** replaced: 250K, then x5 each (was a hand-tuned table from 800K). Still +50% additive Cash multiplier per rebirth.
+- **Lab Egg price 5K -> 45K.** Simulator (60 runs, free player, continuous active play) at the target rules: first rebirth **19 min** with Lab at 5K, below the 35-45 target. Raising the Lab price is the only allowed lever and it **plateaus at ~31 min** (45K: 31, 50K: 30, 55K: 30; above that the bot falls back to Swamp, which alone reaches 250K in ~19 min). 45K is the closest. Hitting 35-45 needs a different lever: the $25K earned gate or the Rebirth 1 cost (Rebirth 1 at 500K / 700K / 900K with Lab at 5K gave 22 / 25 / 26 min). Full report at 45K: Rebirth 1 at 0.4 h active (day 1), Rebirth 4 day 3, Rebirth 10 day 22 free / day 11 paying.
+- **Egg Shop:** next-tier progress card, NEW ribbons and Gem eggs (layout since replaced by the carousel, see below).
+- **Gem egg variants** for every tier (see the balance section), with their own Gems prices, doubled-rare odds tables and odds panels, policy-gated.
+- Tests: `tests/shop.spec.luau` (Lab unlock on earnings regardless of balance, rebirth gates, Gem odds tables, policy refusal, gating) and the rebirth cost formula in `economy.spec.luau`. 
+
+## Egg Shop carousel 2026-10-28
+
+The Egg Shop grid is replaced by a horizontal carousel (`src/client/UI/EggShop.lua`):
+
+- **Layout:** one non-looping strip, one card per tier (Starter .. Cosmic). Exactly one focused card, centered, x1.35, full opacity, with name, egg, price + x5 buttons and the odds (%) button. Neighbors are 1x behind a 60% veil and show only egg and name. Dots under the strip (filled = unlocked, gold = focused). Title row: "Egg Shop", Cash | Gems switch, Luck Potion (pink), close. On open the shop focuses the best egg the player can afford, else Starter.
+- **Navigation:** drag (follows the pointer, snaps to the nearest card in 0.2 s, no free scroll), edge arrows (hidden when there's nothing focusable that way), mouse wheel (one card per notch), Left/Right keys, Enter buys x1. Desktop edge-hover auto-scroll only when `MouseEnabled and not TouchEnabled`: outer 15% of the shop width, one card per 0.6 s at the edge slowing to 1.2 s at the zone's inner boundary, stops when the mouse leaves. No input ever settles on a further-locked card (focus moves on to the nearest focusable card in the direction of travel).
+- **Cash / Gems switch:** session only (`State.shopMode`), Cash by default. Flipping doesn't move the strip; cards morph in place (0.25 s dip): egg art swaps to the gem-crystal variant, prices change units, unlocked cards get a "2x RARITY ODDS" badge, and the odds panel shows that variant's table. Gem buy buttons pink (short on Gems: opens the Gem shop); Cash buttons green, grey when short; everything else navy. Restricted or unknown PolicyService: no switch, Cash forced, no potion button; the server refuses Gem eggs and potions (`ShopRules.canBuy` / `canBuyPotion`).
+- **Card states:** buyable (price + x5; short on x1: grey button and "Earn $X more" / "Need N more Gems", x5's shortfall shows on hover/press); next locked (full-color egg, progress card: "Lab Egg · $12.4K / $25K earned" with totalCashEarned / 25,000, or "Toxic Egg · Rebirth 1" with Cash / next rebirth cost, only when one rebirth away, else "N rebirths to go" and an empty bar; can take focus); further locked (silhouette, soft stroke, name, unlock condition, `tagline` from Eggs.lua; can't take focus). A tier unlocking mid-session flashes 0.5 s, plays the Rare jingle once, and wears NEW until the shop has been closed twice more (a visit ends when the panel goes to "none", so hopping to the Gem shop doesn't count; an unlock during a visit doesn't count that visit).
+- **Buying** never closes the shop or moves the strip; the price button pulses and the tray count updates from the snapshot. The HUD is hidden while any panel is open.
+- **Where things live:** pure carousel math (`offsetOf`, `settle`, `step`, `wheel`, `clampDrag`, `autoScroll`, `centered`) in `src/shared/Carousel.lua`; sizes, scale, opacity, tween times, edge zone and intervals in `Config/EggShopUI.lua`; prices, odds, unlocks and taglines stay in `Eggs.lua`.
+- **Checks:** `tests/carousel.spec.luau` (snap: exactly one card centered within 2 px after drag / arrow / wheel / key / auto-scroll; focus never on a further-locked card; switch keeps focus and offset; auto-scroll never on touch and gated by zone; drag, arrows and wheel each move the strip on their own; restricted player: no Gem eggs, no potion; crossing $25K turns Lab buyable). UI preview (`shop`, `shop-gems`, `shop-restricted`, `shop-unlock`, `shop-next` at all 6 screen sizes): 0 issues — no overlaps between cards, inside the focused card or in the title row; one centered card; arrows >= 44 px (80 design px; 45 px at 800x360); focused name >= 12 px (15 px Cash / 12.5 px "Swamp Gem Egg" at 800x360); Cash and Gems card rects identical; restricted shows no switch or potion; Lab buyable with NEW after crossing $25K. The preview renderer now applies UIScale about the AnchorPoint like Roblox.
+- Not playtested in Studio: drag feel, wheel notch direction, and whether Left/Right also turn the camera while the shop is open need a Studio pass.
 
 ## Milestones
 

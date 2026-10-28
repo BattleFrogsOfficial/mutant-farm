@@ -172,7 +172,8 @@ end
 -- Chunky simulator-style button: a darker lip underneath and a face that presses down into it.
 -- props: Text, Icon (emoji), Color, Size, Position, AnchorPoint, LayoutOrder, Name, ZIndex, Visible,
 --        OnClick, Disabled (state), Selected (state: gold outline), Pulse (state), MaxTextSize, Children, Silent,
---        Studs (true: stud texture; only for the big primary buttons, the rest stay flat)
+--        Studs (true: stud texture; only for the big primary buttons, the rest stay flat),
+--        OnHover (fn(bool): pointer over / pressing the button, false when it leaves)
 function Components.button(props: { [string]: any })
 	local pressed = Value(false)
 	local hovered = Value(false)
@@ -255,16 +256,25 @@ function Components.button(props: { [string]: any })
 				ZIndex = 2,
 				[OnEvent("MouseButton1Down")] = function()
 					pressed:set(true)
+					if props.OnHover then
+						props.OnHover(true)
+					end
 				end,
 				[OnEvent("MouseButton1Up")] = function()
 					pressed:set(false)
 				end,
 				[OnEvent("MouseEnter")] = function()
 					hovered:set(true)
+					if props.OnHover then
+						props.OnHover(true)
+					end
 				end,
 				[OnEvent("MouseLeave")] = function()
 					hovered:set(false)
 					pressed:set(false)
+					if props.OnHover then
+						props.OnHover(false)
+					end
 				end,
 				[OnEvent("Activated")] = function()
 					if isDisabled() then
@@ -470,7 +480,17 @@ end
 -- Centered modal panel: accent header bar with the title, square close button, hard shadow.
 -- Pops in when opened. (Root draws the dim backdrop behind open panels.)
 function Components.panel(
-	props: { Title: any, IsOpen: any, OnClose: () -> (), Size: UDim2?, Content: any, Accent: Color3? }
+	props: {
+		Title: any,
+		IsOpen: any,
+		OnClose: () -> (),
+		Size: UDim2?,
+		Content: any,
+		Accent: Color3?,
+		Header: any?, -- extra controls in the title row (they sit right of the title)
+		TitleWidth: number?, -- title label width when Header is used
+		ContentTop: number?, -- y of the content area (default 72)
+	}
 )
 	local accent = props.Accent or Theme.colors.purple
 	local scale = Spring(
@@ -520,9 +540,12 @@ function Components.panel(
 						Size = UDim2.new(1, 0, 0, 6),
 						ZIndex = 3,
 					}),
+					props.Header,
 					Components.label({
 						Text = props.Title,
-						Size = UDim2.new(1, -110, 0, 36),
+						Size = if props.TitleWidth
+							then UDim2.fromOffset(props.TitleWidth, 36)
+							else UDim2.new(1, -110, 0, 36),
 						Position = UDim2.fromOffset(20, 9),
 						TextXAlignment = Enum.TextXAlignment.Left,
 						MaxTextSize = 30,
@@ -544,8 +567,8 @@ function Components.panel(
 			New("Frame")({
 				Name = "Content",
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(16, 72),
-				Size = UDim2.new(1, -32, 1, -88),
+				Position = UDim2.fromOffset(16, props.ContentTop or 72),
+				Size = UDim2.new(1, -32, 1, -(props.ContentTop or 72) - 16),
 				ZIndex = 3,
 				[Children] = props.Content,
 			}),

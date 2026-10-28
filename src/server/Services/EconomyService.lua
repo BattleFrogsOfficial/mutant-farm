@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Eggs = require(Shared.Config.Eggs)
 local Valuation = require(Shared.Valuation)
+local ShopRules = require(Shared.ShopRules)
 local Format = require(Shared.Format)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
@@ -42,8 +43,13 @@ function EconomyService.addCash(
 		return false
 	end
 	amount = math.floor(amount)
+	local lockedBefore = ShopRules.nextLocked(data.rebirths, data.stats.totalCashEarned)
 	data.cash += amount
-	data.stats.cashEarned += amount
+	data.stats.totalCashEarned += amount
+	-- An earnings-gated tier (Lab) unlocking right now.
+	if lockedBefore and ShopRules.isUnlocked(lockedBefore, data.rebirths, data.stats.totalCashEarned) then
+		Net.notify(player, "🥚 " .. Eggs.tiers[lockedBefore].name .. " unlocked at the Egg Shop!", "success")
+	end
 	Analytics.economy(player, "Source", "Cash", amount, data.cash, transactionType, sku)
 	DataService.changed(player)
 	return true
@@ -134,12 +140,30 @@ local function onBuyEgg(player: Player, data: Types.Profile, eggId: any, quantit
 		return
 	end
 	local tier = Eggs.tiers[eggId]
-	if not tier or tier.unlockRebirth > data.rebirths then
+	-- One rule set with the shop UI: unlocks, Cash vs Gems, and the paid-random-item policy
+	-- (Gem eggs are refused when PolicyService restricts them or the check hasn't succeeded).
+	local ok, reason = ShopRules.canBuy(eggId, quantity, {
+		rebirths = data.rebirths,
+		totalCashEarned = data.stats.totalCashEarned,
+		cash = data.cash,
+		gems = data.gems,
+		paidRandomRestricted = DataService.paidRandomRestricted[player] ~= false,
+	})
+	if not ok then
+		if reason == "funds" then
+			Net.notify(player, "Not enough " .. (ShopRules.price(eggId, quantity)), "info")
+		elseif reason == "restricted" then
+			Net.notify(player, "Gem eggs aren't available in your region", "info")
+		end
 		return
 	end
-	local cost = tier.cost * quantity
-	if not EconomyService.spendCash(player, data, cost, "Shop", "Egg_" .. eggId) then
-		Net.notify(player, "Not enough Cash", "error")
+	local currency, amount = ShopRules.price(eggId, quantity)
+	if currency == "Gems" then
+		if not EconomyService.spendGems(player, data, amount, "Shop", "GemEgg_" .. Eggs.baseOf(eggId)) then
+			return
+		end
+		Analytics.funnel(player, data, "FirstGemEgg")
+	elseif not EconomyService.spendCash(player, data, amount, "Shop", "Egg_" .. eggId) then
 		return
 	end
 	data.eggs[eggId] = (data.eggs[eggId] or 0) + quantity

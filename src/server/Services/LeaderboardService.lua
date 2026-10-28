@@ -61,7 +61,7 @@ end
 local function save(player: Player, data: Types.Profile)
 	if store then
 		-- OrderedDataStore holds integers; cap at 2^53 so huge late-game totals don't error.
-		local value = math.floor(math.min(data.stats.cashEarned, 2 ^ 53))
+		local value = math.floor(math.min(data.stats.totalCashEarned, 2 ^ 53))
 		pcall(function()
 			(store :: OrderedDataStore):SetAsync(tostring(player.UserId), value)
 		end)
@@ -107,10 +107,10 @@ function LeaderboardService.Start()
 	DataService.Changed:Connect(updateStats)
 	-- Release hooks run synchronously before the profile is released: don't yield there.
 	DataService.onRelease(function(player, data)
-		local earned = data.stats.cashEarned
+		local earned = data.stats.totalCashEarned
 		pending += 1
 		task.spawn(function()
-			save(player, { stats = { cashEarned = earned } } :: any)
+			save(player, { stats = { totalCashEarned = earned } } :: any)
 			pending -= 1
 		end)
 	end)

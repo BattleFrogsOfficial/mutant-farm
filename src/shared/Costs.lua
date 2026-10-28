@@ -37,14 +37,9 @@ function Costs.skip(secondsLeft: number, costPer10Minutes: number): number
 	return math.ceil(secondsLeft / 600) * costPer10Minutes
 end
 
--- Cash needed to perform rebirth number `rebirths + 1`.
+-- Cash needed to perform rebirth number `rebirths + 1`: firstCost x costGrowth ^ rebirths.
 function Costs.rebirth(rebirths: number): number
-	local n = rebirths + 1
-	local costs = Rebirths.costs
-	if n <= #costs then
-		return costs[n]
-	end
-	return costs[#costs] * Rebirths.costGrowthAfterTable ^ (n - #costs)
+	return Rebirths.firstCost * Rebirths.costGrowth ^ rebirths
 end
 
 return Costs

@@ -23,6 +23,7 @@ export type Item = {
 	mutations: { string },
 	size: number,
 	harvestedAt: number,
+	egg: string?, -- the egg it hatched from (a Gem variant's id; tier is always the base tier)
 }
 
 export type AlmanacEntry = { n: number, first: number, best: number }
@@ -52,7 +53,7 @@ export type Profile = {
 		eggsPlanted: number,
 		harvested: number,
 		sold: number,
-		cashEarned: number,
+		totalCashEarned: number, -- lifetime Cash earned (every source); never reduced by spending
 		waters: number,
 		slotsBought: number,
 	},

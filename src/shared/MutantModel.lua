@@ -589,7 +589,7 @@ function MutantModel.buildEgg(eggId: string, progress: number, mutations: { stri
 	local tier = Eggs.tiers[eggId]
 	local design = tier.design
 	local set = mutationSet(mutations)
-	local s = (0.6 + 0.4 * math.clamp(progress, 0, 1)) * (Sizes.visual.tierScale[eggId] ^ 0.5)
+	local s = (0.6 + 0.4 * math.clamp(progress, 0, 1)) * (Sizes.visual.tierScale[Eggs.baseOf(eggId)] ^ 0.5)
 
 	local model = Instance.new("Model")
 	model.Name = "Egg"
@@ -708,6 +708,30 @@ function MutantModel.buildEgg(eggId: string, progress: number, mutations: { stri
 			).Material =
 				Enum.Material.Neon
 		end
+	end
+	if design.gem then
+		-- Gem variant: a band of faceted cyan crystals around the middle and one crowning the top.
+		local gemColor = Color3.fromHex("#4FD8FF")
+		for i = 0, 5 do
+			local crystal = newPart(
+				model,
+				"Gem",
+				Vector3.new(0.34, 0.34, 0.34) * s,
+				onShell(i / 6 * math.pi * 2, 1.25) * CFrame.Angles(math.rad(45), 0, math.rad(45)),
+				gemColor
+			)
+			crystal.Material = Enum.Material.Glass
+			crystal.Reflectance = 0.25
+		end
+		local crown = newPart(
+			model,
+			"GemCrown",
+			Vector3.new(0.42, 0.42, 0.42) * s,
+			CFrame.new(0, 2.32 * s, 0) * CFrame.Angles(math.rad(45), 0, math.rad(45)),
+			gemColor
+		)
+		crown.Material = Enum.Material.Glass
+		crown.Reflectance = 0.25
 	end
 	addEffects(model, lower, set, s)
 	return model
