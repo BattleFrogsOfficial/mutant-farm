@@ -321,6 +321,8 @@ window.checkShop = (W, H) => {
     labBuy: vis(strip.querySelector('[title="Lab"] [title="BuyRow"]')),
     labNew: vis(strip.querySelector('[title="Lab"] [title="New"]')),
     arrows: ["ArrowLeft", "ArrowRight"].filter((n) => vis(panel.querySelector(\`[title="\${n}"]\`))),
+    // Cards showing the "2x RARITY ODDS" badge (Gem mode: only the focused card).
+    gemBadges: cards.filter((c) => vis(c.querySelector('[title="GemBadge"]'))).map((c) => c.title),
   };
 };
 
@@ -448,6 +450,9 @@ for (const [sceneName, index] of shopScenes) {
   if (kind === "shop-restricted" && (r.switchVisible || r.potionVisible)) problems.push("restricted player sees the Gems switch or the Luck Potion");
   if (kind !== "shop-restricted" && !r.switchVisible) problems.push("switch missing");
   if (kind === "shop-unlock" && !(r.labBuy && r.labNew)) problems.push("Lab isn't buyable with NEW after crossing $25K");
+  // Side cards show only egg art and name: the Gem badge is on the focused card alone, in Gem mode.
+  if (kind === "shop-gems" && !(r.gemBadges.length === 1 && r.gemBadges[0] === r.focused)) problems.push(`Gem badge on ${r.gemBadges.join("+") || "no card"} (want only the focused ${r.focused})`);
+  if (kind !== "shop-gems" && r.gemBadges.length > 0) problems.push(`Gem badge in Cash mode on ${r.gemBadges.join("+")}`);
   if (r.font < 12) problems.push(`focused name only ${r.font.toFixed(1)}px`);
   shopChecked++;
   for (const p of problems) console.log(`[shop] ${sceneName}: ${p}`);

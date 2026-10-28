@@ -51,13 +51,13 @@ return function(t)
 			t.eq(Costs.upgrade("growthSpeed", 1, 0), 6000)
 			t.eq(Costs.upgrade("mutationOdds", 5, 0), nil)
 		end,
-		["rebirth 1 costs 250K, rebirth N = 250K x 5^(N-1)"] = function()
+		["rebirth 1 costs 700K, rebirth N = 700K x 4.5^(N-1)"] = function()
 			t.eq(Costs.rebirth(0), 700_000)
-			t.eq(Costs.rebirth(1), 3_500_000)
-			t.eq(Costs.rebirth(2), 17_500_000)
-			t.eq(Costs.rebirth(3), 87_500_000)
+			t.eq(Costs.rebirth(1), 3_150_000)
+			t.eq(Costs.rebirth(2), 14_175_000)
+			t.eq(Costs.rebirth(3), 63_787_500)
 			for n = 1, 12 do
-				t.eq(Costs.rebirth(n - 1), 700_000 * 5 ^ (n - 1))
+				t.near(Costs.rebirth(n - 1), 700_000 * 4.5 ^ (n - 1), 1)
 			end
 		end,
 		["rebirth costs rise every time"] = function()

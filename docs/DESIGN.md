@@ -4,6 +4,11 @@ Design doc. Source of truth for intent and balance targets; synced from the Clau
 
 **Reconciliation (2026-10-28).** The code was brought in line with this doc, and the agreed rule changes were written back here: pen income at 0.05% / 0.01% per minute of base value x the rebirth multiplier, with no offline cap; rebirth sells the bag (outside the pen) first; offline Auto-Harvest catch-up; VIP chat tag and daily Gems (VIP egg stays M5); weather at 120 s with 25 / 30 / 10% per tick, Glitch Storm 1 in 6 and a 5-minute countdown chip; Top Pens and Top Rebirths boards with the viewer's own rank; pins; a server-wide sparkle for every Robux purchase plus chat lines for VIP and the Starter Bundle; the group offer at first sell; the Rebirth Altar; a Studio warning for unlinked product IDs. Still different from this doc and not part of the reconciliation: the daily streak pays eggs and Cash rather than Gems on days 1–6, and the Starter Bundle grants 550 Gems instead of 500 Gems + 2 Luck Potions.
 
+**Rule changes (dated; every rule change lands here and in CLAUDE.md in the same commit).**
+
+- 2026-10-28 — Rebirth costs grow x4.5 per rebirth after the 700K first one (was x5): simulator puts free Rebirth 10 at day 23 and paying at day 11.
+- 2026-10-28 — Egg Shop side cards show only the egg art and name; the Gem-mode "2x RARITY ODDS" badge is on the focused card only.
+
 ## The pitch
 
 **Mutant Farm** is a grow-and-mutate idle simulator: you plant mutant eggs on your plot, they grow in real time (even while you're offline), random mutations multiply their value, and you sell them for cash to buy rarer eggs, bigger plots, and rebirths. The game is designed around one principle: every system either brings players back or gives them a reason to spend.
@@ -67,7 +72,7 @@ Sell values are the Common outcome; rarity multiplies them (Uncommon x3, Rare x1
 - First Rare hatch: within 5 minutes of first play (scripted: the second egg is guaranteed Rare).
 - First rebirth: 35–45 minutes of active play on day one.
 - Rebirth 3 (Void tier): day 3–4 for a free player, day 1 for a player with 2x Luck + Auto-Harvest.
-- Rebirth 10: about 3 weeks free, 1 week paying. Rebirth 1 costs 700,000 Cash with Lab at $5,000, which the simulator puts at about 25 minutes for a perfect player and real players at roughly 33–40 — the target, because the first rebirth is the tutorial for the whole meta. The Lab price is never the tuning lever (above \~$30K players skip it). From Rebirth 2 on, each costs 5x the previous (3.5M, 17.5M, …) under the rule that it takes about 90 minutes of active earnings at full slots on the best tier that rebirth has unlocked; the M1 simulator sets the final table. Each rebirth adds a permanent +50% Cash multiplier, additive (Rebirth 4 = 3x, Rebirth 10 = 6x).
+- Rebirth 10: about 3 weeks free, 1 week paying. Rebirth 1 costs 700,000 Cash with Lab at $5,000, which the simulator puts at about 25 minutes for a perfect player and real players at roughly 33–40 — the target, because the first rebirth is the tutorial for the whole meta. The Lab price is never the tuning lever (above \~$30K players skip it). From Rebirth 2 on, each costs 4.5x the previous (3.15M, 14.2M, …; was 5x until 2026-10-28, see the notes at the top) under the rule that it takes about 90 minutes of active earnings at full slots on the best tier that rebirth has unlocked; the M1 simulator sets the final table. Each rebirth adds a permanent +50% Cash multiplier, additive (Rebirth 4 = 3x, Rebirth 10 = 6x).
 
 **Where the friction lives.** Friction is placed only where a product removes it: slots fill up (buy slots), growth is slow (buy speed), Legendaries are rare (buy luck), and you are away from the keyboard (buy auto-harvest and offline bonus). Nothing else should ever feel slow.
 

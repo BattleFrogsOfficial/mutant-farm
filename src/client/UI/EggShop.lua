@@ -3,7 +3,7 @@
 -- the center is focused: full size, full opacity, with name, egg, price buttons and odds (%).
 -- Cards shrink and fade continuously with their distance from the center (sideScale and the
 -- neighbor veil one pitch away), so the strip glides instead of jumping between fixed states.
--- Neighbors show only the egg and name.
+-- Neighbors show only the egg and name (no price, odds or Gem badge).
 --
 -- Card states (same in Cash and Gems mode):
 --   buyable        price button + x5; can't afford: grey button and "Earn $X more" / "Need N more
@@ -556,7 +556,7 @@ local function card(i: number)
 					}),
 				},
 			}),
-			-- Gem mode: "2x RARITY ODDS" on every unlocked card.
+			-- Gem mode: "2x RARITY ODDS" on the focused card only (side cards show egg and name).
 			New("Frame")({
 				Name = "GemBadge",
 				Position = UDim2.fromOffset(8, 8),
@@ -564,7 +564,8 @@ local function card(i: number)
 				BackgroundColor3 = PINK,
 				BorderSizePixel = 0,
 				Visible = Computed(function()
-					return mode:get() == "Gems" and kind:get() == "buyable"
+					local m, n, k = mode:get(), near:get(), kind:get()
+					return m == "Gems" and n and k == "buyable"
 				end),
 				ZIndex = 13,
 				[Children] = C.label({
