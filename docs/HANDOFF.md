@@ -4,7 +4,7 @@ Read `CLAUDE.md` first (rules, conventions, balance tables, commands). This file
 session needs on top of it: what changed in the last session, what has never run in Studio, what is
 still undecided, and what to do next, in order.
 
-Repo state: local git only, **no remote configured** (nothing has been pushed anywhere). The place
+Repo: https://github.com/BattleFrogsOfficial/mutant-farm (branch `main`). The place
 file is built with `rojo build default.project.json -o MutantFarm.rbxl`.
 
 ## What was done this session
@@ -85,12 +85,12 @@ None of this has been exercised in a real Roblox client; the headless preview on
    reproduced headlessly. Click every part of the open shop (card faces, side cards, title row,
    empty panel space, dots) and confirm only the X and the backdrop close it. Also check other
    panels still work with the Blocker.
-2. **Drag feel:** 1:1 follow, flick distance (`EggShopUI.flickSeconds` 0.12), tap slop (8 px),
+1. **Drag feel:** 1:1 follow, flick distance (`EggShopUI.flickSeconds` 0.12), tap slop (8 px),
    overshoot at the ends (0.35 cards). Does `InputBegan` on the Strip fire when the press starts on
    a card or a buy button? (Tap-to-focus and drag rely on it.)
-3. **Wheel direction:** `Carousel.wheel` treats `Position.Z > 0` (wheel up) as left. Confirm it feels
+2. **Wheel direction:** `Carousel.wheel` treats `Position.Z > 0` (wheel up) as left. Confirm it feels
    right, and that the wheel no longer zooms the camera while the shop is open.
-4. **Left/Right camera sink:** with the shop open, Left/Right must step the carousel and must not
+3. **Left/Right camera sink:** with the shop open, Left/Right must step the carousel and must not
    turn the camera; Enter buys x1. After closing, arrow keys and the wheel behave normally again
    (unbind).
 5. Edge-hover auto-scroll: only on mouse devices, only on the strip's outer edges, pauses after a
@@ -114,24 +114,21 @@ None of this has been exercised in a real Roblox client; the headless preview on
 - **Gem badge on side cards:** the "2x RARITY ODDS" badge also shows (tiny) on unlocked side cards,
   per the spec ("on unlocked cards"); the spec also says side cards show only egg and name. Pick one.
 - All pass/product ids and `Game.groupId` are 0 until created in Creator Hub.
-- Git hosting: no remote yet; decide where the repo lives.
 
 ## Next tasks, in order
 
-1. **Push the repo.** Create a GitHub repo, `git remote add origin <url>`, `git push -u origin
-   <branch>` (the cloud session needs GitHub connected at claude.ai/connect-github).
 2. **Studio pass on the Egg Shop** (items 1-6 above). Fix anything found; tune feel only through
    `Config/EggShopUI.lua`.
 3. **Studio pass on the economy** (items 7-9): time a real first rebirth; record it in CLAUDE.md
    next to the sim number.
 4. **Decide the rebirth tail** (x5 vs ~x4.45); if it changes, re-run
    `lune run tools/sim -- --runs 60` and update the table in CLAUDE.md.
-5. **Creator Hub setup:** create the game passes, the Gem pack developer products, the Starter
+4. **Creator Hub setup:** create the game passes, the Gem pack developer products, the Starter
    Bundle and the group; fill the ids in `Config/Passes.lua`, `Config/Products.lua` and
    `Config/Game.lua` (`groupId`); test purchases in Studio. (Luck Potion and Skip Timer are paid in
    Gems, so they need no ids.)
-6. **M2 remaining:** player-chosen "Keep in pen"; final sounds in `Config/Assets.lua`.
-7. **M5 / week-6 list:** limited egg, Instant Weather + Rebirth Now, weather announce + Discord
+5. **M2 remaining:** player-chosen "Keep in pen"; final sounds in `Config/Assets.lua`.
+6. **M5 / week-6 list:** limited egg, Instant Weather + Rebirth Now, weather announce + Discord
    relay (Cloudflare Worker), first-session phone check. Egg skins stay v1.5.
 
 Keep the rules in CLAUDE.md: server-authoritative intents, numbers only in Config, pink only for
