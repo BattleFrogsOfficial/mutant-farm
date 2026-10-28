@@ -110,7 +110,12 @@ local PATCHES = {
 		{ "local ok, event = pcall(getProperty_unsafe, applyTo, eventName)", "do return end\n\t\tlocal ok, event" },
 	},
 	-- Springs never tick headlessly; snap them to their goal so screenshots show final values.
-	Fusion = { { "Spring = require(script.Animation.Spring),", "Spring = function(goal) goal.setPosition = goal.setPosition or function() end; return goal end," } },
+	Fusion = {
+		{
+			"Spring = require(script.Animation.Spring),",
+			"Spring = function(goal) goal.setPosition = goal.setPosition or function() end; return goal end,",
+		},
+	},
 	-- Roblox no-ops Parent = nil on a destroyed instance; Lune errors.
 	Children = { { "oldInstance.Parent = nil", "pcall(function() oldInstance.Parent = nil end)" } },
 	OnChange = {
@@ -283,6 +288,8 @@ local snapshot = {
 		cashEarned = 60_000,
 	},
 	incomePerMinute = 3_400,
+	nextPayoutAt = 1_800_000_000 + 21,
+	payoutSeconds = 60,
 }
 
 local almanac = {}
@@ -425,7 +432,7 @@ set(State.panel, "almanac")
 capture("almanac")
 set(State.panel, "daily")
 capture("daily")
-set(State.welcome, { away = 3 * 3600 + 720, ready = 6, mutations = 4, capped = true })
+set(State.welcome, { away = 3 * 3600 + 720, ready = 6, mutations = 4, capped = true, earned = 128_400 })
 set(State.panel, "welcome")
 capture("welcome")
 set(State.panel, "none")

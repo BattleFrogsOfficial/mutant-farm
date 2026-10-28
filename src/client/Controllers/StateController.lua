@@ -24,6 +24,10 @@ function StateController.Start()
 		end
 	end)
 
+	Remotes.get("Payout").OnClientEvent:Connect(function(amount)
+		State.lastPayout:set({ amount = amount, at = State.clock:get(false) })
+	end)
+
 	Remotes.get("WelcomeBack").OnClientEvent:Connect(function(info)
 		State.welcome:set(info)
 		State.panel:set("welcome")

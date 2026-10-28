@@ -13,7 +13,6 @@ local Upgrades = require(Shared.Config.Upgrades)
 local Growth = require(Shared.Growth)
 local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
-local Expected = require(Shared.Expected)
 local Streak = require(Shared.Streak)
 local Daily = require(Shared.Config.Daily)
 local Signal = require(Shared.Signal)
@@ -87,19 +86,39 @@ function DataService.cashMultiplier(data: Types.Profile): number
 	return Valuation.cashMultiplier(data.rebirths, data.ownedPasses.VIP == true)
 end
 
--- Expected Cash per minute from everything growing right now (unwatered speed).
-function DataService.incomePerMinute(data: Types.Profile): number
-	local speed = DataService.speed(data)
-	local mult = DataService.cashMultiplier(data)
-	local luck = if data.ownedPasses.Luck2x then 2 else 1
-	local oddsBonus = Upgrades.mutationOdds.bonusPerLevel * data.upgrades.mutationOdds
-	local total = 0
-	for _, slot in data.slots do
-		local value = Expected.egg(slot.eggId, luck, oddsBonus, slot.rarity)
-		total += value * mult / (Growth.requiredSeconds(slot.eggId, slot.rarity) / speed) * 60
+-- The mutants standing in the pen: the owner's most valuable bag items, up to penDisplayCount.
+-- Stable order (ties broken by id) so the pen doesn't reshuffle.
+function DataService.penItems(data: Types.Profile): { Types.Item }
+	local items = {}
+	for _, item in data.inventory do
+		table.insert(items, item)
 	end
-	return total
+	table.sort(items, function(a, b)
+		local va, vb = Valuation.sellValue(a, 1), Valuation.sellValue(b, 1)
+		if va ~= vb then
+			return va > vb
+		end
+		return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
+	end)
+	local out = {}
+	for i = 1, math.min(#items, GameConfig.penDisplayCount) do
+		out[i] = items[i]
+	end
+	return out
 end
+
+-- Cash the pen pays every minute while you're online.
+function DataService.incomePerMinute(data: Types.Profile): number
+	local mult = DataService.cashMultiplier(data)
+	local total = 0
+	for _, item in DataService.penItems(data) do
+		total += Valuation.penIncome(item, mult, GameConfig.penIncomePerMinute)
+	end
+	return math.floor(total)
+end
+
+-- Server time of each online player's next pen payout (not saved; restarts on join).
+DataService.nextPayoutAt = {} :: { [Player]: number }
 
 -- Daily streak status for the HUD: the day you'd claim next and whether it's claimable now.
 function DataService.dailyStatus(data: Types.Profile): { day: number, canClaim: boolean, streak: number }
@@ -111,7 +130,7 @@ end
 
 -- What the owning client is allowed to see. Rarity isn't sent, but `required` scales with rarity,
 -- so an accurate timer implies it (a deliberate trade-off: "this one's taking longer...").
-local function snapshot(data: Types.Profile): Types.Snapshot
+local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 	local slots = {}
 	for key, slot in data.slots do
 		slots[key] = {
@@ -138,6 +157,8 @@ local function snapshot(data: Types.Profile): Types.Snapshot
 		nextSlotCost = Costs.slot(data.slotCount + 1, data.rebirths),
 		stats = data.stats,
 		incomePerMinute = DataService.incomePerMinute(data),
+		nextPayoutAt = DataService.nextPayoutAt[player] or 0,
+		payoutSeconds = GameConfig.payoutSeconds,
 		daily = DataService.dailyStatus(data),
 	}
 end
@@ -237,7 +258,7 @@ function DataService.Start()
 			dirty[player] = nil
 			local data = DataService.get(player)
 			if data then
-				state:FireClient(player, snapshot(data))
+				state:FireClient(player, snapshot(player, data))
 				DataService.Changed:Fire(player, data)
 			end
 		end

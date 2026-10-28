@@ -21,6 +21,11 @@ return function(t)
 			t.eq(Valuation.cashMultiplier(10, false), 6)
 			t.eq(Valuation.cashMultiplier(4, true), 4.5)
 		end,
+		["pen income: 2% of base value x size per minute, mutations ignored"] = function()
+			local m = { tier = "Toxic", rarity = "Rare", mutations = { "Golden" }, size = 1.5 }
+			-- base 130K x Rare 10 = 1.3M; x1.5 size x 2% = 39K; x2 cash multiplier
+			t.near(Valuation.penIncome(m, 2, 0.02), 78_000, 1e-6)
+		end,
 		["slot costs start at 200 and grow 1.5x"] = function()
 			t.eq(Costs.slot(6, 0), nil)
 			t.eq(Costs.slot(7, 0), 200)

@@ -67,6 +67,20 @@ local function coin(size: number)
 	})
 end
 
+-- 0..1 progress toward the next pen payout, smooth (driven by the UI clock).
+local payoutProgress = Computed(function()
+	State.clock:get()
+	local snap = State.snapshot:get()
+	if not snap or not snap.nextPayoutAt or snap.nextPayoutAt <= 0 then
+		return 0
+	end
+	local left = snap.nextPayoutAt - workspace:GetServerTimeNow()
+	return math.clamp(1 - left / (snap.payoutSeconds or 60), 0, 1)
+end)
+local payoutFlash = Computed(function()
+	return State.clock:get() - State.lastPayout:get().at < 0.7
+end)
+
 local function cashPill()
 	-- The number rolls up/down instead of jumping, and the pill bumps when it goes up.
 	local rolling = Spring(State.cash, 12, 1)
@@ -94,16 +108,51 @@ local function cashPill()
 			}),
 			coin(44),
 			C.label({
-				Size = UDim2.new(1, -70, 1, -12),
-				Position = UDim2.fromOffset(58, 6),
+				Size = UDim2.new(1, -70, 1, -20),
+				Position = UDim2.fromOffset(58, 5),
 				TextColor3 = Theme.colors.toxic,
 				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 38,
+				MaxTextSize = 36,
 				StrokeThickness = 3,
 				ZIndex = 2,
 				Text = Computed(function()
 					return Format.cash(math.floor(rolling:get() + 0.5))
 				end),
+			}),
+			-- Fills up toward the next pen payout, flashes gold when it pays.
+			New("Frame")({
+				Name = "PayoutBar",
+				Position = UDim2.new(0, 58, 1, -14),
+				Size = UDim2.new(1, -76, 0, 8),
+				BackgroundColor3 = Theme.colors.slate,
+				Visible = Computed(function()
+					local snap = State.snapshot:get()
+					return snap ~= nil and (snap.incomePerMinute or 0) > 0
+				end),
+				ZIndex = 2,
+				[Children] = {
+					C.round(),
+					New("Frame")({
+						Name = "Fill",
+						BackgroundColor3 = Color3.new(1, 1, 1),
+						Size = Computed(function()
+							return UDim2.fromScale(math.max(payoutProgress:get(), 0.03), 1)
+						end),
+						ZIndex = 3,
+						[Children] = {
+							C.round(),
+							New("UIGradient")({
+								Rotation = 90,
+								Color = Computed(function()
+									if payoutFlash:get() then
+										return ColorSequence.new(Color3.fromHex("#FFF3A8"), Theme.colors.gold)
+									end
+									return ColorSequence.new(Color3.fromHex("#B8FF8A"), Theme.colors.toxicDark)
+								end),
+							}),
+						},
+					}),
+				},
 			}),
 		},
 	})
@@ -122,8 +171,11 @@ local function cashPill()
 		task.delay(0.08, function()
 			bump:set(0)
 		end)
+		-- Pen payouts get a paw so players learn where that money came from.
+		local payout = State.lastPayout:get(false)
+		local fromPen = payout.amount == gained and State.clock:get(false) - payout.at < 1.5
 		local pop = C.label({
-			Text = "+" .. Format.cash(gained),
+			Text = "+" .. Format.cash(gained) .. (if fromPen then " 🐾" else ""),
 			TextColor3 = Theme.colors.gold,
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0.5, 0, 1, 18),
@@ -150,27 +202,37 @@ local function cashPill()
 end
 
 local function incomeChip()
+	local income = Computed(function()
+		local snap = State.snapshot:get()
+		return if snap then snap.incomePerMinute or 0 else 0
+	end)
 	return New("Frame")({
 		Name = "Income",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, -72, 0, 70),
-		Size = UDim2.fromOffset(176, 26),
+		Size = UDim2.fromOffset(236, 26),
 		BackgroundColor3 = Theme.colors.slate,
 		BackgroundTransparency = 0.15,
 		Visible = Computed(function()
-			local snap = State.snapshot:get()
-			return snap ~= nil and (snap.incomePerMinute or 0) > 0
+			return State.snapshot:get() ~= nil
 		end),
 		[Children] = {
 			C.round(),
 			C.label({
 				Size = UDim2.new(1, -16, 1, -4),
 				Position = UDim2.fromOffset(8, 2),
-				TextColor3 = Theme.colors.toxic,
+				TextColor3 = Computed(function()
+					return if income:get() > 0 then Theme.colors.toxic else Theme.colors.cream
+				end),
 				MaxTextSize = 18,
 				Text = Computed(function()
-					local snap = State.snapshot:get()
-					return "▲ " .. Format.cash(if snap then snap.incomePerMinute or 0 else 0) .. " / min"
+					if income:get() <= 0 then
+						return "🐾 Keep mutants to earn per minute"
+					end
+					State.now:get() -- tick the countdown
+					local snap = State.snapshot:get(false)
+					local left = if snap then math.max(0, snap.nextPayoutAt - workspace:GetServerTimeNow()) else 0
+					return string.format("🐾 %s / min  ·  %s", Format.cash(income:get()), Format.duration(left))
 				end),
 			}),
 		},

@@ -18,9 +18,11 @@ State.selectedEgg = Value("Starter")
 -- Seconds since start, ticked ~30x/s; drives pulses and glows.
 State.clock = Value(0)
 -- "Welcome back" summary from the server: { away, ready, mutations, capped } or nil.
-State.welcome = Value(nil :: { away: number, ready: number, mutations: number, capped: boolean }?)
+State.welcome = Value(nil :: { away: number, ready: number, mutations: number, capped: boolean, earned: number? }?)
 -- How many Almanac species the player had seen when they last opened it (for the NEW dot).
 State.almanacSeen = Value(-1)
+-- Last pen payout from the server: amount and client clock time it arrived (for the flash/pop).
+State.lastPayout = Value({ amount = 0, at = -10 })
 State.panel = Value("none") -- "none" | "shop" | "sell" | "almanac" | "daily" | "welcome"
 State.toasts = Value({} :: { { id: number, text: string, kind: string } })
 -- "Next up" panel: { text, progress?, ui? } where ui names a HUD button to pulse.

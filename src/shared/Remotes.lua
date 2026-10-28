@@ -26,6 +26,7 @@ Remotes.ServerToClient = {
 	"Notify", -- (message: string, kind: "info" | "error" | "success")
 	"Harvested", -- (item: Types.Item, valueNow: number, slotIndex: number, isNewSpecies: boolean)
 	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string)
+	"Payout", -- (amount: number) pen income just paid
 	"WelcomeBack", -- ({ away: number, ready: number, mutations: number })
 	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
 }

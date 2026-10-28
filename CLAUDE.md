@@ -77,7 +77,7 @@ Egg tiers
 - Watering: one tap, whole plot, 2x for 30s; stacks with the 2x speed pass (4x).
 - Upgrades: slots 7–40 from 200 Cash, x1.5 each; Growth Speed and Mutation Odds 5 levels, +10%/level, from 2,000, x3 each. All upgrade costs x(1 + 0.5 x rebirths).
 - Rebirth costs: 800K, 20M, 90M, 140M, 530M, 1.6B, 4B, 25B, 100B, 400B, then x2 each. Rebirth resets cash (to `startingCash`), slots, upgrades, eggs and growing plants after auto-selling the inventory; keeps pen, passes, gems, streak.
-- Pen income: 0.05%/min online, 0.01%/min offline of base value (tier x rarity), x rebirth multiplier. Pen starts at 8 slots.
+- Pen income: the pen (your `penDisplayCount` = 8 most valuable mutants) pays 2%/min of base value (tier x rarity x size; mutations ignored) x cash multiplier, every 60 s while online (`IncomeService`), and 20% of that while offline for up to 8 h (paid at join, shown on Welcome back). HUD: coin bar fills toward the next payout; chip shows $/min and the countdown.
 - Inventory cap 200. New player: 100 Cash + 2 Starter eggs.
 
 ## Mutants, eggs and how big things look

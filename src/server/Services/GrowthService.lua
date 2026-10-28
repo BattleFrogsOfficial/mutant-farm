@@ -23,6 +23,7 @@ local Valuation = require(Shared.Valuation)
 local Format = require(Shared.Format)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
+local EconomyService = require(script.Parent.EconomyService)
 local Net = require(script.Parent.Parent.Util.Net)
 local Validate = require(script.Parent.Parent.Util.Validate)
 local Analytics = require(script.Parent.Parent.Util.Analytics)
@@ -245,8 +246,18 @@ local function catchUp(player: Player, data: Types.Profile)
 		events = GrowthService.settle(data, now)
 	end
 
-	-- "Welcome back" summary after a real break.
+	-- Offline pen income: a fraction of the online rate, for up to offlineIncomeCap.
 	local away = if data.lastSeen > 0 then now - data.lastSeen else 0
+	local earned = 0
+	if away > 0 then
+		local minutes = math.min(away, GameConfig.offlineIncomeCap) / 60
+		earned = math.floor(DataService.incomePerMinute(data) * GameConfig.offlineIncomeFactor * minutes)
+		if earned <= 0 or not EconomyService.addCash(player, data, earned, "Gameplay", "OfflineIncome") then
+			earned = 0
+		end
+	end
+
+	-- "Welcome back" summary after a real break.
 	if away >= Daily.welcomeBackSeconds then
 		local ready = 0
 		for _, slot in data.slots do
@@ -254,7 +265,11 @@ local function catchUp(player: Player, data: Types.Profile)
 				ready += 1
 			end
 		end
-		Net.fire(player, "WelcomeBack", { away = away, ready = ready, mutations = #events, capped = capped })
+		Net.fire(
+			player,
+			"WelcomeBack",
+			{ away = away, ready = ready, mutations = #events, capped = capped, earned = earned }
+		)
 	end
 end
 

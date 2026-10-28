@@ -53,21 +53,10 @@ local function priceLabel(slot: BasePart): TextLabel
 end
 
 -- The owner's best mutants (by sell value) for the pen, as JSON.
+-- The pen's mutants (DataService.penItems) as JSON for clients to draw.
 local function penJson(data: Types.Profile): string
-	local items = {}
-	for _, item in data.inventory do
-		table.insert(items, item)
-	end
-	table.sort(items, function(a, b)
-		local va, vb = Valuation.sellValue(a, 1), Valuation.sellValue(b, 1)
-		if va ~= vb then
-			return va > vb
-		end
-		return (tonumber(a.id) or 0) < (tonumber(b.id) or 0) -- stable, so the pen doesn't reshuffle
-	end)
 	local out = {}
-	for i = 1, math.min(#items, GameConfig.penDisplayCount) do
-		local item = items[i]
+	for i, item in DataService.penItems(data) do
 		out[i] = {
 			id = item.id,
 			tier = item.tier,
@@ -89,7 +78,7 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 	plot.model:SetAttribute("WateredUntil", data.wateredUntil)
 	plot.model:SetAttribute("Speed", DataService.speed(data))
 	local income = DataService.incomePerMinute(data)
-	plot.income.Text = if income > 0 then Format.cash(income) .. " / min" else "Plant eggs!"
+	plot.income.Text = if income > 0 then Format.cash(income) .. " / min" else "Hatch mutants!"
 	local pen = penJson(data)
 	if plot.model:GetAttribute("Pen") ~= pen then
 		plot.model:SetAttribute("Pen", pen)

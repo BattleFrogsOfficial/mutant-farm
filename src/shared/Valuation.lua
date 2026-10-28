@@ -39,6 +39,11 @@ function Valuation.sellValue(mutant: Mutant, cashMultiplier: number): number
 	)
 end
 
+-- Cash per payout (one minute) from one mutant standing in the pen.
+function Valuation.penIncome(mutant: Mutant, cashMultiplier: number, ratePerMinute: number): number
+	return Valuation.baseValue(mutant) * mutant.size * ratePerMinute * cashMultiplier
+end
+
 -- Upper bound on a single sale for a player at this rebirth count. Used as a server sanity check.
 function Valuation.maxSingleSale(rebirths: number, cashMultiplier: number): number
 	local best = 0

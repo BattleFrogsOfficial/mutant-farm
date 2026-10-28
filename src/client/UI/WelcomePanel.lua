@@ -17,7 +17,7 @@ local New, Children, Computed = Fusion.New, Fusion.Children, Fusion.Computed
 local function stat(order: number, icon: string, value: any, label: string, color: Color3)
 	return New("Frame")({
 		LayoutOrder = order,
-		Size = UDim2.fromOffset(150, 120),
+		Size = UDim2.fromOffset(160, 120),
 		BackgroundColor3 = Theme.colors.slate,
 		ZIndex = 2,
 		[Children] = {
@@ -53,12 +53,12 @@ end
 return function()
 	local info = State.welcome
 	local function get()
-		return info:get() or { away = 0, ready = 0, mutations = 0, capped = false }
+		return info:get() or { away = 0, ready = 0, mutations = 0, capped = false, earned = 0 }
 	end
 	return C.panel({
 		Title = "👋 Welcome back!",
 		Accent = Theme.colors.toxicDark,
-		Size = UDim2.fromOffset(540, 400),
+		Size = UDim2.fromOffset(600, 400),
 		IsOpen = Computed(function()
 			return State.panel:get() == "welcome"
 		end),
@@ -87,6 +87,15 @@ return function()
 						Padding = UDim.new(0, 16),
 						SortOrder = Enum.SortOrder.LayoutOrder,
 					}),
+					stat(
+						0,
+						"🐾",
+						Computed(function()
+							return Format.cash(get().earned or 0)
+						end),
+						"pen earned",
+						Theme.colors.toxic
+					),
 					stat(
 						1,
 						"🥚",

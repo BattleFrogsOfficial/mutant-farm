@@ -19,8 +19,13 @@ return {
 	-- Inventory / pen
 	inventoryCap = 200,
 	penSlots = 8,
-	penIncomePerMinuteOnline = 0.0005, -- fraction of base value (tier x rarity)
-	penIncomePerMinuteOffline = 0.0001,
+	-- Pen income: every mutant standing in your pen pays this fraction of its base value
+	-- (tier x rarity x size; mutations only boost the sale price) every payout, times the
+	-- cash multiplier. Offline it pays offlineIncomeFactor of that, for up to offlineIncomeCap.
+	penIncomePerMinute = 0.02,
+	payoutSeconds = 60,
+	offlineIncomeFactor = 0.2,
+	offlineIncomeCap = 8 * 60 * 60,
 
 	-- World
 	islandCount = 12,

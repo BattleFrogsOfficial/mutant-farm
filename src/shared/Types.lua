@@ -83,6 +83,8 @@ export type Snapshot = {
 	nextSlotCost: number?,
 	stats: { [string]: number },
 	incomePerMinute: number,
+	nextPayoutAt: number,
+	payoutSeconds: number,
 	daily: { day: number, canClaim: boolean, streak: number },
 }
 
