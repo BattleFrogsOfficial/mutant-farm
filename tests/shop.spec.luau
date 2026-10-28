@@ -14,6 +14,13 @@ return function(t)
 	end
 
 	return {
+		["the Rebirth Altar names what each rebirth unlocks"] = function()
+			t.eq(ShopRules.unlockedAtRebirth(1), "Toxic")
+			t.eq(ShopRules.unlockedAtRebirth(2), nil)
+			t.eq(ShopRules.unlockedAtRebirth(3), "Void")
+			t.eq(ShopRules.unlockedAtRebirth(6), "Cosmic")
+			t.eq(ShopRules.unlockedAtRebirth(0), "Starter")
+		end,
 		["Lab unlocks when lifetime earnings cross 25,000, whatever the balance"] = function()
 			t.ok(not ShopRules.isUnlocked("Lab", 0, 24_999), "locked at 24,999 earned")
 			t.ok(ShopRules.isUnlocked("Lab", 0, 25_000), "unlocked at 25,000 earned")

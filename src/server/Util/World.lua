@@ -720,6 +720,112 @@ local function leaderboards(hub: Instance)
 	end
 end
 
+-- Rebirth Altar on the south edge of the plaza, across the fountain from the leaderboards: a
+-- violet step-on pad (opens the Rebirth panel) ringed by small glowing stones, and a sign behind
+-- it facing the fountain. ZoneController writes each player's own line on the sign ("REBIRTH 1 ·
+-- $700K · unlocks Toxic Egg") and fills its progress bar (Cash / cost).
+World.ALTAR_CENTER = Vector3.new(0, 0, 21)
+local function rebirthAltar(hub: Instance)
+	local center = World.ALTAR_CENTER
+	local top = pad(hub, "RebirthAltar", center, 3.6, COLORS.purple, "REBIRTH", "rebirth", Vector3.zero)
+	-- Soft glow: one weak light (art rules: range <= 16, brightness <= 0.35) and Neon only on
+	-- the small stones.
+	local light = Instance.new("PointLight")
+	light.Color = COLORS.purple
+	light.Range = 14
+	light.Brightness = 0.35
+	light.Parent = top
+	local glow = group("RebirthAltarGlow", hub)
+	for i = 0, 11 do
+		local a = i / 12 * math.pi * 2
+		part({
+			Name = "GlowStone",
+			Size = Vector3.new(0.5, 0.9, 0.5),
+			CFrame = CFrame.new(center.X + math.cos(a) * 5.2, Y.plaza + 0.45, center.Z + math.sin(a) * 5.2)
+				* CFrame.Angles(0, a, 0),
+			Color = Color3.fromHex("#C9A2FF"),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			Parent = glow,
+		})
+	end
+
+	-- The sign: posts, a board facing the fountain, the text and a progress bar on its Front face.
+	local m = group("RebirthSign", hub)
+	local frame = CFrame.lookAt(Vector3.new(center.X, 0, center.Z + 7.5), Vector3.new(center.X, 0, 0))
+	local W, H, bottom = 14, 5.6, Y.plaza + 3.2
+	local postHeight = bottom + H - Y.plaza
+	for _, side in { -1, 1 } do
+		part({
+			Name = "Post",
+			Size = Vector3.new(0.8, postHeight, 0.8),
+			CFrame = frame * CFrame.new(side * (W / 2 + 0.8), Y.plaza + postHeight / 2, 0.3),
+			Color = COLORS.darkWood,
+			Material = Enum.Material.Wood,
+			Parent = m,
+		})
+	end
+	local board = part({
+		Name = "Board",
+		Size = Vector3.new(W, H, 0.4),
+		CFrame = frame * CFrame.new(0, bottom + H / 2, 0),
+		Color = COLORS.purpleDark,
+		Parent = m,
+	})
+	part({
+		Name = "Frame",
+		Size = Vector3.new(W + 0.8, H + 0.8, 0.3),
+		CFrame = frame * CFrame.new(0, bottom + H / 2, 0.3),
+		Color = COLORS.darkWood,
+		Material = Enum.Material.Wood,
+		Parent = m,
+	})
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "AltarGui"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 40
+	gui.LightInfluence = 0.15
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.Size = UDim2.fromScale(1, 0.66)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.FredokaOne
+	title.TextScaled = true
+	title.TextColor3 = COLORS.gold
+	title.Text = "🔁 REBIRTH ALTAR"
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 4
+	stroke.Color = COLORS.slate
+	stroke.Parent = title
+	local padding = Instance.new("UIPadding")
+	padding.PaddingLeft = UDim.new(0.04, 0)
+	padding.PaddingRight = UDim.new(0.04, 0)
+	padding.PaddingTop = UDim.new(0.08, 0)
+	padding.PaddingBottom = UDim.new(0.04, 0)
+	padding.Parent = title
+	title.Parent = gui
+	local bar = Instance.new("Frame")
+	bar.Name = "Bar"
+	bar.AnchorPoint = Vector2.new(0.5, 0)
+	bar.Position = UDim2.fromScale(0.5, 0.7)
+	bar.Size = UDim2.fromScale(0.9, 0.2)
+	bar.BackgroundColor3 = COLORS.slate
+	bar.BorderSizePixel = 0
+	local barStroke = Instance.new("UIStroke")
+	barStroke.Thickness = 4
+	barStroke.Color = COLORS.cream
+	barStroke.Parent = bar
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.fromScale(0, 1)
+	fill.BackgroundColor3 = COLORS.toxic
+	fill.BorderSizePixel = 0
+	fill.Parent = bar
+	bar.Parent = gui
+	gui.Parent = board
+end
+
 local function buildHub(parent: Instance)
 	local hub = group("Hub", parent)
 
@@ -820,7 +926,8 @@ local function buildHub(parent: Instance)
 		local a = i / 12 * math.pi * 2
 		local nearBuilding = math.abs(math.cos(a)) > 0.85
 		local atLeaderboard = math.abs(math.sin(a) + 1) < 0.05 -- north: the leaderboards stand there
-		if not nearBuilding and not atLeaderboard then
+		local atAltar = math.abs(math.sin(a) - 1) < 0.05 -- south: the Rebirth Altar's sign
+		if not nearBuilding and not atLeaderboard and not atAltar then
 			lamp(hub, Vector3.new(math.cos(a) * (HUB_RADIUS - 2.5), Y.plaza, math.sin(a) * (HUB_RADIUS - 2.5)))
 		end
 	end
@@ -923,6 +1030,7 @@ local function buildHub(parent: Instance)
 	pad(hub, "SellPad", (sellFrame * CFrame.new(0, 0, -10.4)).Position, 3.6, COLORS.gold, "SELL", "sell", Vector3.zero)
 
 	leaderboards(hub)
+	rebirthAltar(hub)
 end
 
 ---------------------------------------------------------------------------- plots

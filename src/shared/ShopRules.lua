@@ -98,4 +98,15 @@ function ShopRules.nextLocked(rebirths: number, totalCashEarned: number): string
 	return nil
 end
 
+-- The base tier that rebirth number `n` unlocks (Toxic at 1, Void at 3, ...), or nil.
+function ShopRules.unlockedAtRebirth(n: number): string?
+	for _, id in Eggs.order do
+		local tier = Eggs.tiers[id]
+		if tier.unlockRebirth == n and not tier.gemCost then
+			return id
+		end
+	end
+	return nil
+end
+
 return ShopRules

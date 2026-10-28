@@ -1,6 +1,7 @@
 --!strict
 -- Decides whether the player is at their plot or in the hub (State.zone), so the HUD shows only
--- what that place needs. Also writes your bag's worth onto the Sell stall's sign.
+-- what that place needs. Also writes your bag's worth onto the Sell stall's sign, and your next
+-- rebirth onto the Rebirth Altar's sign.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,6 +9,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Format = require(ReplicatedStorage.Shared.Format)
 local Valuation = require(ReplicatedStorage.Shared.Valuation)
+local ShopRules = require(ReplicatedStorage.Shared.ShopRules)
+local Eggs = require(ReplicatedStorage.Shared.Config.Eggs)
 local State = require(script.Parent.Parent.State)
 local PlotController = require(script.Parent.PlotController)
 
@@ -56,10 +59,43 @@ local function bagSign()
 	update()
 end
 
+-- "REBIRTH 1 · $700K · unlocks Toxic Egg" (or "· Cash x2" when it unlocks no tier) on the Rebirth
+-- Altar's sign, and its bar filled to Cash / cost. Local text, like the Sell sign.
+function ZoneController.altarText(rebirths: number, cost: number): string
+	local tier = ShopRules.unlockedAtRebirth(rebirths + 1)
+	local reward = if tier
+		then "unlocks " .. Eggs.tiers[tier].name
+		else "Cash x" .. tostring(Valuation.rebirthMultiplier(rebirths + 1))
+	return string.format("REBIRTH %d · %s\n%s", rebirths + 1, Format.cash(cost), reward)
+end
+
+local function altarSign()
+	local hub = workspace:WaitForChild("Map"):WaitForChild("Hub")
+	local sign = hub:WaitForChild("RebirthSign", 60)
+	local board = sign and sign:WaitForChild("Board", 60)
+	local gui = board and board:WaitForChild("AltarGui", 60)
+	local title = gui and gui:FindFirstChild("Title") :: TextLabel?
+	local fill = gui and gui:FindFirstChild("Bar") and gui.Bar:FindFirstChild("Fill") :: Frame?
+	if not title or not fill then
+		return
+	end
+	local function update()
+		local snap = State.snapshot:get(false)
+		if not snap then
+			return
+		end
+		title.Text = ZoneController.altarText(snap.rebirths, snap.rebirthCost)
+		fill.Size = UDim2.fromScale(math.clamp(snap.cash / math.max(snap.rebirthCost, 1), 0, 1), 1)
+	end
+	Observer(State.snapshot):onChange(update)
+	update()
+end
+
 function ZoneController.Init() end
 
 function ZoneController.Start()
 	task.spawn(bagSign)
+	task.spawn(altarSign)
 	while true do
 		local zone = zoneNow()
 		if zone ~= State.zone:get(false) then

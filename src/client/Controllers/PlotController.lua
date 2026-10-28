@@ -392,12 +392,12 @@ function PlotController.Init()
 	folder.Parent = workspace
 end
 
--- Step-on shop pads: entering one opens its panel, walking off closes it. Closing the panel
+-- Step-on pads (Egg Shop, Sell, Rebirth Altar): entering one opens its panel, walking off closes it. Closing the panel
 -- while still standing on the pad keeps it closed until you step off and back on.
 local function watchPads()
 	local hub = workspace:WaitForChild("Map"):WaitForChild("Hub")
 	local pads: { BasePart } = {}
-	for _, name in { "EggShopPad", "SellPad" } do
+	for _, name in { "EggShopPad", "SellPad", "RebirthAltar" } do
 		-- Wait for the Pad part itself: the Model can replicate before its children at join.
 		local model = hub:WaitForChild(name, 60)
 		local pad = model and model:WaitForChild("Pad", 60) :: BasePart?
