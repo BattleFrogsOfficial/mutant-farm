@@ -78,6 +78,10 @@ local services = {
 		end,
 	},
 	SoundService = {},
+	ContextActionService = {
+		BindActionAtPriority = function() end,
+		UnbindAction = function() end,
+	},
 	Players = { LocalPlayer = { UserId = 1, Name = "Preview", Character = nil } },
 }
 local fakeWorkspace = setmetatable({
@@ -292,7 +296,7 @@ local snapshot = {
 	payoutSeconds = 60,
 	totalSlots = 8,
 	ownedPasses = {},
-	rebirthCost = 250_000,
+	rebirthCost = 700_000,
 	bundleOfferEndsAt = 1_800_000_000 + 581,
 	daily = { day = 2, canClaim = true, streak = 1 },
 	potionUntil = 0,

@@ -1,7 +1,9 @@
 --!strict
--- Egg Shop: a horizontal carousel, one card per tier (Starter .. Cosmic, no looping). Exactly one
--- card is focused: centered, scaled up, full opacity, with name, egg, price buttons and odds (%).
--- Neighbors are smaller and veiled to 60% and show only the egg and name.
+-- Egg Shop: a horizontal carousel, one card per tier (Starter .. Cosmic, no looping). The card at
+-- the center is focused: full size, full opacity, with name, egg, price buttons and odds (%).
+-- Cards shrink and fade continuously with their distance from the center (sideScale and the
+-- neighbor veil one pitch away), so the strip glides instead of jumping between fixed states.
+-- Neighbors show only the egg and name.
 --
 -- Card states (same in Cash and Gems mode):
 --   buyable        price button + x5; can't afford: grey button and "Earn $X more" / "Need N more
@@ -13,13 +15,16 @@
 -- A tier that unlocks mid-session flashes, plays the Rare jingle and wears a NEW ribbon for the
 -- next two shop visits.
 --
--- Navigation: drag (snaps to the nearest card), arrow buttons, mouse wheel, left/right keys (Enter
--- buys x1), and desktop-only edge-hover auto-scroll. The decisions are shared/Carousel.lua (tested
--- headlessly); this file animates them. Layout numbers: Config/EggShopUI.lua.
+-- Navigation: drag (with a little flick), tap a side card, arrow buttons, mouse wheel, Left/Right
+-- keys (Enter buys x1), and desktop-only edge-hover auto-scroll. Keys and the wheel are bound with
+-- ContextActionService while the shop is open and sunk, so the camera never sees them. The
+-- decisions are shared/Carousel.lua (tested headlessly); this file animates them. Layout numbers:
+-- Config/EggShopUI.lua.
 --
 -- Title row: "Egg Shop", the Cash | Gems switch, the Luck Potion button, close. The switch and the
 -- potion aren't rendered where PolicyService restricts paid random items (the server refuses both).
 
+local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -49,6 +54,8 @@ local New, Children, Computed, Value, Observer, OnEvent, Ref =
 local N = #Eggs.order
 local PINK = Theme.colors.spend
 local W, H = UI.cardWidth, UI.cardHeight
+local STRIP_WIDTH = UI.panelWidth - 32 - 2 * (UI.arrowSize + 8)
+local STRIP_HEIGHT = H + 10
 
 ---------------------------------------------------------------------------- state from the snapshot
 
@@ -98,24 +105,45 @@ local function focusable(i: number): boolean
 	return kindOfSnap(State.snapshot:get(false), i) ~= "further"
 end
 
+local function shopOpen(): boolean
+	return State.panel:get(false) == "shop"
+end
+
 ---------------------------------------------------------------------------- carousel motion
 
-local anim = { from = 0, to = 0, t0 = -1 }
+-- The strip glides toward `target` every frame (Carousel.approach); input only moves the target,
+-- so quick repeated presses retarget smoothly instead of restarting a tween.
+local motion = { target = 0, armed = true }
 local morphAt = Value(-10) -- clock time of the last Cash/Gems flip (cards morph in place)
 
 local function goTo(i: number, instant: boolean?)
 	State.shopFocus:set(i)
-	local target = Carousel.offsetOf(i, UI.pitch)
+	motion.target = Carousel.offsetOf(i, UI.pitch)
 	if instant then
-		State.shopOffset:set(target)
-		anim.t0 = -1
-	else
-		anim.from, anim.to, anim.t0 = State.shopOffset:get(false), target, os.clock()
+		State.shopOffset:set(motion.target)
 	end
 end
 
+-- One step from where the strip is heading (not from where it currently is mid-glide).
 local function step(dir: number)
 	goTo(Carousel.step(State.shopFocus:get(false), dir, N, focusable))
+end
+
+local function buyFocused()
+	local i = State.shopFocus:get(false)
+	local sn = State.snapshot:get(false)
+	if not sn or kindOfSnap(sn, i) ~= "buyable" then
+		return
+	end
+	local m = mode:get(false)
+	local currency, amount = ShopRules.price(eggIdOf(i, m), 1)
+	if currency == "Gems" and sn.gems < amount then
+		State.panel:set("store")
+	elseif currency == "Cash" and sn.cash < amount then
+		Sfx.play("error", 0.4)
+	else
+		Remotes.get("BuyEgg"):FireServer(eggIdOf(i, m), 1)
+	end
 end
 
 -- On open: the best egg the player can afford right now (in the current mode), else Starter.
@@ -141,10 +169,6 @@ end
 -- base tier -> shop visits left with the ribbon; base tier -> clock time its flash starts.
 local ribbons = Value({} :: { [string]: number })
 local flashes = Value({} :: { [string]: number })
-
-local function shopOpen(): boolean
-	return State.panel:get(false) == "shop"
-end
 
 do
 	local last: { rebirths: number, totalCashEarned: number }? = nil
@@ -204,7 +228,7 @@ end
 
 local function oddsList(eggId: string)
 	local rows: { any } = {
-		New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 1) }),
+		New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 2) }),
 	}
 	for r, rarity in Rarities.order do
 		table.insert(
@@ -212,7 +236,7 @@ local function oddsList(eggId: string)
 			New("Frame")({
 				LayoutOrder = r,
 				BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 17),
+				Size = UDim2.new(1, 0, 0, 26),
 				ZIndex = 21,
 				[Children] = {
 					C.label({
@@ -220,7 +244,7 @@ local function oddsList(eggId: string)
 						Size = UDim2.new(0.6, 0, 1, 0),
 						TextXAlignment = Enum.TextXAlignment.Left,
 						TextColor3 = Color3.fromHex(Rarities.info[rarity].color),
-						MaxTextSize = 14,
+						MaxTextSize = 19,
 						ZIndex = 21,
 					}),
 					C.label({
@@ -228,7 +252,7 @@ local function oddsList(eggId: string)
 						Position = UDim2.fromScale(0.6, 0),
 						Size = UDim2.new(0.4, 0, 1, 0),
 						TextXAlignment = Enum.TextXAlignment.Right,
-						MaxTextSize = 14,
+						MaxTextSize = 19,
 						ZIndex = 21,
 					}),
 				},
@@ -273,6 +297,20 @@ local function card(i: number)
 	local x5Hover = Value(false)
 	local pulseAt = Value(-10)
 
+	-- Signed distance (design px) of this card's center from the strip center.
+	local function distance(): number
+		return Carousel.offsetOf(i, UI.pitch) - State.shopOffset:get()
+	end
+	-- The card nearest the center shows its details (live, so they follow a drag).
+	local near = Computed(function()
+		return math.abs(distance()) < UI.pitch / 2
+	end)
+	local function whenNear(k: string)
+		return Computed(function()
+			return near:get() and kind:get() == k
+		end)
+	end
+
 	local function short(sn: any, m: string, quantity: number): number
 		if not sn then
 			return math.huge
@@ -296,15 +334,6 @@ local function card(i: number)
 		end
 		Remotes.get("BuyEgg"):FireServer(eggIdOf(i, m), quantity)
 		pulseAt:set(State.clock:get(false))
-	end
-
-	local focused = Computed(function()
-		return State.shopFocus:get() == i
-	end)
-	local function whenFocused(k: string)
-		return Computed(function()
-			return focused:get() and kind:get() == k
-		end)
 	end
 
 	-- A price button that pulses once after a buy.
@@ -335,7 +364,7 @@ local function card(i: number)
 						local m, sn = mode:get(), State.snapshot:get()
 						return m == "Cash" and short(sn, m, quantity) > 0
 					end),
-					MaxTextSize = 20,
+					MaxTextSize = 30,
 					ZIndex = 12,
 					OnHover = if quantity == 5
 						then function(on: boolean)
@@ -355,19 +384,19 @@ local function card(i: number)
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.fromOffset(W, H),
 		Position = Computed(function()
-			return UDim2.new(0.5, Carousel.offsetOf(i, UI.pitch) - State.shopOffset:get(), 0.5, 0)
+			return UDim2.new(0.5, distance(), 0.5, 0)
 		end),
 		BackgroundColor3 = Computed(function()
 			return if kind:get() == "further" then Theme.colors.panel else Theme.colors.slateLight
 		end),
 		BorderSizePixel = 0,
 		ZIndex = Computed(function()
-			return if focused:get() then 11 else 10
+			return if near:get() then 11 else 10
 		end),
 		[Children] = {
 			New("UIScale")({
 				Scale = Computed(function()
-					local s = if focused:get() then UI.focusScale else 1
+					local s = Carousel.scaleAt(distance(), UI.pitch, UI.sideScale)
 					local t = State.clock:get() - morphAt:get()
 					if t >= 0 and t < UI.morphSeconds then
 						s *= 1 - UI.morphDip * math.sin(math.pi * t / UI.morphSeconds)
@@ -379,7 +408,7 @@ local function card(i: number)
 				ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 				LineJoinMode = Enum.LineJoinMode.Miter,
 				Thickness = Computed(function()
-					return if kind:get() == "further" then 2 else 3
+					return if kind:get() == "further" then 2 else 4
 				end),
 				Transparency = Computed(function()
 					return if kind:get() == "further" then 0.5 else 0
@@ -392,8 +421,8 @@ local function card(i: number)
 					return if m == "Gems" then PINK else Color3.fromHex(Eggs.tiers[base].color)
 				end),
 			}),
-			-- Egg art: the variant for the current mode; a desaturated silhouette when further locked.
-			-- Rebuilt only when the mode or the card state changes.
+			-- Egg art: the variant for the current mode (Gem eggs carry the gem crystal); a
+			-- desaturated silhouette when further locked. Rebuilt only when mode or state changes.
 			Computed(function()
 				local m, k = mode:get(), kind:get()
 				return Viewport.new({
@@ -402,36 +431,36 @@ local function card(i: number)
 					end,
 					Spin = k ~= "further",
 					Silhouette = k == "further",
-					Size = UDim2.fromOffset(78, 76),
-					Position = UDim2.new(0.5, 0, 0, 24),
+					Size = UDim2.fromOffset(150, 140),
+					Position = UDim2.new(0.5, 0, 0, 34),
 					AnchorPoint = Vector2.new(0.5, 0),
 					ZIndex = 11,
 				})
 			end, Fusion.cleanup),
+			-- The tier's name in both modes ("Swamp Egg"): the gem is on the icon and the badge,
+			-- and a longer "Swamp Gem Egg" would fall under the readable size on phones.
 			C.label({
 				Name = "Title",
-				Text = Computed(function()
-					return Eggs.tiers[eggIdOf(i, mode:get())].name
-				end),
-				Position = UDim2.fromOffset(6, 102),
-				Size = UDim2.new(1, -12, 0, 22),
-				MaxTextSize = 20,
+				Text = Eggs.tiers[base].name,
+				Position = UDim2.fromOffset(8, 178),
+				Size = UDim2.new(1, -16, 0, 34),
+				MaxTextSize = 30,
 				TextColor3 = Computed(function()
 					return if kind:get() == "further" then Theme.colors.muted else Theme.colors.white
 				end),
 				ZIndex = 12,
 			}),
-			-- Under the name: the shortfall / grow info (focused buyable), or the unlock condition.
+			-- Under the name: the shortfall / grow info (near + buyable), or the unlock condition.
 			C.label({
 				Name = "Line",
-				Position = UDim2.fromOffset(6, 125),
-				Size = UDim2.new(1, -12, 0, 14),
-				MaxTextSize = 12,
+				Position = UDim2.fromOffset(8, 214),
+				Size = UDim2.new(1, -16, 0, 20),
+				MaxTextSize = 17,
 				StrokeThickness = 1.5,
 				ZIndex = 12,
 				Visible = Computed(function()
-					local k, f = kind:get(), focused:get()
-					return k == "further" or (k == "buyable" and f)
+					local k, n = kind:get(), near:get()
+					return k == "further" or (k == "buyable" and n)
 				end),
 				TextColor3 = Computed(function()
 					local k, m, sn, hover = kind:get(), mode:get(), State.snapshot:get(), x5Hover:get()
@@ -466,38 +495,38 @@ local function card(i: number)
 			C.label({
 				Name = "Tagline",
 				Text = Eggs.tiers[base].tagline,
-				Position = UDim2.fromOffset(8, 144),
-				Size = UDim2.new(1, -16, 0, 44),
+				Position = UDim2.fromOffset(12, 240),
+				Size = UDim2.new(1, -24, 0, 66),
 				TextWrapped = true,
 				TextColor3 = Theme.colors.cream,
 				StrokeThickness = 0,
-				MaxTextSize = 13,
+				MaxTextSize = 20,
 				Visible = Computed(function()
 					return kind:get() == "further"
 				end),
 				ZIndex = 12,
 			}),
-			-- Focused + buyable: price and x5.
+			-- Near + buyable: price and x5.
 			New("Frame")({
 				Name = "BuyRow",
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(6, 146),
-				Size = UDim2.new(1, -12, 0, 46),
-				Visible = whenFocused("buyable"),
+				Position = UDim2.fromOffset(8, 242),
+				Size = UDim2.new(1, -16, 0, 68),
+				Visible = whenNear("buyable"),
 				ZIndex = 12,
 				[Children] = {
-					priceButton(1, UDim2.new(0.62, -3, 1, 0), UDim2.new()),
-					priceButton(5, UDim2.new(0.38, -3, 1, 0), UDim2.new(0.62, 3, 0, 0)),
+					priceButton(1, UDim2.new(0.62, -4, 1, 0), UDim2.new()),
+					priceButton(5, UDim2.new(0.38, -4, 1, 0), UDim2.new(0.62, 4, 0, 0)),
 				},
 			}),
-			-- Focused + next locked: the progress card.
+			-- Near + next locked: the progress card.
 			New("Frame")({
 				Name = "Progress",
-				Position = UDim2.fromOffset(6, 140),
-				Size = UDim2.new(1, -12, 0, 52),
+				Position = UDim2.fromOffset(8, 236),
+				Size = UDim2.new(1, -16, 0, 74),
 				BackgroundColor3 = Theme.colors.ink,
 				BorderSizePixel = 0,
-				Visible = whenFocused("next"),
+				Visible = whenNear("next"),
 				ZIndex = 12,
 				[Children] = {
 					New("Frame")({
@@ -514,10 +543,10 @@ local function card(i: number)
 					}),
 					C.label({
 						Name = "Text",
-						Position = UDim2.fromOffset(5, 4),
-						Size = UDim2.new(1, -10, 1, -8),
+						Position = UDim2.fromOffset(8, 6),
+						Size = UDim2.new(1, -16, 1, -12),
 						TextWrapped = true,
-						MaxTextSize = 15,
+						MaxTextSize = 22,
 						StrokeThickness = 2,
 						ZIndex = 14,
 						Text = Computed(function()
@@ -530,8 +559,8 @@ local function card(i: number)
 			-- Gem mode: "2x RARITY ODDS" on every unlocked card.
 			New("Frame")({
 				Name = "GemBadge",
-				Position = UDim2.fromOffset(5, 5),
-				Size = UDim2.fromOffset(92, 16),
+				Position = UDim2.fromOffset(8, 8),
+				Size = UDim2.fromOffset(132, 24),
 				BackgroundColor3 = PINK,
 				BorderSizePixel = 0,
 				Visible = Computed(function()
@@ -539,26 +568,26 @@ local function card(i: number)
 				end),
 				ZIndex = 13,
 				[Children] = C.label({
-					Text = "2x RARITY ODDS",
-					Size = UDim2.new(1, -6, 1, -4),
-					Position = UDim2.fromOffset(3, 2),
-					MaxTextSize = 11,
+					Text = "💎 2x RARITY ODDS",
+					Size = UDim2.new(1, -8, 1, -6),
+					Position = UDim2.fromOffset(4, 3),
+					MaxTextSize = 15,
 					StrokeThickness = 1.5,
 					ZIndex = 14,
 				}),
 			}),
-			-- Odds for the variant on display (focused, not further locked).
+			-- Odds for the variant on display (near, not further locked).
 			C.button({
 				Name = "Odds",
 				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -4, 0, 4),
-				Size = UDim2.fromOffset(30, 26),
+				Position = UDim2.new(1, -6, 0, 6),
+				Size = UDim2.fromOffset(44, 38),
 				Color = Theme.colors.navy,
 				Text = "%",
-				MaxTextSize = 14,
+				MaxTextSize = 20,
 				ZIndex = 15,
 				Visible = Computed(function()
-					return focused:get() and kind:get() ~= "further"
+					return near:get() and kind:get() ~= "further"
 				end),
 				OnClick = function()
 					showOdds:set(not showOdds:get(false))
@@ -567,31 +596,31 @@ local function card(i: number)
 			New("Frame")({
 				Name = "OddsOverlay",
 				Visible = Computed(function()
-					return showOdds:get() and focused:get()
+					return showOdds:get() and near:get()
 				end),
 				Active = true,
 				BackgroundColor3 = Theme.colors.slate,
 				BackgroundTransparency = 0.03,
 				BorderSizePixel = 0,
-				Position = UDim2.fromOffset(4, 34),
-				Size = UDim2.new(1, -8, 1, -38),
+				Position = UDim2.fromOffset(6, 50),
+				Size = UDim2.new(1, -12, 1, -56),
 				ZIndex = 20,
 				[Children] = {
-					C.padding(7),
+					C.padding(9),
 					C.label({
 						Text = Computed(function()
 							return if mode:get() == "Gems" then "GEM ODDS" else "HATCH ODDS"
 						end),
-						Size = UDim2.new(1, 0, 0, 18),
-						MaxTextSize = 14,
+						Size = UDim2.new(1, 0, 0, 24),
+						MaxTextSize = 19,
 						ZIndex = 21,
 					}),
 					Computed(function()
 						local m = mode:get()
 						return New("Frame")({
 							BackgroundTransparency = 1,
-							Position = UDim2.fromOffset(0, 22),
-							Size = UDim2.new(1, 0, 1, -22),
+							Position = UDim2.fromOffset(0, 30),
+							Size = UDim2.new(1, 0, 1, -30),
 							ZIndex = 21,
 							[Children] = oddsList(eggIdOf(i, m)),
 						})
@@ -602,8 +631,8 @@ local function card(i: number)
 			New("Frame")({
 				Name = "New",
 				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.fromOffset(-8, 30),
-				Size = UDim2.fromOffset(52, 22),
+				Position = UDim2.fromOffset(-10, 46),
+				Size = UDim2.fromOffset(80, 32),
 				Rotation = -10,
 				BackgroundColor3 = Theme.colors.toxic,
 				BorderSizePixel = 0,
@@ -613,12 +642,12 @@ local function card(i: number)
 				end),
 				ZIndex = 17,
 				[Children] = {
-					C.stroke(Theme.colors.ink, 2.5),
+					C.stroke(Theme.colors.ink, 3),
 					C.label({
 						Text = "NEW",
-						Size = UDim2.new(1, -8, 1, -6),
-						Position = UDim2.fromOffset(4, 3),
-						MaxTextSize = 15,
+						Size = UDim2.new(1, -10, 1, -8),
+						Position = UDim2.fromOffset(5, 4),
+						MaxTextSize = 22,
 						ZIndex = 18,
 					}),
 				},
@@ -635,16 +664,15 @@ local function card(i: number)
 				end),
 				ZIndex = 16,
 			}),
-			-- Neighbors: a panel-colored veil so they read at ~60% opacity.
+			-- A panel-colored veil that fades in with distance, so side cards read at ~60%.
 			New("Frame")({
 				Name = "Veil",
 				Size = UDim2.fromScale(1, 1),
 				BackgroundColor3 = Theme.colors.panel,
-				BackgroundTransparency = UI.neighborOpacity,
-				BorderSizePixel = 0,
-				Visible = Computed(function()
-					return not focused:get()
+				BackgroundTransparency = Computed(function()
+					return 1 - (1 - UI.neighborOpacity) * Carousel.veilAt(distance(), UI.pitch)
 				end),
+				BorderSizePixel = 0,
 				ZIndex = 19,
 			}),
 		},
@@ -740,28 +768,65 @@ end
 
 ---------------------------------------------------------------------------- input
 
-local function wireInput(stripRef: any, panelRef: any)
-	local dragging: { startX: number, startOffset: number, lastX: number, dir: number }? = nil
+local function wireInput(stripRef: any)
+	local drag: { startX: number, startOffset: number, moved: boolean, lastX: number, lastT: number, velocity: number }? =
+		nil
 	local autoTimer, autoDir = 0, 0
 
-	local function pixelsToDesign(px: number): number
-		local s = State.screen:get(false).scale
-		return px / math.max(s, 0.01)
+	-- Design px per screen px, from the strip's real on-screen width.
+	local function designPerPixel(): number
+		local strip = stripRef:get(false) :: GuiObject?
+		local width = if strip then strip.AbsoluteSize.X else 0
+		return if width > 0 then STRIP_WIDTH / width else 1
 	end
 
-	-- Drag: the strip follows the pointer; on release it settles on the nearest focusable card.
-	local function release()
-		local d = dragging
-		if not d then
-			return
+	-- Keys and the wheel, only while the shop is open, above the camera and character controls,
+	-- and always sunk so the camera never turns or zooms on them.
+	local ACTION = "EggShopNav"
+	local function onAction(_: string, inputState: Enum.UserInputState, input: InputObject)
+		if input.UserInputType == Enum.UserInputType.MouseWheel then
+			if inputState == Enum.UserInputState.Change and input.Position.Z ~= 0 then
+				motion.armed = false
+				goTo(Carousel.wheel(State.shopFocus:get(false), input.Position.Z, N, focusable))
+			end
+		elseif inputState == Enum.UserInputState.Begin then
+			motion.armed = false
+			if input.KeyCode == Enum.KeyCode.Left then
+				step(-1)
+			elseif input.KeyCode == Enum.KeyCode.Right then
+				step(1)
+			else
+				buyFocused()
+			end
 		end
-		dragging = nil
-		local i = Carousel.settle(State.shopOffset:get(false), UI.pitch, N, focusable, d.dir)
-		goTo(i)
+		return Enum.ContextActionResult.Sink
 	end
+	local bound = false
+	Observer(State.panel):onChange(function()
+		if shopOpen() and not bound then
+			bound = true
+			ContextActionService:BindActionAtPriority(
+				ACTION,
+				onAction,
+				false,
+				Enum.ContextActionPriority.High.Value,
+				Enum.KeyCode.Left,
+				Enum.KeyCode.Right,
+				Enum.KeyCode.Return,
+				Enum.KeyCode.KeypadEnter,
+				Enum.UserInputType.MouseWheel
+			)
+		elseif not shopOpen() and bound then
+			bound = false
+			ContextActionService:UnbindAction(ACTION)
+		end
+	end)
 
+	-- Drag: the strip follows the pointer 1:1; on release it glides to the nearest focusable card
+	-- (projected a little along the release velocity, so a flick carries). A press that barely
+	-- moves is a tap: tapping a side card brings it to the center.
 	UserInputService.InputChanged:Connect(function(input)
-		local d = dragging
+		local d = drag
 		if
 			d
 			and (
@@ -770,45 +835,52 @@ local function wireInput(stripRef: any, panelRef: any)
 			)
 		then
 			local x = input.Position.X
-			if x ~= d.lastX then
-				d.dir = if x < d.lastX then 1 else -1 -- pulling left moves toward later tiers
-				d.lastX = x
+			if math.abs(x - d.startX) > UI.tapSlop then
+				d.moved = true
 			end
-			local offset = d.startOffset - pixelsToDesign(x - d.startX)
-			State.shopOffset:set(Carousel.clampDrag(offset, UI.pitch, N, UI.dragOvershoot))
+			local now = os.clock()
+			local dt = now - d.lastT
+			if dt > 0 then
+				local v = -(x - d.lastX) * designPerPixel() / dt
+				d.velocity = d.velocity * 0.6 + v * 0.4
+			end
+			d.lastX, d.lastT = x, now
+			if d.moved then
+				local offset = d.startOffset - (x - d.startX) * designPerPixel()
+				offset = Carousel.clampDrag(offset, UI.pitch, N, UI.dragOvershoot)
+				motion.target = offset
+				State.shopOffset:set(offset)
+			end
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(input)
+		local d = drag
 		if
-			input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch
+			not d
+			or (
+				input.UserInputType ~= Enum.UserInputType.MouseButton1
+				and input.UserInputType ~= Enum.UserInputType.Touch
+			)
 		then
-			release()
-		end
-	end)
-	UserInputService.InputBegan:Connect(function(input, processed)
-		if processed or not shopOpen() then
 			return
 		end
-		if input.KeyCode == Enum.KeyCode.Left then
-			step(-1)
-		elseif input.KeyCode == Enum.KeyCode.Right then
-			step(1)
-		elseif input.KeyCode == Enum.KeyCode.Return or input.KeyCode == Enum.KeyCode.KeypadEnter then
-			local i = State.shopFocus:get(false)
-			if kindOfSnap(State.snapshot:get(false), i) == "buyable" then
-				local m = mode:get(false)
-				local sn = State.snapshot:get(false)
-				local currency, amount = ShopRules.price(eggIdOf(i, m), 1)
-				if m == "Gems" and sn and sn.gems < amount then
-					State.panel:set("store")
-				elseif currency == "Cash" and sn and sn.cash < amount then
-					Sfx.play("error", 0.4)
-				else
-					Remotes.get("BuyEgg"):FireServer(eggIdOf(i, m), 1)
+		drag = nil
+		if not d.moved then
+			local strip = stripRef:get(false) :: GuiObject?
+			if strip then
+				local center = strip.AbsolutePosition.X + strip.AbsoluteSize.X / 2
+				local at = State.shopOffset:get(false) + (input.Position.X - center) * designPerPixel()
+				local i = Carousel.nearest(at, UI.pitch, N)
+				if i ~= State.shopFocus:get(false) and focusable(i) then
+					goTo(i)
 				end
 			end
+			return
 		end
+		local velocity = if os.clock() - d.lastT < 0.1 then d.velocity else 0
+		local projected = State.shopOffset:get(false) + velocity * UI.flickSeconds
+		local dir = if velocity > 1 then 1 elseif velocity < -1 then -1 else 0
+		goTo(Carousel.settle(projected, UI.pitch, N, focusable, dir))
 	end)
 
 	local stripApi = {
@@ -817,45 +889,45 @@ local function wireInput(stripRef: any, panelRef: any)
 				input.UserInputType == Enum.UserInputType.MouseButton1
 				or input.UserInputType == Enum.UserInputType.Touch
 			then
-				anim.t0 = -1
-				dragging = {
+				motion.armed = false
+				drag = {
 					startX = input.Position.X,
 					startOffset = State.shopOffset:get(false),
+					moved = false,
 					lastX = input.Position.X,
-					dir = 0,
+					lastT = os.clock(),
+					velocity = 0,
 				}
-			end
-		end,
-		changed = function(input: InputObject)
-			if input.UserInputType == Enum.UserInputType.MouseWheel then
-				goTo(Carousel.wheel(State.shopFocus:get(false), input.Position.Z, N, focusable))
 			end
 		end,
 	}
 
-	-- Snap tween and desktop edge-hover auto-scroll.
+	-- The glide, and desktop edge-hover auto-scroll.
 	RunService.RenderStepped:Connect(function(dt)
-		if anim.t0 >= 0 then
-			local k = math.clamp((os.clock() - anim.t0) / UI.snapSeconds, 0, 1)
-			local e = k * k * (3 - 2 * k)
-			State.shopOffset:set(anim.from + (anim.to - anim.from) * e)
-			if k >= 1 then
-				anim.t0 = -1
+		if not drag then
+			local current = State.shopOffset:get(false)
+			if current ~= motion.target then
+				State.shopOffset:set(Carousel.approach(current, motion.target, dt, UI.snapSeconds))
 			end
 		end
-		local panel = panelRef:get(false) :: GuiObject?
-		if not shopOpen() or dragging or not panel then
+		local strip = stripRef:get(false) :: GuiObject?
+		if not shopOpen() or drag or not strip then
 			autoTimer, autoDir = 0, 0
 			return
 		end
+		-- The zone is the strip's own edges (not the arrow buttons beside it).
 		local mouse = UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
-		local pos, size = panel.AbsolutePosition, panel.AbsoluteSize
+		local pos, size = strip.AbsolutePosition, strip.AbsoluteSize
 		local inside = mouse.X >= pos.X and mouse.X <= pos.X + size.X and mouse.Y >= pos.Y and mouse.Y <= pos.Y + size.Y
 		local fraction = if size.X > 0 then (mouse.X - pos.X) / size.X else 0.5
 		local dir, every =
 			Carousel.autoScroll(UI, fraction, inside, UserInputService.MouseEnabled, UserInputService.TouchEnabled)
 		if dir == 0 or not every then
 			autoTimer, autoDir = 0, 0 -- stops the moment the mouse leaves the zone
+			motion.armed = true -- and re-arms after a click/key paused it
+			return
+		end
+		if not motion.armed then
 			return
 		end
 		if dir ~= autoDir then
@@ -874,25 +946,22 @@ end
 
 return function()
 	local stripRef = Value(nil)
-	local panelRef = Value(nil)
 	-- Input wiring needs a live client (the UI preview builds this headlessly without one).
 	local api: any = nil
 	pcall(function()
-		api = wireInput(stripRef, panelRef)
+		api = wireInput(stripRef)
 	end)
 
 	local cards: { any } = {}
 	for i = 1, N do
 		table.insert(cards, card(i))
 	end
-	local stripWidth = UI.panelWidth - 32 - 2 * (UI.arrowSize + 8)
-	local stripHeight = math.ceil(H * UI.focusScale) + 14
 
 	local function arrow(dir: number)
 		return C.button({
 			Name = if dir < 0 then "ArrowLeft" else "ArrowRight",
 			AnchorPoint = Vector2.new(if dir < 0 then 0 else 1, 0.5),
-			Position = UDim2.new(if dir < 0 then 0 else 1, 0, 0, stripHeight / 2),
+			Position = UDim2.new(if dir < 0 then 0 else 1, 0, 0, STRIP_HEIGHT / 2),
 			Size = UDim2.fromOffset(UI.arrowSize, UI.arrowSize),
 			Color = Theme.colors.navy,
 			Text = if dir < 0 then "<" else ">",
@@ -905,6 +974,7 @@ return function()
 				return Carousel.step(f, dir, N, focusable) ~= f
 			end),
 			OnClick = function()
+				motion.armed = false
 				step(dir)
 			end,
 		})
@@ -958,7 +1028,6 @@ return function()
 			Size = UDim2.fromScale(1, 1),
 			BackgroundTransparency = 1,
 			ZIndex = 10,
-			[Ref] = panelRef,
 			[Children] = {
 				arrow(-1),
 				arrow(1),
@@ -966,9 +1035,10 @@ return function()
 					Name = "Strip",
 					Text = "",
 					AutoButtonColor = false,
+					Selectable = false,
 					AnchorPoint = Vector2.new(0.5, 0),
 					Position = UDim2.fromScale(0.5, 0),
-					Size = UDim2.fromOffset(stripWidth, stripHeight),
+					Size = UDim2.fromOffset(STRIP_WIDTH, STRIP_HEIGHT),
 					BackgroundTransparency = 1,
 					ClipsDescendants = true,
 					ZIndex = 10,
@@ -978,17 +1048,12 @@ return function()
 							api.begin(input)
 						end
 					end,
-					[OnEvent("InputChanged")] = function(input)
-						if api then
-							api.changed(input)
-						end
-					end,
 					[Children] = cards,
 				}),
 				New("Frame")({
 					Name = "Dots",
 					AnchorPoint = Vector2.new(0.5, 0),
-					Position = UDim2.new(0.5, 0, 0, stripHeight + 10),
+					Position = UDim2.new(0.5, 0, 0, STRIP_HEIGHT + 10),
 					Size = UDim2.fromOffset(N * 26, 18),
 					BackgroundTransparency = 1,
 					ZIndex = 10,

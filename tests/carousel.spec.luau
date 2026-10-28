@@ -98,6 +98,41 @@ return function(t)
 			t.eq(Carousel.step(3, 1, N, focusable), 3)
 			t.eq(Carousel.step(1, -1, N, focusable), 1)
 		end,
+		["glide: settles exactly on the target, never overshoots, and retargets smoothly"] = function()
+			local offset, target = 0, Carousel.offsetOf(3, PITCH)
+			local steps = 0
+			while offset ~= target and steps < 200 do
+				local before = offset
+				offset = Carousel.approach(offset, target, 1 / 60, cfg.snapSeconds)
+				t.ok(offset >= before and offset <= target, "moves toward the target without overshooting")
+				steps += 1
+			end
+			t.eq(offset, target)
+			t.ok(steps <= 0.35 * 60, "lands within ~0.35 s, took " .. steps .. " frames")
+			t.ok(oneCentered(offset), "one card centered after the glide")
+			-- A second press mid-glide just moves the target: the strip keeps going the same way
+			-- from where it is (no restart from the old card, no backward step).
+			offset = Carousel.approach(0, PITCH, 1 / 60, cfg.snapSeconds)
+			local after = Carousel.approach(offset, 2 * PITCH, 1 / 60, cfg.snapSeconds)
+			t.ok(after > offset and after < 2 * PITCH, "continues forward on retarget")
+		end,
+		["scale: the center card is biggest and side cards shrink continuously"] = function()
+			t.eq(Carousel.scaleAt(0, PITCH, cfg.sideScale), 1)
+			t.eq(Carousel.scaleAt(PITCH, PITCH, cfg.sideScale), cfg.sideScale)
+			t.eq(Carousel.scaleAt(-3 * PITCH, PITCH, cfg.sideScale), cfg.sideScale)
+			local last = 2
+			for d = 0, PITCH, PITCH / 20 do
+				local s = Carousel.scaleAt(d, PITCH, cfg.sideScale)
+				t.ok(s <= last, "shrinks with distance")
+				last = s
+			end
+			-- Two neighbors never overlap, at rest or mid-glide.
+			for o = 0, PITCH, 4 do
+				local a = Carousel.scaleAt(o, PITCH, cfg.sideScale) * cfg.cardWidth / 2
+				local b = Carousel.scaleAt(PITCH - o, PITCH, cfg.sideScale) * cfg.cardWidth / 2
+				t.ok(a + b < PITCH, "neighbors overlap at offset " .. o)
+			end
+		end,
 		["unlock: crossing $25K earned unlocks Lab mid-session"] = function()
 			local new = ShopRules.newlyUnlocked(
 				{ rebirths = 0, totalCashEarned = 24_900 },

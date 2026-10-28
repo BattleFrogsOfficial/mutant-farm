@@ -86,6 +86,27 @@ function Carousel.autoScroll(
 	return dir, cfg.autoScrollInner + (cfg.autoScrollOuter - cfg.autoScrollInner) * depth
 end
 
+-- Smooth follow toward `target` (exponential ease-out that never overshoots): about 99% of the
+-- way in `seconds`, then lands exactly. Rapid inputs retarget mid-motion instead of restarting.
+function Carousel.approach(current: number, target: number, dt: number, seconds: number): number
+	local k = 4.6 / math.max(seconds, 1e-3)
+	local nextValue = target + (current - target) * math.exp(-k * dt)
+	return if math.abs(nextValue - target) < 0.5 then target else nextValue
+end
+
+-- Card scale by distance from the strip center: 1 at the center easing to sideScale one pitch
+-- away (and beyond), so cards grow and shrink continuously while the strip moves.
+function Carousel.scaleAt(distance: number, pitch: number, sideScale: number): number
+	local t = math.clamp(math.abs(distance) / pitch, 0, 1)
+	t = t * t * (3 - 2 * t)
+	return 1 + (sideScale - 1) * t
+end
+
+-- How much of the neighbor veil to show (0 at the center, 1 one pitch away).
+function Carousel.veilAt(distance: number, pitch: number): number
+	return math.clamp(math.abs(distance) / pitch, 0, 1)
+end
+
 -- The cards whose centers are within `tolerance` px of the strip center.
 function Carousel.centered(offset: number, pitch: number, count: number, tolerance: number): { number }
 	local out = {}

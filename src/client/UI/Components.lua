@@ -512,6 +512,17 @@ function Components.panel(
 		[Children] = {
 			New("UIScale")({ Scale = scale }),
 			Components.shadow(nil, 8),
+			-- Catches clicks anywhere on the panel that no control takes, so they never fall
+			-- through to the backdrop behind it (which closes the panel).
+			New("TextButton")({
+				Name = "Blocker",
+				Text = "",
+				AutoButtonColor = false,
+				Selectable = false,
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				ZIndex = 0,
+			}),
 			New("Frame")({
 				Name = "Body",
 				BorderSizePixel = 0,

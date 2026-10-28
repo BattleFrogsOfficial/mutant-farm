@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local UI = script.Parent.Parent.UI
 local Root = require(UI.Root)
+local Backdrop = require(UI.Backdrop)
 local State = require(script.Parent.Parent.State)
 
 local New, Children, Value, Computed = Fusion.New, Fusion.Children, Fusion.Value, Fusion.Computed
@@ -46,8 +47,19 @@ function UIController.Start()
 	task.spawn(placeChat)
 	local scale = Value(1)
 
+	-- The dim behind open panels, edge to edge (over the top-bar strip too), under the main GUI.
+	New("ScreenGui")({
+		Name = "MutantFarmBackdrop",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		DisplayOrder = 0,
+		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
+		[Children] = Backdrop(),
+	})
+
 	local gui = New("ScreenGui")({
 		Name = "MutantFarm",
+		DisplayOrder = 1,
 		ResetOnSpawn = false,
 		-- Directly below Roblox's top bar, which grows with chat, the menu, voice, captures and
 		-- platform: never share its strip. (The hatch cutscene is the only full-screen GUI.)

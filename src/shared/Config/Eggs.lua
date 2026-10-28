@@ -49,9 +49,9 @@ Eggs.tiers = {
 		tagline = "Where things go wrong",
 		unlockRebirth = 0,
 		unlockEarned = 25_000, -- also needs this much lifetime Cash earned (stats.totalCashEarned)
-		-- 45K (was 5K) since Lab moved to Rebirth 0: at 5K it snowballed the first rebirth down to
-		-- ~19 min. tools/sim plateaus at ~31 min here; higher prices make the bot fall back to Swamp.
-		cost = 45_000,
+		-- Keeps the 50 -> 500 -> 5,000 price ladder. First-rebirth pacing is tuned with the Rebirth 1
+		-- cost (Config/Rebirths), not this price: a 45K Lab was a bad buy players would skip.
+		cost = 5_000,
 		growTime = 20 * 60,
 		baseValue = 11_000,
 		color = "#E8EEF5",

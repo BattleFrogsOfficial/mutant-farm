@@ -34,6 +34,7 @@ local opts = {
 	first = false,
 	labCost = nil :: number?,
 	firstCost = nil :: number?,
+	growth = nil :: number?,
 }
 do
 	local args = process.args
@@ -46,6 +47,9 @@ do
 			opts.first = true -- only the time to Rebirth 1
 		elseif a == "--first-cost" then
 			opts.firstCost = tonumber(args[i + 1]) -- try a Rebirth 1 cost without editing Config
+			i += 1
+		elseif a == "--growth" then
+			opts.growth = tonumber(args[i + 1]) -- try a rebirth cost multiplier without editing Config
 			i += 1
 		elseif a == "--lab-cost" then
 			opts.labCost = tonumber(args[i + 1]) -- try a Lab Egg price without editing Config
@@ -386,6 +390,9 @@ if opts.labCost then
 end
 if opts.firstCost then
 	harness.require(shared .. "/Config/Rebirths").firstCost = opts.firstCost
+end
+if opts.growth then
+	harness.require(shared .. "/Config/Rebirths").costGrowth = opts.growth
 end
 
 print(

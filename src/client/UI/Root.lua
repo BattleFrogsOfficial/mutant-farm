@@ -1,6 +1,7 @@
 --!strict
 -- Everything on the main ScreenGui (UIController scales it; the hatch cinematic is separate):
--- the HUD, a dim backdrop behind open panels (tap it to close), the panels, and toasts on top.
+-- the HUD, the panels, and toasts on top. The dim backdrop behind open panels is UI/Backdrop, in
+-- its own full-screen ScreenGui (it has to cover Roblox's top-bar strip too).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -18,7 +19,7 @@ local SlotOfferPanel = require(script.Parent.SlotOfferPanel)
 local RebirthPanel = require(script.Parent.RebirthPanel)
 local UpgradesPanel = require(script.Parent.UpgradesPanel)
 
-local New, Children, Computed, OnEvent = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.OnEvent
+local New, Children, Computed = Fusion.New, Fusion.Children, Fusion.Computed
 
 return function()
 	return New("Frame")({
@@ -38,21 +39,6 @@ return function()
 					return State.panel:get() == "none"
 				end),
 				[Children] = Hud(),
-			}),
-			New("TextButton")({
-				Name = "Dim",
-				Text = "",
-				AutoButtonColor = false,
-				Size = UDim2.fromScale(1, 1),
-				BackgroundColor3 = Color3.new(0, 0, 0),
-				BackgroundTransparency = 0.45,
-				Visible = Computed(function()
-					return State.panel:get() ~= "none"
-				end),
-				ZIndex = 9,
-				[OnEvent("Activated")] = function()
-					State.panel:set("none")
-				end,
 			}),
 			EggShop(),
 			SellPanel(),
