@@ -8,6 +8,10 @@ Design doc. Source of truth for intent and balance targets; synced from the Clau
 
 - 2026-10-28 — Rebirth costs grow x4.5 per rebirth after the 700K first one (was x5): simulator puts free Rebirth 10 at day 23 and paying at day 11.
 - 2026-10-28 — Egg Shop side cards show only the egg art and name; the Gem-mode "2x RARITY ODDS" badge is on the focused card only.
+- 2026-10-28 — Weather is one global schedule, a pure function of wall-clock time: an event every 25 minutes (1500 s buckets from the unix epoch, the event 5 minutes into each, 120 s long), its type a seeded hash of the bucket weighted Acid Rain 45% / Solar Flare 40% / Glitch Storm 15% (was: a random event every 20–30 minutes per server, Glitch Storm 1 in 6, the first 6 minutes after a server starts). Announced with toasts at 5:00, 1:00 and the start and a chat line at 5:00; Glitch Storm also goes to Discord at 5:00, posted by exactly one server.
+- 2026-10-28 — Limited eggs are a config list (name, design, Gem price, grow time, value tier, odds, species pool, start and end time). On sale only inside their window; the shop shows an active one first, in both Cash and Gems mode, with an "ENDS IN" countdown, and opens on it the first time. Restricted players never see it. After the window owned eggs stay plantable, species stay in the Almanac (marked LIMITED), planted ones survive rebirth. The first is the Pumpkin Egg (Halloween 2026): 600 Gems, 30 minutes, Lab values, Lab's odds with Uncommon and up doubled, 10 Halloween species, Oct 29 00:00 to Nov 5 23:59 New York time; while it runs the Egg Shop gets a banner and the fountain three carved pumpkins.
+- 2026-10-28 — Instant Weather (400 Gems): the buyer picks Acid Rain, Solar Flare or Glitch Storm and gets a 120 s event on their plot only, same rolls as global weather and independent of it, never two at once. Offered when no global event is running or due within 5 minutes; hidden and refused where paid random items are restricted.
+- 2026-10-28 — Rebirth Now (100 Gems) is offered from 50% of the next rebirth's cost (Rebirth panel and Rebirth Altar sign); it is a normal rebirth (bag sold first, the usual resets) plus the Gems. Not policy-gated (nothing random).
 
 ## The pitch
 
@@ -93,7 +97,7 @@ Sell values are the Common outcome; rarity multiplies them (Uncommon x3, Rare x1
 The game needs players to come back on day 1, 3, and 7 before any ad money is spent. Each system below targets one of those return points.
 
 - **Offline growth with a cap.** Mutants keep growing offline, but mutation rolls stop after 2 hours away unless the player owns the Offline Mutations pass. The cap creates the itch to log in; the pass sells the relief.
-- **Weather events** every 20–30 minutes per server, announced server-wide with a countdown (a chip on every player's HUD from 5 minutes before): *Acid Rain (Radioactive), Solar Flare (Golden), Glitch Storm (Glitched, the rare one: 1 event in 6). Each event lasts 120 s with a roll every 30 s on every growing egg: 25% / 30% / 10% per tick, so about 68% / 76% / 34% of eggs that grow through the whole event get the mutation. Not a force-roll; the economy stays tunable.* Events are the day-3 hook — players learn they happen and leave the game open or come back for them. A Discord webhook posts "Glitch Storm in 5 min" to a community channel.
+- **Weather events** every 25 minutes on one global schedule (every server runs the same event at the same moment), announced with a countdown (a chip on every player's HUD from 5 minutes before, toasts at 5:00, 1:00 and the start, a chat line at 5:00): *Acid Rain (Radioactive, 45% of events), Solar Flare (Golden, 40%), Glitch Storm (Glitched, the rare one: 15%). Each event lasts 120 s with a roll every 30 s on every growing egg: 25% / 30% / 10% per tick, so about 68% / 76% / 34% of eggs that grow through the whole event get the mutation. Not a force-roll; the economy stays tunable.* Events are the day-3 hook — players learn they happen and leave the game open or come back for them. A Discord webhook posts "Glitch Storm in 5 min" to a community channel (one post per storm, through a small relay, since Roblox can't call Discord directly).
 - **Daily login streak**: Gems on days 1–6, a free Toxic egg on day 7, resets on a miss. Cheap to build, proven, feeds the Gem economy.
 - **Session goals**: a "Next up" panel always shows the nearest unlock (next slot, next rebirth, next egg tier) with a progress bar. Players quit when they don't know what's next.
 - **Leaderboards: leaderstats (Rebirths, Cash) in the player list, plus two global top-100 boards side by side at the north edge of the plaza, Top Pens (current pen value) and Top Rebirths, refreshed every 120 s, each showing the viewer's own rank at the bottom (as "#100+" outside the top 100).** Being on the board is the free-player status loop; staying on it is the whale loop.
@@ -129,8 +133,8 @@ Every product removes a friction the loop deliberately creates. Prices follow th
 | Luck Potion (30 min, x3 luck) | 25 Gems | Stacks with the 2x pass | The slot-machine lever; sold inside the hatch screen |
 | Skip Timer | 5 Gems per 10 min remaining | Finish growing now | Converts impatience directly |
 | Instant Weather | 400 Gems | Trigger a chosen weather event on your plot only | The whale product; priced where a free player can see it and a payer can afford it weekly |
-| Rebirth Now | 100 Gems | Rebirth without meeting the Cash threshold | Sells at the moment the player is 80% there |
-| Limited egg | 500–1,500 Gems | The weekly rotating egg | Exclusivity; the single biggest revenue line after month one |
+| Rebirth Now | 100 Gems | Rebirth without meeting the Cash threshold, offered from 50% of it (Rebirth panel and Rebirth Altar) | Sells at the moment the player is 80% there |
+| Limited egg | 500–1,500 Gems | The weekly rotating egg (first: Pumpkin Egg, 600 Gems, Oct 29 – Nov 5 2026) | Exclusivity; the single biggest revenue line after month one |
 
 **Placement rules for Claude Code**
 

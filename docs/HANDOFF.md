@@ -1,161 +1,139 @@
-# Handoff — 2026-10-28 (Reconciliation)
+# Handoff — 2026-10-28 (M5 build)
 
-Read `CLAUDE.md` first (rules, conventions, balance tables, commands) and `docs/DESIGN.md` (intent).
-This file is what a fresh session needs on top of them: what changed in the last session, what has
-never run in Studio, what is still undecided, and what to do next, in order.
+Read `CLAUDE.md` first (rules, conventions, live numbers, commands) and `docs/DESIGN.md` (intent; dated
+rule changes at the top). This file is what a fresh session needs on top of them: what changed in the
+last session, what has never run in Studio, what is still undecided, and what to do next, in order.
 
-Repo: https://github.com/BattleFrogsOfficial/mutant-farm (branch `main`). The place
-file is built with `rojo build default.project.json -o MutantFarm.rbxl`. Tools: `bash tools/install-tools.sh`.
+Repo: https://github.com/BattleFrogsOfficial/mutant-farm (branch `main`). Tools: `bash tools/install-tools.sh`.
+Place file: `rojo build default.project.json -o MutantFarm.rbxl`.
 
-## What was done this session: Reconciliation with docs/DESIGN.md
+## What was done this session
 
-Five commits (`f5293c7`, `fa87372`, `18b88c6`, `cb21d53`, and this docs commit), each with check,
-tests, stylua and both previews green.
+| Commit | Item |
+|---|---|
+| `7d60427` | A: rebirth tail x4.5, Gem badge on the focused card only, DESIGN.md as the intent doc |
+| `137ce71` | B: limited eggs (generic) + the Pumpkin Egg |
+| `394817d` | E: global weather schedule, announcements, Discord relay (+ Instant Weather server) |
+| `80e5f2f` | C + D: Instant Weather and Rebirth Now (client), Rebirth Now server |
+| (this one) | Docs: CLAUDE.md, DESIGN.md dated notes, this handoff |
 
-1. **Pen income** (`Config/Game.lua`, `Valuation.penIncome`, `DataService.penIncome`,
-   `IncomeService`): 0.0005/min online, 0.0001/min offline of base value (tier x rarity only) x
-   the rebirth multiplier (not VIP or group). A plain mutant pays back its sell value in 33.3 h
-   (tested). The 8 h offline cap came in with the old 2%/min rate (commit `10c7af6`; the doc's
-   original rule had none), so it's removed. Payouts carry fractions between minutes.
-2. **Rebirth sells the bag** (`RebirthService`, `EconomyService.sellItem`): every mutant outside
-   the pen is sold at full value through `addCash` (logged, counted in `totalCashEarned`), then Cash
-   resets to `startingCash`, so the sale's Cash goes with it, as the doc says ("sold
-   automatically first, then Cash ... reset"). Tested: 3 bagged mutants -> earned += their value.
-3. **Offline Auto-Harvest** (`shared/AutoHarvest.lua`, `GrowthService.catchUp`): at join, every
-   grow cycle while away is replayed in time order: harvest to the bag, replant the same egg
-   (from the bag of eggs, else bought with Cash; Gem eggs never auto-bought), until the bag is full
-   or Cash runs out. Mutation rolls on those cycles obey the 2 h cap. Online Auto-Harvest buys eggs
-   the same way now (doc: "replants the same egg, paying from Cash"). Welcome back shows
-   "auto-hatched". Tested: 3 h of Swamp eggs fills the bag and spends Cash; nothing grown entirely
-   after the cap mutates.
-4. **VIP** (`ChatController`, `MonetizationService`, `DailyService`, `DailyPanel`): gold `[VIP]`
-   chat prefix via `TextChatService.OnIncomingMessage` from a `VIP` player attribute; 50 Gems per
-   UTC day from a VIP strip in the Daily panel (`ClaimVipGems`, red dot on the Daily icon). Tested
-   (claim once per day). VIP egg stays M5.
-5. **Weather** (`Config/Weather.lua`, `shared/WeatherRules.lua`, `WeatherService`): 120 s events,
-   a roll at the start and every 30 s (4 rolls): 25 / 30 / 10% per tick; weights 50/50/20 (Glitch
-   Storm 1 in 6). HUD countdown chip in every zone from 5 min before (`Hud.weatherText`). Tested:
-   100 Acid Rain events through the real service mutate 60-75% of fully grown-through eggs.
-6. **Leaderboards** (`LeaderboardService`, `shared/Leaderboards.lua`, `LeaderboardController`,
-   `World.leaderboards`): Top Pens (pen value at x1) and Top Rebirths, OrderedDataStores
-   `TopPens_v1` / `TopRebirths_v1`, top 100 each, saved + re-read every 120 s (and saved on leave),
-   sent to clients; drawn as scrolling SurfaceGuis in PlayerGui adorned to two boards at the north
-   edge of the plaza, with your own row pinned at the bottom. The old `CashEarned_v1` board is gone.
-7. **Pins** (`shared/Pen.lua`, `Pin` intent, `SellPanel`, `HatchScreen`): pinned mutants always
-   stand in the pen (cap 8), Sell All skips them, rebirth keeps them; 📌 toggle on each Sell panel
-   row and "PIN TO PEN" on the hatch reveal. Tested.
-8. **Purchase effects** (`MonetizationService.purchaseFx`, `PlotController`, `ChatController`):
-   every Robux purchase sends `PurchaseFx` to the whole server: a gold/pink sparkle burst over the
-   buyer's plot; VIP and the Starter Bundle also post a system chat line. Tested (server side).
-9. **Group reward** (`GroupRewardService`, `GroupOfferPanel`): IsInGroup on join; offered once
-   after the first sale (Join opens `GroupService:PromptJoinAsync`, then `ClaimGroupReward`); a
-   non-member's sales re-check with `GetGroupsAsync` (at most every 30 s). Tested: joining
-   mid-session pays +10% on the next sell; offer shown once.
-10. **Rebirth Altar** (`World.rebirthAltar`, `ZoneController.altarSign`, `PlotController` pads):
-    violet step-on pad on the plaza's south edge (opposite the boards, across the fountain) with
-    small Neon stones and one weak light; the sign shows "REBIRTH N · $cost" / "unlocks <tier>"
-    (or "Cash xN") and a Cash/cost bar. World checker 0 issues; rendered legible at 667x375.
-11. **Unlinked ids**: Studio prints one warning listing every pass and product with id 0. Tested.
-12. **Simulator** (`tools/sim.luau`): models the pen, the new income rates, Auto-Harvest from
-    Cash and the rebirth sale. 60 runs, 1.5 active h/day:
+- **A1 Rebirth tail** `Config/Rebirths.lua` costGrowth 4.5 (700K, 3.15M, 14.2M, 63.8M, ...). Sim, 60
+  runs, 1.5 active h/day: Rebirth 1 at **25 sim-min** (unchanged); free Rebirth 4 **day 3**, Rebirth 10
+  **day 23**; paying Rebirth 4 day 2, Rebirth 10 **day 11**. The open decision is closed.
+- **A2** the "2x RARITY ODDS" badge only on the focused card in Gem mode (side cards: egg and name).
+  The UI preview checks it.
+- **A3** CLAUDE.md's header points at DESIGN.md; every rule change goes into both, dated in DESIGN.md.
+- **B Limited eggs** `Config/LimitedEggs.lua` → tiers generated in `Eggs.lua` (outside `Eggs.order`),
+  `ShopRules.activeLimited/isLimitedActive/shownLimited`, BuyEgg refuses outside the window ("ended") or
+  when restricted, sink `LimitedEgg_<id>`, funnel `FirstLimitedEgg`. **Pumpkin Egg**: 600 Gems (x5
+  3,000), 30 min, Lab values and size, Lab's Uncommon+ x2 renormalized, design `jack` (ridges, carved
+  face, stem; no Neon), 10 Halloween species (bucket `Pumpkin`, 2 per rarity; new accessories
+  `witchHat`, `stem`; also in `tools/gen-mutants.luau`), window unix 1793246400..1793941140 (Oct 29
+  00:00 EDT .. Nov 5 23:59 EST, across the Nov 1 DST change). Shop: left-most slots in both modes,
+  Gem-priced, live "🎃 ENDS IN 3d 4h" ribbon, first open focuses it (`SeenLimited`,
+  `profile.seenLimited`) with NEW + flash, gone on the next open after `endsAt`. Tray/bag icon,
+  Almanac tab + "LIMITED · Halloween 2026". World (at server start, inside the window): banner on the
+  Egg Shop roof sign, three carved pumpkins around the fountain (`World.build(now)`; `LIMITED_AT` in
+  the preview tools forces it).
+- **C Instant Weather** 400 Gems: `BuyInstantWeather(eventId)` → a 120 s event on the buyer's plot only
+  (WeatherService, same rolls as global weather, independent of it, never two at once), policy-gated
+  like the potion, sink `InstantWeather_<id>`, player attributes `PlotWeatherId/EndsAt`. Pink HUD
+  button (no global event running or within 5 min, none of yours, not restricted) → picker panel; Shop
+  Gems section card; rain (+ static for Glitch Storm) over that island under a small cloud others see,
+  tint for the owner on their plot.
+- **D Rebirth Now** 100 Gems: `RebirthNow` from 50% of the cost: the exact rebirth flow, then the Gems
+  (checked first); sink `RebirthNow`; not policy-gated. Pink button beside the bar in the Rebirth panel
+  (two taps; short on Gems → Gem shop) and on the Rebirth Altar sign (now drawn per player by
+  `UI/AltarSign` in a PlayerGui SurfaceGui so it can be tapped; it opens the panel).
+- **E Weather** `shared/Weather.lua` `scheduleAt(t)`: 1500 s buckets counted from the unix epoch, event
+  at +300 s for 120 s, type = seeded hash of the bucket index, 45/40/15. Every server runs the same
+  events at the same time; the "first event 6 min after start" rule is gone. Announcements to the
+  server: toast at T-5:00 (+ chat system line), T-1:00 and the start. Discord (Glitch Storm, T-5:00):
+  MemoryStore claim (`WeatherAnnounce`, key = startsAt, UpdateAsync, 3600 s) → POST to `Game.relayUrl`
+  with `WEATHER_RELAY_KEY` in `X-Relay-Key`. `tools/relay/` has the Worker, its README (setup) and a
+  node test.
+- **Tooling**: the server harness fakes MemoryStore, HttpService (GetSecret, RequestAsync), Analytics
+  events (`world.economy`, `world.funnels`) and per-player policy (`world.restricted`). The UI preview
+  got shop-limited (Cash/Gems/restricted), hud-instant-weather (hub/plot/restricted), instantWeather,
+  rebirth-now (panel + altar) and a panel overlap check; ui-render waits up to 5 min for the (now
+  ~60 MB) scene file.
 
-    | Bot | Rebirth 1 | Free R4 / R10 | Paying R4 / R10 |
-    |---|---|---|---|
-    | Sells everything (default) | 25 sim-min | day 3 / not in 30 days | day 2 / day 16 |
-    | Keeps its 8 best (`--pen keep`) | 917 sim-min | day 6 / not in 30 days | day 5 / day 18 |
+**Verified at the end:** `lune run tools/check` 107 files, 0 failed · `lune run tools/test` 106 passed,
+0 failed · `stylua --check src tools tests` clean · `node tools/relay/test.mjs` passed · world checker
+0 issues with the Halloween decor off (2011 parts) and on (2027 parts, `LIMITED_AT=1793500000`) · UI
+preview: HUD 0 issues across 42 state x size combinations, shop 0 across 48 scenes, panels 0 across 18
+· sim as above. `selene` not run (the Roblox std download fails in this environment).
 
-    The default bot is unchanged from before: it sells everything, so it never has a pen to earn
-    from, and its bag is already empty when it rebirths. Rebirth 1 is inside 25-30, so no retune.
-    Keeping the 8 best early mutants withholds the big early hits that fund the first rebirth.
-13. **Tooling**: `tools/server-harness.luau` runs the real server services under Lune (fake
-    players, clock, ProfileStore, OrderedDataStores, Marketplace/Group services); `tests/server.spec`
-    and `tests/weather.spec` use it through `t.server()`. `install-tools.sh` now builds stylua with
-    `--features luau` (without it stylua can't parse a single file).
+### Calls made where the request left room
 
-Verified at the end: `lune run tools/check` (102 files), `lune run tools/test` (83 pass), world
-checker 0 issues (2011 parts), UI preview 0 HUD issues (24 combinations) and 0 shop issues (30
-scenes), stylua clean. `selene` was not run (the Roblox std download fails here).
+- **"1500 s buckets aligned to the hour"**: 3600 isn't a multiple of 1500, so buckets are counted from
+  the unix epoch (itself on an hour): every bucket is exactly 25 min, the grid meets the hour every
+  5 h, and every server agrees. Resetting at each hour would make a 10-min last bucket.
+- **Relay key**: Roblox `Secret` values can only go into headers or the URL, so the game sends the key
+  in `X-Relay-Key`; the Worker accepts the header or a JSON `key`.
+- **Altar Rebirth Now button** opens the Rebirth panel (where both buttons confirm with a second tap)
+  instead of rebirthing straight from the sign.
+- **Instant Weather** that's running when its buyer leaves just ends (no refund); global events can't
+  be bought off.
 
 ## Untested in Studio
 
 Nothing on the Roblox side runs headlessly. New this session:
 
-1. **VIP chat tag** shows gold `[VIP]` before the name (TextChatService must be the chat version;
-   `OnIncomingMessage` is the only callback set). System chat lines appear in RBXGeneral.
-2. **Purchase sparkle** is visible from another client in a 2-player test (Studio test purchases;
-   set a pass id first, e.g. VIP).
-3. **Both boards populate** in a test server with 3 players (DataStores need API access in
-   Studio, or a published place); scrolling works and your own row shows `#N` / `#100+`.
-4. **Group offer**: `GroupService:PromptJoinAsync` opens Roblox's prompt; on Joined the bonus and
-   eggs apply; set `Game.groupId` first. Daily panel strips (group, VIP) fit with both visible.
-5. **Rebirth Altar**: stepping on it opens the Rebirth panel; the sign text and bar update; the
-   glow is soft (no glare).
-6. **Pins**: 📌 on Sell rows and PIN TO PEN on the reveal; the pen on the plot shows pinned ones.
-7. **Weather chip** appears 5 min before an event in both zones on a phone.
-8. **Offline Auto-Harvest** on a real rejoin (Welcome back shows "auto-hatched"; no toast flood).
+1. **Discord relay**: deploy the Worker (tools/relay/README.md), add the `WEATHER_RELAY_KEY` secret,
+   turn on Allow HTTP Requests, set `relayUrl`/`gameLink`; one message per Glitch Storm with two or
+   more live servers. Check the secret works in the header (`HttpService:GetSecret` → `RequestAsync`).
+2. **MemoryStore claim** across real servers (only one posts); and that Studio without API access
+   just logs "relay skipped" once.
+3. **Global schedule** on two live servers: same event, same second (the HUD chip matches).
+4. **Announcements**: the three toasts and the T-5:00 chat line (TextChatService).
+5. **Instant Weather**: picker feel; rain/static only over that island; the cloud visible from another
+   client; the owner's tint only on their plot; the button hiding near global events and while yours
+   runs; restricted account: no button, no Shop card.
+6. **Rebirth Now**: panel button (two taps), the Altar sign button is tappable (PlayerGui SurfaceGui)
+   and its text/bar update; short on Gems opens the Gem shop.
+7. **Pumpkin Egg**: the shop opens on it once; ribbon countdown; buy x1/x5; the `jack` egg and the 10
+   species look right (witch hat, stem); hatching; the Almanac tab; rebirth keeps the eggs; after Nov 5
+   23:59 EST the card is gone on the next open. World banner + pumpkins on a server started inside the
+   window. Restricted account: no card.
 
-Still open from the previous session (unchanged):
-
-9. **Shop no longer closes on clicks.** The `Blocker` fix follows a diagnosis that couldn't be
-   reproduced headlessly. Click every part of the open shop (card faces, side cards, title row,
-   empty panel space, dots) and confirm only the X and the backdrop close it. Also check other
-   panels still work with the Blocker.
-10. **Drag feel:** 1:1 follow, flick distance (`EggShopUI.flickSeconds` 0.12), tap slop (8 px),
-   overshoot at the ends (0.35 cards). Does `InputBegan` on the Strip fire when the press starts on
-   a card or a buy button? (Tap-to-focus and drag rely on it.)
-11. **Wheel direction:** `Carousel.wheel` treats `Position.Z > 0` (wheel up) as left. Confirm it feels
-   right, and that the wheel no longer zooms the camera while the shop is open.
-12. **Left/Right camera sink:** with the shop open, Left/Right must step the carousel and must not
-   turn the camera; Enter buys x1. After closing, arrow keys and the wheel behave normally again
-   (unbind).
-13. Edge-hover auto-scroll: only on mouse devices, only on the strip's outer edges, pauses after a
-   click until the mouse leaves the zone.
-14. Dim backdrop covers every edge including under the top bar; tapping it closes the panel; it
-   hides during the hatch cutscene.
-15. Gem eggs end to end (buy, plant, hatch with the crystal egg, rebirth keeps them), the potion
-   from the shop title row, and a PolicyService-restricted account (no switch, no potion).
-16. Real first-rebirth time with Lab at 5K and Rebirth 1 at 700K (target 35-45 real minutes).
-17. Mid-session unlock: earn past $25K with the shop open -> Lab flashes, jingle once, NEW ribbon.
+Still open from the previous sessions (unchanged): the reconciliation list (VIP chat tag, purchase
+sparkle seen from a second client, both boards with 3 players, group offer + PromptJoinAsync, Altar
+pad, pins on Sell rows/hatch reveal, weather chip on a phone, offline Auto-Harvest on a real rejoin) and
+the Egg Shop/economy list (shop doesn't close on clicks, drag feel, wheel direction, Left/Right camera
+sink, edge-hover auto-scroll, backdrop edges, Gem eggs end to end, real first-rebirth time, mid-session
+Lab unlock).
 
 ## Open decisions
 
-- **Rebirth tail multiplier.** x5 after 700K pushes free Rebirth 10 past day 30 (was day 22) and
-  paying to day 16 (was 11). ~x4.4-4.5 restores the old tail while keeping 700K and day-3 Rebirth 4.
-  Kept at x5 (the agreed chain) pending a decision. Change only `Config/Rebirths.lua` `costGrowth`
-  and the tests in `tests/economy.spec.luau`.
-- **Paying player Rebirth 4** lands day 2; the stated target was day 1.
-- **Skip Timer pricing** is a soft-launch tuning flag (`Config/Products.lua` comment): if Skip
-  revenue is high while day-3 return is low, price on total remaining minutes instead.
-- **Gem badge on side cards:** the "2x RARITY ODDS" badge also shows (tiny) on unlocked side cards,
-  per the spec ("on unlocked cards"); the spec also says side cards show only egg and name. Pick one.
-- All pass/product ids and `Game.groupId` are 0 until created in Creator Hub (Studio now warns).
-- **Pen income is small by design** (33 h payback): a pen of Starter/Swamp Commons earns a few
-  dollars a minute at most (the HUD reads "+$0 / MIN" and the gate sign stays blank below $1); the Daily "minutes of Cash" rewards
-  lean on their `min` floors now. The design says "the pen never short-circuits a rebirth
-  threshold", and the sim agrees; check that it still feels worth pinning.
-- **Own rank outside the top 100** shows `#100+`: OrderedDataStore has no rank lookup, and
-  paging to find it would blow the GetSortedAsync budget.
-- **Top Pens** values pens at x1 (no Cash multiplier), so it compares mutants, not rebirths.
-- **Not in this reconciliation, still different from DESIGN.md:** the daily streak pays eggs and
-  Cash (doc: Gems on days 1-6, Toxic egg day 7); the Starter Bundle grants 550 Gems (doc: 500
-  Gems + 2 Luck Potions).
-
+- **Paying player Rebirth 4** lands day 2; the stated target is day 1. Paying Rebirth 10 is now day 11
+  (target ~1 week); free day 23 (target ~3 weeks).
+- **Skip Timer pricing** is a soft-launch tuning flag (`Config/Products.lua` comment).
+- **Pen income is small by design** (33 h payback); check pinning still feels worth it.
+- **Own rank outside the top 100** shows `#100+` (no cheap rank lookup in OrderedDataStore).
+- **Still different from DESIGN.md (not in this build):** the daily streak pays eggs and Cash (doc:
+  Gems on days 1-6, Toxic egg day 7); the Starter Bundle grants 550 Gems (doc: 500 Gems + 2 Luck
+  Potions).
+- All pass/product ids and `Game.groupId` are 0 until created in Creator Hub (Studio warns at start).
+- `Game.gameLink` is a placeholder (place id 0) until the game is published.
 
 ## Next tasks, in order
 
-1. **Studio pass on the reconciliation** (items 1-8 above): 2-3 player test server, test
-   purchases with a pass id set, the group with `Game.groupId` set. Fix anything found.
-2. **Studio pass on the Egg Shop and economy** (items 9-17): time a real first rebirth; record it
-   in CLAUDE.md next to the sim number.
-3. **Decide the rebirth tail** (x5 vs ~x4.45); if it changes, re-run
-   `lune run tools/sim -- --runs 60` and update the table in CLAUDE.md.
-4. **Creator Hub setup:** create the game passes, the Gem pack developer products, the Starter
-   Bundle and the group; fill the ids in `Config/Passes.lua`, `Config/Products.lua` and
-   `Config/Game.lua` (`groupId`); the Studio warning goes quiet when all are linked.
-5. **Daily streak and Starter Bundle vs DESIGN.md** (see Open decisions): decide, then align.
-6. **M2 remaining:** final sounds in `Config/Assets.lua`.
-7. **M5 / week-6 list:** limited egg, VIP egg, Instant Weather + Rebirth Now, weather announce +
-   Discord relay (Cloudflare Worker), first-session phone check. Egg skins stay v1.5.
+1. **Before Oct 29 00:00 EDT**: publish with the Pumpkin Egg and do item 7 above in Studio. To test
+   before the window opens, temporarily set the Pumpkin's `startsAt` in a local copy of
+   `Config/LimitedEggs.lua` to a past time (don't commit it).
+2. **Relay go-live**: tools/relay/README.md steps 1-4, then item 1-2 above.
+3. **Studio pass** on items 3-6, then the older lists.
+4. **Creator Hub setup**: passes, Gem packs, Starter Bundle, the group; fill the ids
+   (`Config/Passes.lua`, `Config/Products.lua`, `Config/Game.lua` groupId) until the Studio warning is
+   gone; real `gameLink`.
+5. **Next limited egg** (Winter): one `Config/LimitedEggs.lua` entry + 10 species in
+   `tools/gen-mutants.luau` `LIMITED` (re-run it: it writes `Config/Mutants.lua`). That's all if it
+   reuses an existing egg pattern and has no `decor` (the banner is plain config); a new look needs a
+   pattern in `MutantModel.buildEgg`, new hub props a `decor` builder in `World.lua`. The generic
+   checks in `tests/limited.spec.luau` cover any entry.
+6. **M5 remaining**: VIP egg, first-session phone check, icon/thumbnail A/B; daily streak and Starter
+   Bundle vs DESIGN.md (decide, then align).
 
 Keep the rules in CLAUDE.md: server-authoritative intents, numbers only in Config, pink only for
 spending, HUD below the GuiService inset, previews and checker at 0 issues.
