@@ -61,6 +61,8 @@ local TEMPLATE: Types.Profile = {
 	potionUntil = 0,
 	groupRewardClaimed = false,
 	almanacRewards = 0,
+	inGroup = false,
+	almanacLuck = 0,
 }
 
 local store = ProfileStore.New("PlayerData_v1", TEMPLATE)
@@ -110,7 +112,11 @@ function DataService.speed(data: Types.Profile): number
 end
 
 function DataService.cashMultiplier(data: Types.Profile): number
-	return Valuation.cashMultiplier(data.rebirths, data.ownedPasses.VIP == true)
+	return Valuation.cashMultiplier(
+		data.rebirths,
+		data.ownedPasses.VIP == true,
+		if data.inGroup then GameConfig.groupCashBonus else 0
+	)
 end
 
 -- Slots you can plant in: bought ones plus 10 from the +10 Plot Slots pass, up to the plot's 40.
@@ -216,6 +222,8 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 			mutationOdds = Costs.upgrade("mutationOdds", data.upgrades.mutationOdds, data.rebirths),
 		},
 		almanacRewards = data.almanacRewards,
+		inGroup = data.inGroup,
+		almanacLuck = data.almanacLuck,
 		ownedPasses = data.ownedPasses,
 		rebirthCost = Costs.rebirth(data.rebirths),
 		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt

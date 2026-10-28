@@ -63,6 +63,8 @@ export type Profile = {
 	potionUntil: number, -- Luck Potion active until this server time
 	groupRewardClaimed: boolean,
 	almanacRewards: number, -- Almanac milestones already paid
+	inGroup: boolean, -- group member as of the last check (join / Claim): +10% Cash
+	almanacLuck: number, -- permanent luck bonus from Almanac milestones (0.1 = +10%)
 }
 
 export type SlotView = {
@@ -103,6 +105,8 @@ export type Snapshot = {
 	upgrades: { growthSpeed: number, mutationOdds: number },
 	upgradeCosts: { growthSpeed: number?, mutationOdds: number? }, -- nil = maxed
 	almanacRewards: number,
+	inGroup: boolean,
+	almanacLuck: number,
 }
 
 return {}

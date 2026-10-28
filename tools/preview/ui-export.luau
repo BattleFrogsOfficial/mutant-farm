@@ -301,6 +301,8 @@ local snapshot = {
 	upgrades = { growthSpeed = 2, mutationOdds = 0 },
 	upgradeCosts = { growthSpeed = 18_000, mutationOdds = 2_000 },
 	almanacRewards = 1,
+	inGroup = true,
+	almanacLuck = 0,
 	fastHatch = false,
 }
 
@@ -442,7 +444,7 @@ local SCREENS = { { 1280, 720 }, { 844, 390 }, { 667, 375 }, { 800, 360 }, { 102
 local function captureHud(name)
 	for _, wh in SCREENS do
 		local w, h = wh[1], wh[2]
-		set(State.screen, { width = w, height = h, scale = math.clamp(math.min(w / 900, h / 540), 0.5, 1.4) })
+		set(State.screen, { width = w, height = h - 58, scale = math.clamp(math.min(w / 900, (h - 58) / 540), 0.5, 1.4) })
 		capture(string.format("%s@%dx%d", name, w, h))
 	end
 	set(State.screen, { width = 1280, height = 720, scale = 720 / 540 })

@@ -20,6 +20,7 @@ return function(t)
 			t.eq(Valuation.cashMultiplier(4, false), 3)
 			t.eq(Valuation.cashMultiplier(10, false), 6)
 			t.eq(Valuation.cashMultiplier(4, true), 4.5)
+			t.near(Valuation.cashMultiplier(0, false, 0.1), 1.1, 1e-9)
 		end,
 		["pen income: 2% of base value x size per minute, mutations ignored"] = function()
 			local m = { tier = "Toxic", rarity = "Rare", mutations = { "Golden" }, size = 1.5 }

@@ -24,7 +24,7 @@ return function()
 		Name = "Toast",
 		ZIndex = 20, -- above open panels
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 100),
+		Position = UDim2.new(0.5, 0, 0, 74),
 		Size = UDim2.fromOffset(360, 48),
 		BackgroundTransparency = 1,
 		[Children] = ForPairs(byId, function(id: number, encoded: string)

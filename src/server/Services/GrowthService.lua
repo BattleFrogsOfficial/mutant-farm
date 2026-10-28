@@ -40,7 +40,7 @@ local GUARANTEED_RARE_PLANT = 2 -- the Nth egg a player ever plants
 local function luck(data: Types.Profile): number
 	local pass = if data.ownedPasses.Luck2x then 2 else 1
 	local potion = if DataService.now() < data.potionUntil then Products.gems.LuckPotion.luck else 1
-	return pass * potion
+	return pass * potion * (1 + data.almanacLuck)
 end
 
 local function oddsBonus(data: Types.Profile): number
@@ -199,7 +199,22 @@ local function almanacMilestone(player: Player, data: Types.Profile)
 	while data.almanacRewards < reached do
 		data.almanacRewards += 1
 		local at = data.almanacRewards * cfg.every
-		if EconomyService.addGems(player, data, cfg.gems, "Gameplay", "Almanac_" .. at) then
+		local big = cfg.big[at]
+		if big then
+			-- Real goods at the big milestones: eggs from higher tiers, or a permanent luck bonus.
+			local parts = {}
+			for eggId, count in big.eggs or {} do
+				if Eggs.tiers[eggId] then
+					data.eggs[eggId] = (data.eggs[eggId] or 0) + count
+					table.insert(parts, count .. " " .. Eggs.tiers[eggId].name)
+				end
+			end
+			if big.luck then
+				data.almanacLuck += big.luck
+				table.insert(parts, string.format("+%d%% luck forever", math.floor(big.luck * 100 + 0.5)))
+			end
+			Net.notify(player, string.format("📖 %d species! %s", at, table.concat(parts, " + ")), "success")
+		elseif EconomyService.addGems(player, data, cfg.gems, "Gameplay", "Almanac_" .. at) then
 			Net.notify(player, string.format("📖 %d species discovered! +%d Gems", at, cfg.gems), "success")
 		end
 	end

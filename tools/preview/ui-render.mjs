@@ -26,7 +26,7 @@ const checkSizes = [
   ["hd", 1920, 1080],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
-const ZONES = ["Cash", "RebirthStrip", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
+const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
 
 const html = `<!doctype html><html><head><style>
 * { box-sizing: border-box; }
@@ -201,9 +201,8 @@ window.render = (sceneIndex, W, H) => {
   screen.style.backgroundImage = ${JSON.stringify(bg ? `url(${bg})` : "none")};
   document.getElementById("topbar").style.height = ${TOPBAR} + "px";
   for (const old of screen.querySelectorAll(".gui")) old.remove();
-  // Both ScreenGuis cover the full screen (IgnoreGuiInset on); the HUD's top row shares the
-  // top-bar strip with Roblox's buttons.
-  const full = true;
+  // The HUD sits below Roblox's top bar (IgnoreGuiInset off); only the hatch cutscene is full screen.
+  const full = data.scenes[sceneIndex].name === "hatch";
   const inset = full ? 0 : ${TOPBAR};
   const usableH = H - inset;
   const scale = Math.min(Math.max(Math.min(W / ${DESIGN.w}, usableH / ${DESIGN.h}), 0.5), 1.4);

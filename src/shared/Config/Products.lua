@@ -18,6 +18,9 @@ return {
 	},
 	gems = {
 		LuckPotion = { cost = 25, durationSeconds = 30 * 60, luck = 3 },
+		-- SOFT-LAUNCH TUNING FLAG: priced per egg on its own time left, so a full plot of 8 h Cosmic
+		-- eggs clears for ~120 Robux of Gems. If Skip revenue is high while day-3 return is low, it's
+		-- eating the timers that bring people back: price on total remaining minutes instead.
 		SkipTimer = { costPer10Minutes = 5 },
 		InstantWeather = { cost = 400 },
 		RebirthNow = { cost = 100 },

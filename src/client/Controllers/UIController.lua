@@ -49,9 +49,9 @@ function UIController.Start()
 	local gui = New("ScreenGui")({
 		Name = "MutantFarm",
 		ResetOnSpawn = false,
-		-- The top row shares the top-bar strip with Roblox's buttons (they keep the top-left
-		-- corner; nothing of ours goes there), so the HUD sits high instead of floating low.
-		IgnoreGuiInset = true,
+		-- Directly below Roblox's top bar, which grows with chat, the menu, voice, captures and
+		-- platform: never share its strip. (The hatch cutscene is the only full-screen GUI.)
+		IgnoreGuiInset = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = Players.LocalPlayer:WaitForChild("PlayerGui"),
 		[Children] = New("Frame")({

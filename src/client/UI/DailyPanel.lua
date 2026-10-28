@@ -177,19 +177,20 @@ return function()
 				BorderSizePixel = 0,
 				Visible = Computed(function()
 					local snap = State.snapshot:get()
-					return GameConfig.groupId ~= 0 and snap ~= nil and snap.groupRewardClaimed == false
+					-- Until they're in the group with the eggs claimed (leaving the group brings it back).
+					return GameConfig.groupId ~= 0
+						and snap ~= nil
+						and not (snap.inGroup == true and snap.groupRewardClaimed == true)
 				end),
 				ZIndex = 2,
 				[Children] = {
 					C.stroke(Theme.colors.ink, 2.5),
 					C.label({
 						Text = (function()
-							local reward = GameConfig.groupReward
-							local parts = {}
-							if reward.gems then
-								table.insert(parts, reward.gems .. " 💎")
-							end
-							for eggId, count in reward.eggs or {} do
+							local parts = {
+								string.format("+%d%% CASH FOREVER", math.floor(GameConfig.groupCashBonus * 100 + 0.5)),
+							}
+							for eggId, count in GameConfig.groupReward.eggs or {} do
 								table.insert(parts, count .. " " .. string.upper(eggId) .. " EGGS")
 							end
 							return "👥 JOIN OUR GROUP: " .. table.concat(parts, " + ")

@@ -26,6 +26,7 @@ local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local MutantModel = require(Shared.MutantModel)
 local Mutants = require(Shared.Config.Mutants)
+local GameConfig = require(Shared.Config.Game)
 local Growth = require(Shared.Growth)
 local Costs = require(Shared.Costs)
 local Products = require(Shared.Config.Products)
@@ -40,11 +41,13 @@ local New, Children, Computed, ForPairs, Observer, Spring, OnEvent =
 
 local NAVY = Theme.colors.navy
 local SPEND = Theme.colors.spend
--- The top row sits in the top-bar strip itself (IgnoreGuiInset on), right of Roblox's buttons,
--- which keep the top-left corner: currencies top-center, Daily and Almanac top-right. Cash is centered CASH_X off the
+-- The HUD starts directly below Roblox's top bar (IgnoreGuiInset off): the top bar changes width
+-- with chat/menu/voice/platform, so nothing of ours shares its strip. Top-row panels are 36 tall. Cash is centered CASH_X off the
 -- middle, Gems right after it.
-local CASH_X = -70
-local CASH_W = 236
+local CASH_X = -66
+local CASH_W = 300
+local ROW_Y = 6 -- the top row, directly under Roblox's top bar
+local ROW_H = 36 -- top-row panels stay short so the HUD still sits high
 
 local TOTAL_SPECIES = (function()
 	local n = 0
@@ -158,8 +161,8 @@ local function cashBox()
 	local box = C.pill({
 		Name = "Cash",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, CASH_X, 0, 8),
-		Size = UDim2.fromOffset(CASH_W, 58),
+		Position = UDim2.new(0.5, CASH_X, 0, ROW_Y),
+		Size = UDim2.fromOffset(CASH_W, ROW_H),
 		Rim = NAVY,
 		Children = {
 			New("UIScale")({
@@ -169,17 +172,17 @@ local function cashBox()
 			}),
 			C.label({
 				Text = "💰",
-				Position = UDim2.fromOffset(10, 9),
-				Size = UDim2.fromOffset(38, 38),
-				MaxTextSize = 30,
+				Position = UDim2.fromOffset(9, 4),
+				Size = UDim2.fromOffset(26, 26),
+				MaxTextSize = 22,
 				ZIndex = 2,
 			}),
 			C.label({
 				Name = "Amount",
-				Position = UDim2.fromOffset(54, 5),
-				Size = UDim2.new(1, -62, 0, 30),
+				Position = UDim2.fromOffset(38, 4),
+				Size = UDim2.new(0.45, -38, 0, 26),
 				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 28,
+				MaxTextSize = 24,
 				StrokeThickness = 3,
 				ZIndex = 2,
 				Text = Computed(function()
@@ -188,9 +191,9 @@ local function cashBox()
 			}),
 			C.label({
 				Name = "Rate",
-				Position = UDim2.fromOffset(54, 35),
-				Size = UDim2.new(1, -62, 0, 14),
-				TextXAlignment = Enum.TextXAlignment.Left,
+				Position = UDim2.new(0.45, 0, 0, 11),
+				Size = UDim2.new(0.55, -10, 0, 13),
+				TextXAlignment = Enum.TextXAlignment.Right,
 				TextColor3 = Theme.colors.cream,
 				StrokeThickness = 0,
 				MaxTextSize = 12,
@@ -210,7 +213,7 @@ local function cashBox()
 				AnchorPoint = Vector2.new(0, 1),
 				Position = UDim2.fromScale(0, 1),
 				Size = Computed(function()
-					return UDim2.new(if income:get() > 0 then payoutProgress:get() else 0, 0, 0, 4)
+					return UDim2.new(if income:get() > 0 then payoutProgress:get() else 0, 0, 0, 3)
 				end),
 				BackgroundColor3 = Theme.colors.cream,
 				BorderSizePixel = 0,
@@ -238,7 +241,7 @@ local function cashBox()
 			Text = "+" .. Format.cash(gained) .. (if fromPen then " 🐾" else ""),
 			TextColor3 = Theme.colors.cream,
 			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 54, 1, 34),
+			Position = UDim2.new(0, 38, 1, 40),
 			Size = UDim2.fromOffset(170, 28),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			MaxTextSize = 24,
@@ -252,7 +255,7 @@ local function cashBox()
 		TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
 			:Play()
 		TweenService:Create(pop, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-			Position = UDim2.new(0, 54, 1, 70),
+			Position = UDim2.new(0, 38, 1, 76),
 			TextTransparency = 1,
 		}):Play()
 		task.delay(1.2, function()
@@ -275,8 +278,9 @@ local function rebirthStrip()
 	return New("Frame")({
 		Name = "RebirthStrip",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, CASH_X, 0, 72),
-		Size = UDim2.fromOffset(CASH_W, 22),
+		AnchorPoint = Vector2.new(0, 0),
+		Position = UDim2.new(0.5, CASH_X - CASH_W / 2, 0, ROW_Y + ROW_H + 6),
+		Size = UDim2.fromOffset(CASH_W - 80, 18),
 		BackgroundColor3 = Theme.colors.ink,
 		BorderSizePixel = 0,
 		Visible = Computed(function()
@@ -319,51 +323,68 @@ local function rebirthStrip()
 	})
 end
 
+-- Group member bonus, beside the Rebirth strip under Cash: "👥 +10%" while it applies.
+local function groupBadge()
+	return New("Frame")({
+		Name = "GroupBadge",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(0.5, CASH_X + CASH_W / 2, 0, ROW_Y + ROW_H + 6),
+		Size = UDim2.fromOffset(72, 18),
+		BackgroundColor3 = NAVY,
+		BorderSizePixel = 0,
+		Visible = Computed(function()
+			local snap = State.snapshot:get()
+			return snap ~= nil and snap.inGroup == true
+		end),
+		[Children] = {
+			C.stroke(Theme.colors.ink, 2),
+			C.label({
+				Text = string.format("👥 +%d%%", math.floor(GameConfig.groupCashBonus * 100 + 0.5)),
+				Size = UDim2.new(1, -6, 1, -4),
+				Position = UDim2.fromOffset(3, 2),
+				MaxTextSize = 12,
+				StrokeThickness = 1.5,
+				ZIndex = 2,
+			}),
+		},
+	})
+end
+
 local function gemsBox()
 	return C.pill({
 		Name = "Gems",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, CASH_X + CASH_W / 2 + 8 + 66, 0, 8),
-		Size = UDim2.fromOffset(132, 58),
+		Position = UDim2.new(0.5, CASH_X + CASH_W / 2 + 8 + 60, 0, ROW_Y),
+		Size = UDim2.fromOffset(120, ROW_H),
 		Rim = NAVY,
 		Children = {
 			C.label({
 				Text = "💎",
-				Position = UDim2.fromOffset(9, 11),
-				Size = UDim2.fromOffset(34, 34),
-				MaxTextSize = 26,
+				Position = UDim2.fromOffset(9, 5),
+				Size = UDim2.fromOffset(24, 24),
+				MaxTextSize = 20,
 				ZIndex = 2,
 			}),
 			C.label({
 				Name = "Amount",
-				Position = UDim2.fromOffset(46, 8),
-				Size = UDim2.new(1, -90, 0, 26),
+				Position = UDim2.fromOffset(38, 5),
+				Size = UDim2.new(1, -78, 0, 24),
 				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 22,
+				MaxTextSize = 20,
 				StrokeThickness = 2.5,
 				ZIndex = 2,
 				Text = Computed(function()
 					return Format.number(State.gems:get())
 				end),
 			}),
-			C.label({
-				Text = "GEMS",
-				Position = UDim2.fromOffset(46, 35),
-				Size = UDim2.new(1, -90, 0, 13),
-				TextXAlignment = Enum.TextXAlignment.Left,
-				TextColor3 = Theme.colors.cream,
-				StrokeThickness = 0,
-				MaxTextSize = 11,
-				ZIndex = 2,
-			}),
 			C.button({
 				Name = "Plus",
 				Text = "+",
 				Color = SPEND,
 				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -7, 0.5, 0),
-				Size = UDim2.fromOffset(36, 42),
-				MaxTextSize = 28,
+				Position = UDim2.new(1, -4, 0.5, -1),
+				Size = UDim2.fromOffset(32, 32),
+				MaxTextSize = 22,
 				ZIndex = 4,
 				OnClick = function()
 					openPanel("store")
@@ -378,15 +399,15 @@ local function iconButton(name: string, icon: string, fromRight: number, alert: 
 	return New("Frame")({
 		Name = name,
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -fromRight, 0, 8),
-		Size = UDim2.fromOffset(52, 58),
+		Position = UDim2.new(1, -fromRight, 0, ROW_Y),
+		Size = UDim2.fromOffset(44, ROW_H),
 		BackgroundTransparency = 1,
 		[Children] = {
 			C.button({
 				Size = UDim2.fromScale(1, 1),
 				Color = NAVY,
 				Text = icon,
-				MaxTextSize = 28,
+				MaxTextSize = 22,
 				Pulse = alert,
 				OnClick = onClick,
 			}),
@@ -400,7 +421,7 @@ local function dailyButton()
 		local snap = State.snapshot:get()
 		return snap ~= nil and snap.daily ~= nil and snap.daily.canClaim
 	end)
-	return iconButton("Daily", "🎁", 74, ready, function()
+	return iconButton("Daily", "🎁", 70, ready, function()
 		openPanel("daily")
 	end)
 end
@@ -420,7 +441,7 @@ local function upgradesButton()
 		end
 		return false
 	end)
-	return iconButton("Upgrades", "⬆️", 134, affordable, function()
+	return iconButton("Upgrades", "⬆️", 126, affordable, function()
 		openPanel("upgrades")
 	end)
 end
@@ -1135,7 +1156,7 @@ local function rightColumn()
 	return New("Frame")({
 		Name = "RightColumn",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -14, 0, 74),
+		Position = UDim2.new(1, -14, 0, ROW_Y + ROW_H + 8),
 		Size = UDim2.fromOffset(250, 200),
 		BackgroundTransparency = 1,
 		[Children] = {
@@ -1156,6 +1177,7 @@ return function()
 		-- always
 		cashBox(),
 		rebirthStrip(),
+		groupBadge(),
 		gemsBox(),
 		dailyButton(),
 		almanacButton(),

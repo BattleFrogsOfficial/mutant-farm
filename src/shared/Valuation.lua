@@ -29,8 +29,9 @@ function Valuation.baseValue(mutant: Mutant): number
 	return Eggs.tiers[mutant.tier].baseValue * Rarities.info[mutant.rarity].valueMultiplier
 end
 
-function Valuation.cashMultiplier(rebirths: number, hasVip: boolean): number
-	return (1 + Rebirths.cashBonusPerRebirth * rebirths) * (if hasVip then 1.5 else 1)
+-- groupBonus: the group member bonus (e.g. 0.1), 0 for non-members.
+function Valuation.cashMultiplier(rebirths: number, hasVip: boolean, groupBonus: number?): number
+	return (1 + Rebirths.cashBonusPerRebirth * rebirths) * (if hasVip then 1.5 else 1) * (1 + (groupBonus or 0))
 end
 
 function Valuation.sellValue(mutant: Mutant, cashMultiplier: number): number

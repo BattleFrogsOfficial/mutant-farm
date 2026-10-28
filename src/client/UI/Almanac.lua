@@ -394,13 +394,15 @@ return function()
 			if nextAt > TOTAL then
 				return string.format("📖 Almanac   %d / %d found", foundCount:get(), TOTAL)
 			end
-			return string.format(
-				"📖 Almanac  %d / %d  ·  💎 %d at %d",
-				foundCount:get(),
-				TOTAL,
-				GameConfig.almanacMilestones.gems,
-				nextAt
-			)
+			local big = GameConfig.almanacMilestones.big[nextAt]
+			local reward = string.format("💎 %d", GameConfig.almanacMilestones.gems)
+			if big and big.luck then
+				reward = string.format("🍀 +%d%% LUCK", math.floor(big.luck * 100 + 0.5))
+			elseif big and big.eggs then
+				local eggId = next(big.eggs)
+				reward = "🥚 " .. string.upper(eggId :: string) .. " EGG"
+			end
+			return string.format("📖 Almanac  %d / %d  ·  %s at %d", foundCount:get(), TOTAL, reward, nextAt)
 		end),
 		Accent = Theme.colors.purple,
 		Size = UDim2.fromOffset(760, 480),

@@ -43,12 +43,24 @@ return {
 	-- Pen shows the owner's most valuable mutants from their bag.
 	penDisplayCount = 8,
 
-	-- Group reward: join the Roblox group, claim once. Set groupId to your group's id (0 = off).
+	-- Group: members get +groupCashBonus Cash for as long as they're in the group (checked on join
+	-- and when they tap Claim), plus the one-time eggs. Set groupId to your group's id (0 = off).
 	groupId = 0,
-	groupReward = { gems = 50, eggs = { Swamp = 2 } },
+	groupCashBonus = 0.1,
+	groupReward = { eggs = { Swamp = 2 } },
 
-	-- Almanac milestones: every `every` species discovered pays `gems` Gems (automatically).
-	almanacMilestones = { every = 25, gems = 25 },
+	-- Almanac milestones: every `every` species discovered pays `gems` Gems, and the big ones in
+	-- `big` pay real goods instead (eggs; `luck` is a permanent luck multiplier bonus).
+	almanacMilestones = {
+		every = 25,
+		gems = 25,
+		big = {
+			[100] = { eggs = { Toxic = 1 } },
+			[200] = { eggs = { Void = 1 } },
+			[300] = { eggs = { Cosmic = 1 } },
+			[400] = { luck = 0.1 },
+		},
+	},
 
 	-- Global leaderboard (OrderedDataStore of all-time Cash earned): how often to save and refresh.
 	leaderboardSeconds = 120,
