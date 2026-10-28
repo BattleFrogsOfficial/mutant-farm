@@ -22,6 +22,8 @@ local PlotController = {}
 
 local player = Players.LocalPlayer
 local folder: Folder
+local GLITCH_A = Color3.fromHex("#FF3CF0")
+local GLITCH_B = Color3.fromHex("#00F0FF")
 
 type SlotVisual = {
 	slot: BasePart,
@@ -33,11 +35,40 @@ type SlotVisual = {
 	text: TextLabel?,
 }
 
-type Roamer = { model: Model, pos: Vector3, target: Vector3, speed: number, radius: number, phase: number }
+type Roamer = {
+	model: Model,
+	parts: { BasePart },
+	offsets: { CFrame },
+	pos: Vector3,
+	target: Vector3,
+	speed: number,
+	radius: number,
+	phase: number,
+}
 type Pen = { plot: Model, key: string, roamers: { Roamer } }
 
 local slots: { SlotVisual } = {}
 local pens: { [Model]: Pen } = {}
+local glitched: { Model } = {}
+
+local PEN_ANIMATE_RANGE = 120
+
+local function track(model: Model)
+	if model:GetAttribute("Glitched") then
+		table.insert(glitched, model)
+	end
+end
+
+-- Destroys the egg drawn on one of your slots right away (the hatch animation takes over).
+function PlotController.hideSlotEgg(index: number)
+	for _, v in slots do
+		if v.slot:GetAttribute("Index") == index and PlotController.myPlot() == v.plot and v.egg then
+			v.egg:Destroy()
+			v.egg = nil
+			v.key = "hatching"
+		end
+	end
+end
 
 local function isMine(plot: Model): boolean
 	return plot:GetAttribute("OwnerUserId") == player.UserId
@@ -127,20 +158,28 @@ local function updateSlot(v: SlotVisual, now: number, t: number)
 	local mutations = (v.slot:GetAttribute("Mutations") or "") :: string
 	-- Rebuild the egg only when it visibly changes: new egg, new mutation, or a growth step.
 	local key = string.format("%s|%s|%d", eggId, mutations, math.floor(progress * 6))
-	if key ~= v.key then
+	if v.key == "hatching" then
+		return
+	end
+	local changed = key ~= v.key
+	if changed then
 		if v.egg then
 			v.egg:Destroy()
 		end
 		local list = if mutations == "" then {} else string.split(mutations, ",")
 		local egg = MutantModel.buildEgg(eggId, progress, list)
 		egg.Parent = folder
+		track(egg)
 		v.egg = egg
 		v.key = key
 	end
-	local egg = v.egg :: Model
-	local base = v.slot.CFrame * CFrame.new(0, v.slot.Size.Y / 2, 0)
-	local wobble = if ready then CFrame.Angles(0, 0, math.sin(t * 12) * 0.15) else CFrame.identity
-	egg:PivotTo(base * wobble)
+	-- Only move eggs that just changed or are wobbling (ready to hatch).
+	if changed or ready then
+		local base = v.slot.CFrame * CFrame.new(0, v.slot.Size.Y / 2, 0)
+		local wobble = if ready then CFrame.Angles(0, 0, math.sin(t * 12) * 0.15) else CFrame.identity
+		local egg = v.egg :: Model
+		egg:PivotTo(base * wobble)
+	end
 
 	if not isMine(v.plot) then
 		if v.gui then
@@ -189,7 +228,10 @@ local function onSlotClicked(plot: Model, slot: BasePart)
 	if eggId == "" then
 		local snap = State.get()
 		local selected = State.selectedEgg:get(false)
-		if not snap or (snap.eggs[selected] or 0) < 1 then
+		if not snap then
+			return
+		end
+		if (snap.eggs[selected] or 0) < 1 then
 			State.toast("No eggs! Buy some at the Egg Shop in the middle.", "error")
 			Sfx.play("error")
 			return
@@ -253,8 +295,20 @@ local function rebuildPen(pen: Pen)
 		local start = Vector3.new(math.clamp(x, -half.X, half.X), 0, 0)
 		model:PivotTo(frame * CFrame.new(start))
 		model.Parent = folder
+		track(model)
+		-- Cache each part's offset from the feet so moving is one BulkMoveTo per pen.
+		local rootCf = (model.PrimaryPart :: BasePart).CFrame
+		local parts, offsets = {}, {}
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				table.insert(parts, d)
+				table.insert(offsets, rootCf:ToObjectSpace(d.CFrame))
+			end
+		end
 		table.insert(pen.roamers, {
 			model = model,
+			parts = parts,
+			offsets = offsets,
 			pos = start,
 			target = randomPoint(half, radius),
 			speed = 2.5 / math.sqrt(math.max(1, radius)),
@@ -272,10 +326,11 @@ local function updatePen(pen: Pen, dt: number, t: number, camPos: Vector3)
 	end
 	local frame, size = penFrame(pen.plot)
 	-- Far-away pens stand still to save work.
-	if (frame.Position - camPos).Magnitude > 160 then
+	if (frame.Position - camPos).Magnitude > PEN_ANIMATE_RANGE then
 		return
 	end
 	local half = size / 2
+	local parts, cframes = {}, {}
 	for _, r in pen.roamers do
 		local delta = r.target - r.pos
 		if delta.Magnitude < 0.3 then
@@ -286,7 +341,14 @@ local function updatePen(pen: Pen, dt: number, t: number, camPos: Vector3)
 		local dir = if delta.Magnitude > 0.01 then delta.Unit else Vector3.new(0, 0, -1)
 		local hop = math.abs(math.sin(t * 6 + r.phase)) * 0.35 * math.min(r.radius, 4)
 		local world = frame * CFrame.new(r.pos + Vector3.new(0, hop, 0))
-		r.model:PivotTo(CFrame.lookAt(world.Position, world.Position + frame:VectorToWorldSpace(dir)))
+		local rootCf = CFrame.lookAt(world.Position, world.Position + frame:VectorToWorldSpace(dir))
+		for i, part in r.parts do
+			table.insert(parts, part)
+			table.insert(cframes, rootCf * r.offsets[i])
+		end
+	end
+	if #parts > 0 then
+		workspace:BulkMoveTo(parts, cframes, Enum.BulkMoveMode.FireCFrameChanged)
 	end
 end
 
@@ -358,12 +420,18 @@ function PlotController.Start()
 		for _, pen in pens do
 			updatePen(pen, dt, t, camPos)
 		end
-		-- Glitched mutants flicker.
-		for _, d in folder:GetChildren() do
-			if d:GetAttribute("Glitched") then
-				local h = d:FindFirstChildOfClass("Highlight")
-				if h then
-					h.Enabled = math.random() > 0.25
+		-- Glitched mutants flicker between magenta and cyan.
+		for i = #glitched, 1, -1 do
+			local model = glitched[i]
+			if not model.Parent then
+				table.remove(glitched, i)
+			elseif math.random() < 0.3 then
+				local color = if math.random() < 0.5 then GLITCH_A else GLITCH_B
+				for _, name in { "Body", "Head", "Shell", "ShellTop" } do
+					local part = model:FindFirstChild(name) :: BasePart?
+					if part then
+						part.Color = color
+					end
 				end
 			end
 		end

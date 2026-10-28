@@ -20,8 +20,8 @@ return function()
 	-- id -> "kind|text" strings so unchanged toasts aren't rebuilt.
 	local byId = Computed(function()
 		local out = {}
-		for i, toast in State.toasts:get() do
-			out[toast.id] = string.format("%d|%s|%s", i, toast.kind, toast.text)
+		for _, toast in State.toasts:get() do
+			out[toast.id] = toast.kind .. "|" .. toast.text
 		end
 		return out
 	end)
@@ -39,10 +39,10 @@ return function()
 				Padding = UDim.new(0, 6),
 			}),
 			ForPairs(byId, function(id: number, encoded: string)
-				local order, kind, text = encoded:match("^(%d+)|(%a+)|(.*)$")
+				local kind, text = encoded:match("^(%a+)|(.*)$")
 				return id,
 					New("Frame")({
-						LayoutOrder = tonumber(order),
+						LayoutOrder = id, -- ids only increase, so newest is last
 						Size = UDim2.fromOffset(460, 44),
 						BackgroundColor3 = KIND_COLORS[kind] or Theme.colors.slate,
 						BackgroundTransparency = 0.1,

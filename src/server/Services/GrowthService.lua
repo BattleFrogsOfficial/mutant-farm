@@ -251,8 +251,12 @@ function GrowthService.Start()
 		for _, player in Players:GetPlayers() do
 			local data = DataService.get(player)
 			if data and next(data.slots) then
-				settleNow(player, data)
-				DataService.changed(player)
+				-- Clients compute growth from the last attributes; only resend when something mutated.
+				local events = GrowthService.settle(data, DataService.now())
+				if #events > 0 then
+					announce(player, events)
+					DataService.changed(player)
+				end
 			end
 		end
 	end

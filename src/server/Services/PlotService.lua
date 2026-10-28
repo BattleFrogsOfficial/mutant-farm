@@ -59,7 +59,11 @@ local function penJson(data: Types.Profile): string
 		table.insert(items, item)
 	end
 	table.sort(items, function(a, b)
-		return Valuation.sellValue(a, 1) > Valuation.sellValue(b, 1)
+		local va, vb = Valuation.sellValue(a, 1), Valuation.sellValue(b, 1)
+		if va ~= vb then
+			return va > vb
+		end
+		return (tonumber(a.id) or 0) < (tonumber(b.id) or 0) -- stable, so the pen doesn't reshuffle
 	end)
 	local out = {}
 	for i = 1, math.min(#items, GameConfig.penDisplayCount) do

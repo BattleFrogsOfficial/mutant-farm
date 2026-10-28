@@ -115,12 +115,9 @@ local function addEffects(model: Model, anchor: BasePart, set: { [string]: boole
 		light(Color3.fromHex("#7CFF4A"))
 	end
 	if set.Glitched then
-		local h = Instance.new("Highlight")
-		h.FillTransparency = 0.7
-		h.FillColor = Color3.fromHex("#00F0FF")
-		h.OutlineColor = Color3.fromHex("#FF3CF0")
-		h.Parent = model
-		model:SetAttribute("Glitched", true) -- the client flickers these
+		-- No Highlight: Roblox renders at most 31 per client. The client flickers the body color instead.
+		model:SetAttribute("Glitched", true)
+		emitter(Color3.fromHex("#00F0FF"), 6)
 	end
 	if set.Cosmic then
 		emitter(Color3.fromHex("#C9B8FF"), 14)
@@ -493,7 +490,8 @@ function MutantModel.build(data: MutantData): Model
 	model:SetAttribute("Rarity", data.rarity)
 	model:SetAttribute("Height", 3.6 * s)
 
-	local root = newPart(model, "Root", Vector3.new(1, 0.2, 1) * s, CFrame.new(0, 0.1 * s, 0), WHITE)
+	-- Root sits at the feet (origin) so PivotTo(floor) never sinks giants into the ground.
+	local root = newPart(model, "Root", Vector3.new(1, 0.2, 1) * s, CFrame.new(), WHITE)
 	root.Transparency = 1
 	model.PrimaryPart = root
 
@@ -595,7 +593,8 @@ function MutantModel.buildEgg(eggId: string, progress: number, mutations: { stri
 
 	local model = Instance.new("Model")
 	model.Name = "Egg"
-	local root = newPart(model, "Root", Vector3.new(1, 0.2, 1) * s, CFrame.new(0, 0.1 * s, 0), WHITE)
+	-- Root sits at the feet (origin) so PivotTo(floor) never sinks giants into the ground.
+	local root = newPart(model, "Root", Vector3.new(1, 0.2, 1) * s, CFrame.new(), WHITE)
 	root.Transparency = 1
 	model.PrimaryPart = root
 

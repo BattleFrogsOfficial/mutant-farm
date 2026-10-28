@@ -99,6 +99,9 @@ local function nameCard(model: Model, item: any, value: number)
 end
 
 local function onHarvested(item: any, value: number, slotIndex: number?)
+	if slotIndex then
+		PlotController.hideSlotEgg(slotIndex)
+	end
 	local slot = slotIndex and PlotController.slotPart(slotIndex)
 	local rank = RARITY_RANK[item.rarity] or 1
 	local rarityColor = Color3.fromHex(Rarities.info[item.rarity].color)

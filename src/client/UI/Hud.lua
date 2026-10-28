@@ -39,11 +39,13 @@ local function cashPill()
 		},
 	})
 	-- "+$1.2K" floats up from the pill whenever Cash goes up.
-	local last = State.cash:get(false)
+	-- Skip the first snapshot so joining doesn't pop "+$<all your cash>".
+	local last: number? = nil
 	Observer(State.cash):onChange(function()
 		local now = State.cash:get(false)
-		local gained = now - last
+		local previous = last
 		last = now
+		local gained = if previous then now - previous else 0
 		if gained <= 0 then
 			return
 		end
