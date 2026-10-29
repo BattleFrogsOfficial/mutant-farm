@@ -4,7 +4,10 @@
 -- detail = true }. It is drawn in three layers so overlapping shapes read as one silhouette with
 -- no seams inside it:
 --   shadow   every outlined shape grown by the stroke, in ink, offset down-right by the boxy hard
---            shadow (Theme.shadow); opaque, so overlapping shapes don't stack into visible seams
+--            shadow (Theme.shadow); the parts are opaque inside a CanvasGroup that is faded as a
+--            whole (Config/Hud glyph.shadowTransparency, C.shadow's 0.2), so overlapping shapes
+--            don't stack into darker seams. The group is twice the glyph's size, centered on it,
+--            because a CanvasGroup clips to its bounds.
 --   outline  the same grown shapes in solid ink
 --   fill     the shapes in their colors; `detail` rects (ribbons, page lines, highlights) are
 --            drawn only here, on top, without an outline
@@ -149,6 +152,24 @@ function Glyphs.new(name: string, props: { [string]: any }?): any
 			[Children] = children,
 		})
 	end
+	-- The shadow fades as one: a CanvasGroup with a margin of half the glyph on every side (the
+	-- grown, offset and rotated shapes stay inside it), the parts in an inner glyph-sized box.
+	local shadowLayer = New("CanvasGroup")({
+		Name = "Shadow",
+		BackgroundTransparency = 1,
+		GroupTransparency = HudConfig.glyph.shadowTransparency,
+		Position = UDim2.fromScale(-0.5, -0.5),
+		Size = UDim2.fromScale(2, 2),
+		ZIndex = z,
+		[Children] = New("Frame")({
+			Name = "Box",
+			BackgroundTransparency = 1,
+			Position = UDim2.fromScale(0.25, 0.25),
+			Size = UDim2.fromScale(0.5, 0.5),
+			ZIndex = z,
+			[Children] = layers.shadow,
+		}),
+	})
 	local size = p.Size
 	if typeof(size) == "number" then
 		size = UDim2.fromOffset(size, size)
@@ -163,7 +184,7 @@ function Glyphs.new(name: string, props: { [string]: any }?): any
 		Visible = p.Visible,
 		ZIndex = z,
 		[Children] = {
-			layer("Shadow", layers.shadow, z),
+			shadowLayer,
 			layer("Outline", layers.outline, z + 1),
 			layer("Fill", layers.fill, z + 2),
 		},

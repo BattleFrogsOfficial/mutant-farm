@@ -58,6 +58,9 @@ local ROW_H = L.top.height
 local EDGE = L.edge
 local COLUMN = L.column
 local PLOT = L.plotButtons
+-- Text right of a glyph: the Cash / Gems amount and the bag count.
+local TOP_TEXT_X = L.top.iconInset + L.top.icon + L.top.textGap
+local BAG_TEXT_X = COLUMN.bagGlyphInset + COLUMN.bagGlyph + COLUMN.bagText.x
 local TRAY = L.tray
 
 local TOTAL_SPECIES = (function()
@@ -214,8 +217,8 @@ local function cashBox()
 			}),
 			C.label({
 				Name = "Amount",
-				Position = UDim2.fromOffset(42, 4),
-				Size = UDim2.new(0.45, -42, 0, 26),
+				Position = UDim2.fromOffset(TOP_TEXT_X, 4),
+				Size = UDim2.new(0.45, -TOP_TEXT_X, 0, 26),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				MaxTextSize = 24,
 				StrokeThickness = 3,
@@ -401,8 +404,8 @@ local function gemsBox()
 			}),
 			C.label({
 				Name = "Amount",
-				Position = UDim2.fromOffset(42, 5),
-				Size = UDim2.new(1, -82, 0, 24),
+				Position = UDim2.fromOffset(TOP_TEXT_X, 5),
+				Size = UDim2.new(1, -(TOP_TEXT_X + L.top.plusGap + L.top.plus + L.top.plusInset), 0, 24),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				MaxTextSize = 20,
 				StrokeThickness = 2.5,
@@ -416,8 +419,8 @@ local function gemsBox()
 				Text = "+",
 				Color = SPEND,
 				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -4, 0.5, -1),
-				Size = UDim2.fromOffset(32, 32),
+				Position = UDim2.new(1, -L.top.plusInset, 0.5, -1),
+				Size = UDim2.fromOffset(L.top.plus, L.top.plus),
 				MaxTextSize = 22,
 				ZIndex = 4,
 				OnClick = function()
@@ -1081,7 +1084,7 @@ local function plainNumber(n: number): string
 	return if n == math.floor(n) then tostring(math.floor(n)) else tostring(n)
 end
 local WATER_BOOST = plainNumber(GameConfig.waterMultiplier) .. "x"
-local WATER_SUB = WATER_BOOST .. " " .. plainNumber(GameConfig.waterDuration) .. "s"
+local WATER_SUB = "· " .. WATER_BOOST .. " " .. plainNumber(GameConfig.waterDuration) .. "s"
 local WATER_TOAST = "Watered! Eggs grow "
 	.. WATER_BOOST
 	.. " faster for "
@@ -1177,11 +1180,12 @@ local function waterButton()
 					}),
 					C.label({
 						Name = "Sub",
-						-- "2x 30s"; while watered, the time left: "2x · 0:18".
+						-- The label reads "WATER · 2x 30s" over two lines; while watered, the time
+						-- left: "· 2x 0:18".
 						Text = Computed(function()
 							local snap = State.snapshot:get()
 							if watering:get() and snap then
-								return WATER_BOOST .. " · " .. clock(snap.wateredUntil - State.now:get())
+								return "· " .. WATER_BOOST .. " " .. clock(snap.wateredUntil - State.now:get())
 							end
 							return WATER_SUB
 						end),
@@ -1302,15 +1306,15 @@ local function bagChip()
 			Children = {
 				Glyphs.new("bag", {
 					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, 14, 0.5, -1),
+					Position = UDim2.new(0, COLUMN.bagGlyphInset, 0.5, L.top.iconNudge),
 					Size = COLUMN.bagGlyph,
 					ZIndex = 2,
 				}),
 				C.label({
 					Name = "Count",
-					Position = UDim2.fromOffset(COLUMN.bagGlyph + 22, 7),
-					Size = UDim2.new(1, -(COLUMN.bagGlyph + 30), 1, -14),
-					MaxTextSize = 20,
+					Position = UDim2.fromOffset(BAG_TEXT_X, COLUMN.bagText.y),
+					Size = UDim2.new(1, -(BAG_TEXT_X + COLUMN.bagText.right), 1, -2 * COLUMN.bagText.y),
+					MaxTextSize = COLUMN.bagText.text,
 					ZIndex = 2,
 					Text = Computed(function()
 						local c = count:get()

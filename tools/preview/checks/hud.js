@@ -5,7 +5,7 @@
 //   right column rows in order weather, Instant Weather, bundle, bag, 8 px apart (and 8 px under
 //   the tiles); Instant Weather as wide as the bundle ribbon
 //   plot: SHOP the same size as WATER and right beside it (same row, WATER on the left; never
-//   stacked); WATER reads "WATER · 2x 30s" (two lines, "WATER" / "2x 30s"), dimmed
+//   stacked); WATER reads "WATER · 2x 30s" (two lines, "WATER" / "· 2x 30s"), dimmed
 //   (never pink) with its drain ring while watered
 //   hub: SHOP is the biggest button on screen
 //   no ImageLabel/ImageButton in the HUD; the tile/Cash/Gems/HATCH/bag/WATER icons are vector glyphs
@@ -106,10 +106,11 @@ registerCheck({
       const ring = vis(water.querySelector('[title="Ring1"]'));
       const line1 = (water.querySelector('[title="Label"] span') || {}).textContent || "";
       const line2 = (water.querySelector('[title="Sub"] span') || {}).textContent || "";
-      const label = `${line1} · ${line2}`;
+      // The two lines as rendered, read top to bottom (a line break reads as a space).
+      const label = `${line1} ${line2}`;
       if (ring) {
         if (!look.includes("85, 91, 112")) problems.push("Water isn't dimmed while the ring runs");
-        if (line1 !== "WATER" || !/^2x · \d+:\d\d$/.test(line2)) problems.push(`watered Water label "${label}"`);
+        if (!/^WATER · 2x \d+:\d\d$/.test(label)) problems.push(`watered Water label "${label}"`);
       } else if (label !== "WATER · 2x 30s") problems.push(`Water label "${label}"`);
       if (kind.startsWith("hud-plot-watered") && !ring) problems.push("drain ring not running in the watered scene");
     }

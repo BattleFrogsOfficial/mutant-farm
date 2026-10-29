@@ -28,6 +28,10 @@ return {
 		icon = 24, -- coin / gem glyphs
 		iconInset = 10, -- glyph's left edge from the panel's left edge
 		iconNudge = -1, -- glyph's vertical offset from the panel's middle
+		textGap = 8, -- the amount's left edge this far right of the glyph
+		plus = 32, -- Gems' pink "+" (square), `plusInset` px from the panel's right edge
+		plusInset = 4,
+		plusGap = 4, -- between the Gems amount and the "+"
 	},
 
 	-- Upgrades / Daily / Almanac tiles, top-right, left to right, `gap` px apart (between the tile
@@ -55,8 +59,10 @@ return {
 		bagWidth = 130,
 		bagHeight = 44,
 		bagGlyph = 24,
-		bagGlyphInset = 14,
-		bagText = { x = 22, y = 7, text = 20 }, -- count label: `x` px right of the glyph, `y` from top/bottom
+		bagGlyphInset = 14, -- the bag's left edge from the chip's left edge
+		-- Count label ("12/200"): `x` px right of the glyph, `right` px from the chip's right edge,
+		-- `y` px from its top and bottom, text up to `text` px.
+		bagText = { x = 8, right = 8, y = 7, text = 20 },
 		height = 240, -- the column frame (rows stack from its top; nothing is clipped)
 		-- Two-line buttons (Instant Weather, Starter Bundle): { y, height, text size }, inset `lineInset`.
 		lineInset = 6,
@@ -83,7 +89,7 @@ return {
 		glyphInset = 10, -- the drop's left edge from the button's left edge
 		trayClearance = 12,
 		ringWidth = 5, -- the drain ring along the Water button's edge
-		-- WATER's two lines ("WATER" / "2x 30s"), right of the glyph: x = glyphInset + glyph + `textGap`.
+		-- WATER's two lines ("WATER" / "· 2x 30s"), right of the glyph: x = glyphInset + glyph + `textGap`.
 		textGap = 8,
 		textRight = 6,
 		line1 = { y = 9, height = 24, text = 20 },
@@ -127,10 +133,12 @@ return {
 	},
 	nextUpBottom = 190, -- Next Up's bottom edge above the screen bottom
 
-	-- Vector glyphs (UI/Glyphs.lua): ink outline and the boxy hard shadow (Theme.shadow), opaque so
-	-- overlapping shapes never show seams, in design px.
+	-- Vector glyphs (UI/Glyphs.lua): ink outline and the boxy hard shadow (Theme.shadow), in design
+	-- px. The shadow is faded as one layer (a CanvasGroup) like C.shadow, so overlapping shapes
+	-- never show seams.
 	glyph = {
 		stroke = 3,
 		shadow = 4,
+		shadowTransparency = 0.2,
 	},
 }
