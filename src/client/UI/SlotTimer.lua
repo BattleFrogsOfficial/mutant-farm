@@ -21,8 +21,16 @@ export type Timer = {
 	chip: Frame,
 }
 
--- Pixel size of the whole timer (bar plus the room for the chip above it).
-SlotTimer.SIZE = Vector2.new(CFG.width, CFG.chipHeight + CFG.chipGap + CFG.barHeight)
+-- Room for the outlines, which are drawn outside each face (a BillboardGui clips its descendants).
+local PAD = CFG.outline
+local CHIP_SHADOW = math.max(CFG.chipShadow, CFG.outline)
+
+-- Pixel size of the whole timer: the bar, the chip above it, and every outline.
+SlotTimer.SIZE = Vector2.new(CFG.width + 2 * PAD, PAD + CFG.chipHeight + CFG.chipGap + PAD + CFG.barHeight + PAD)
+
+-- BillboardGui.SizeOffset that keeps the bar's center (not the whole box's) at the adornee's
+-- StudsOffset: the box is shifted up by the room the chip takes above the bar.
+SlotTimer.SIZE_OFFSET = Vector2.new(0, (SlotTimer.SIZE.Y / 2 - PAD - CFG.barHeight / 2) / SlotTimer.SIZE.Y)
 
 local function stroke(parent: Instance, thickness: number, border: boolean)
 	local s = Instance.new("UIStroke")
@@ -45,7 +53,7 @@ local function label(name: string, parent: Instance): TextLabel
 	text.TextColor3 = Theme.colors.white
 	text.Text = ""
 	text.ZIndex = 3
-	stroke(text, 1.5, false)
+	stroke(text, CFG.textStroke, false)
 	text.Parent = parent
 	return text
 end
@@ -59,8 +67,8 @@ function SlotTimer.new(): Timer
 	local bar = Instance.new("Frame")
 	bar.Name = "Bar"
 	bar.AnchorPoint = Vector2.new(0, 1)
-	bar.Position = UDim2.fromScale(0, 1)
-	bar.Size = UDim2.new(1, 0, 0, CFG.barHeight)
+	bar.Position = UDim2.new(0, PAD, 1, -PAD)
+	bar.Size = UDim2.new(1, -2 * PAD, 0, CFG.barHeight)
 	bar.BackgroundColor3 = Theme.colors.slate
 	bar.BackgroundTransparency = 0.15
 	bar.BorderSizePixel = 0
@@ -76,18 +84,19 @@ function SlotTimer.new(): Timer
 	local text = label("Time", bar)
 
 	-- "2x" chip: boxy water-blue tile with an ink outline and a hard shadow, above the bar's end.
+	-- The frame is the face; its outline (top/left) and shadow (right/bottom) end at the gui's edge.
 	local chip = Instance.new("Frame")
 	chip.Name = "Chip"
 	chip.AnchorPoint = Vector2.new(1, 0)
-	chip.Position = UDim2.new(1, -2, 0, 0)
-	chip.Size = UDim2.fromOffset(CFG.chipWidth - 2, CFG.chipHeight - 2)
+	chip.Position = UDim2.new(1, -CHIP_SHADOW, 0, PAD)
+	chip.Size = UDim2.fromOffset(CFG.chipWidth - CHIP_SHADOW, CFG.chipHeight - CHIP_SHADOW)
 	chip.BackgroundTransparency = 1
 	chip.Visible = false
 	local shadow = Instance.new("Frame")
 	shadow.Name = "Shadow"
 	shadow.BorderSizePixel = 0
 	shadow.BackgroundColor3 = Theme.colors.ink
-	shadow.Position = UDim2.fromOffset(2, 2)
+	shadow.Position = UDim2.fromOffset(CFG.chipShadow, CFG.chipShadow)
 	shadow.Size = UDim2.fromScale(1, 1)
 	shadow.ZIndex = 1
 	shadow.Parent = chip
@@ -101,8 +110,9 @@ function SlotTimer.new(): Timer
 	face.Parent = chip
 	local chipText = label("Text", face)
 	chipText.Text = CFG.chipText
-	chipText.Size = UDim2.new(1, -4, 1, -2)
-	chipText.Position = UDim2.fromOffset(2, 1)
+	local inset = CFG.chipTextInset
+	chipText.Size = UDim2.new(1, -2 * inset[1], 1, -2 * inset[2])
+	chipText.Position = UDim2.fromOffset(inset[1], inset[2])
 	chip.Parent = root
 
 	return { root = root, bar = bar, fill = fill, text = text, chip = chip }

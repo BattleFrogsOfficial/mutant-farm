@@ -91,6 +91,8 @@ return function(api)
 		local name, progress, ready, watered, text = table.unpack(case)
 		local holder =
 			box("Timer" .. name, root, 40 + (i - 1) * timerStep, timerY, SlotTimer.SIZE.X, SlotTimer.SIZE.Y, 1)
+		-- Like the BillboardGui, which clips its descendants (world.js checks outlines stay inside).
+		holder.ClipsDescendants = true
 		local timer = SlotTimer.new()
 		SlotTimer.set(timer, progress, ready, watered, text)
 		timer.root.Parent = holder
@@ -128,6 +130,24 @@ return function(api)
 
 	api.setRoot(root)
 	api.capture(string.format("world@%dx%d", PHONE_W, PHONE_H))
+	api.restoreRoot()
+	api.reset()
+
+	-- Next Up's longest goal, Lab's earned gate (TutorialController via shared/NextUp), on the plot
+	-- HUD at every preview size (mouse and touch), so the HUD overlap check and world.js's font
+	-- check see it. The default scenes all use "Next soil patch: $675".
+	local NextUp = api.requireModule(Shared.NextUp)
+	local lab = NextUp.labGoal(0, 12_400, { Swamp = 1 }, {})
+	assert(lab, "labGoal should apply at R0 with a Swamp egg and $12.4K earned")
+	-- Mount a fresh UI root: ui-export's default root (restoreRoot) is still the hatch screen it
+	-- captured last, so it can't be used for HUD scenes here.
+	local hud = api.requireModule(api.UI.Root)()
+	api.setRoot(hud)
+	api.set(api.State.zone, "plot")
+	api.set(api.State.objective, { text = lab.text, progress = lab.progress })
+	api.captureHud("hud-plot-lab")
+	api.set(api.State.touch, true)
+	api.captureHud("hud-plot-lab-touch")
 	api.restoreRoot()
 	api.reset()
 end

@@ -115,6 +115,7 @@ local function makeTimer(v: SlotVisual)
 	local cfg = WorldUI.timer
 	local gui = Instance.new("BillboardGui")
 	gui.Size = UDim2.fromOffset(SlotTimer.SIZE.X, SlotTimer.SIZE.Y)
+	gui.SizeOffset = SlotTimer.SIZE_OFFSET -- keeps the bar (not bar + chip) at studsAbove
 	gui.StudsOffsetWorldSpace = Vector3.new(0, cfg.studsAbove, 0)
 	gui.MaxDistance = cfg.maxDistance
 	gui.Adornee = v.slot

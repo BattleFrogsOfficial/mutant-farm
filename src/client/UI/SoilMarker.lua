@@ -58,7 +58,7 @@ function SoilMarker.new(): Marker
 	shadow.Name = "Shadow"
 	shadow.BorderSizePixel = 0
 	shadow.BackgroundColor3 = Theme.colors.ink
-	shadow.BackgroundTransparency = 0.2
+	shadow.BackgroundTransparency = CFG.shadowTransparency
 	shadow.Position = UDim2.fromOffset(CFG.shadow, CFG.shadow)
 	shadow.Size = UDim2.fromScale(1, 1)
 	shadow.ZIndex = 1
@@ -80,7 +80,7 @@ function SoilMarker.new(): Marker
 	bevel.Name = "Bevel"
 	bevel.BorderSizePixel = 0
 	bevel.BackgroundColor3 = Theme.colors.white
-	bevel.BackgroundTransparency = 0.75
+	bevel.BackgroundTransparency = CFG.bevelTransparency
 	bevel.Size = UDim2.new(1, 0, 0, CFG.bevel)
 	bevel.ZIndex = 3
 	bevel.Parent = tile
@@ -99,7 +99,7 @@ function SoilMarker.new(): Marker
 	text.ZIndex = 4
 	local textStroke = Instance.new("UIStroke")
 	textStroke.Color = Theme.colors.ink
-	textStroke.Thickness = 2
+	textStroke.Thickness = CFG.textStroke
 	textStroke.Parent = text
 	text.Parent = tile
 

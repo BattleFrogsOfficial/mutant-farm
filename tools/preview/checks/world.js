@@ -61,6 +61,22 @@ registerCheck({
       const time = q(bar, "Time");
       const tf = font(time);
       if (tf < 12) problems.push(`${name}: time text only ${tf.toFixed(1)}px (< 12)`);
+      // A BillboardGui clips its descendants: every face, its ink outline (a box-shadow ring here)
+      // and every hard shadow must stay inside the timer's box.
+      const hr = timer.getBoundingClientRect();
+      for (const d of timer.querySelectorAll(".g")) {
+        if (!vis(d)) continue;
+        const r = d.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) continue;
+        const cs = getComputedStyle(d);
+        const ring = /0px 0px 0px ([\d.]+)px/.exec(cs.boxShadow);
+        const k = d.offsetWidth ? r.width / d.offsetWidth : 1;
+        const e = ring ? parseFloat(ring[1]) * k : 0;
+        const painted = ring || (cs.backgroundColor !== "transparent" && !/,\s*0\)$/.test(cs.backgroundColor));
+        if (!painted) continue;
+        const out = { left: r.left - e, top: r.top - e, right: r.right + e, bottom: r.bottom + e };
+        if (!inside(out, hr)) problems.push(`${name}: ${d.title} (outline included) is clipped by the BillboardGui`);
+      }
       if (vis(chip)) {
         const cr = paintedRect(chip);
         const o = cr && overlap(cr, br);
@@ -86,6 +102,33 @@ registerCheck({
       const f = font(text);
       if (f < 16) problems.push(`${name}: text only ${f.toFixed(1)} canvas px (< 16, 0.4 stud)`);
     }
+    return problems;
+  },
+});
+
+// Next Up's longest goal, Lab's earned gate (scenes hud-plot-lab*, world.luau): shown on the plot,
+// the right text, fits its label without spilling, and isn't shrunk below the label's usual size
+// (the goals share one label with MaxTextSize 15 design px; "NEXT SOIL PATCH: $675" gets 15).
+registerCheck({
+  name: "world-nextup",
+  match: (s) => s.startsWith("hud-plot-lab"),
+  run: (W, H, s) => {
+    const nu = document.querySelector('.gui [title="NextUp"]');
+    if (!nu || nu.offsetParent === null) return [`${s}: Next Up not shown`];
+    const span = [...nu.querySelectorAll("span")].find((x) => x.textContent.includes("⭐"));
+    if (!span) return [`${s}: Next Up has no goal text`];
+    const problems = [];
+    const text = span.textContent.trim();
+    if (!/^⭐ LAB EGG: \$[\d.]+[KMBT]? \/ \$[\d.]+[KMBT]? EARNED$/.test(text)) problems.push(`${s}: Next Up reads "${text}"`);
+    const el = span.closest(".g");
+    const designPx = parseFloat(getComputedStyle(span.parentElement).fontSize);
+    if (designPx < 14) problems.push(`${s}: Lab goal shrunk to ${designPx.toFixed(1)} design px (< 14)`);
+    const sr = span.getBoundingClientRect(), lr = el.getBoundingClientRect();
+    if (sr.right > lr.right + 0.5 || sr.left < lr.left - 0.5) problems.push(`${s}: Lab goal spills out of its label`);
+    const seg = nu.querySelector('[title="Segments"]');
+    const gr = seg && seg.offsetParent !== null ? paintedRect(seg) : null;
+    if (!gr) problems.push(`${s}: progress segments missing`);
+    else if (sr.right > gr.left + 0.5) problems.push(`${s}: Lab goal runs into the progress segments`);
     return problems;
   },
 });
