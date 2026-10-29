@@ -137,6 +137,22 @@ function ShopRules.nextLocked(rebirths: number, totalCashEarned: number): string
 	return nil
 end
 
+-- The egg tray's one "next egg" tile: the cheapest base tier (Cash-priced, Eggs.order) the player
+-- has none of (count 0 or missing) that is already unlocked, or nil. Earned- and rebirth-gated
+-- tiers never qualify (their progress lives in the Egg Shop carousel and Next Up).
+function ShopRules.nextTrayEgg(eggs: { [string]: number }, rebirths: number, totalCashEarned: number): string?
+	local best: string? = nil
+	for _, id in Eggs.order do
+		local tier = Eggs.tiers[id]
+		if (eggs[id] or 0) <= 0 and not tier.gemCost and ShopRules.isUnlocked(id, rebirths, totalCashEarned) then
+			if best == nil or tier.cost < Eggs.tiers[best].cost then
+				best = id
+			end
+		end
+	end
+	return best
+end
+
 -- The base tier that rebirth number `n` unlocks (Toxic at 1, Void at 3, ...), or nil.
 function ShopRules.unlockedAtRebirth(n: number): string?
 	for _, id in Eggs.order do
