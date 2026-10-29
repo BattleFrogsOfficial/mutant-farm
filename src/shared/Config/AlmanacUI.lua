@@ -23,21 +23,46 @@ return {
 	passedSize = 16, -- gold, with a check
 	laterSize = 8, -- the later Gem milestones
 	laterBigSize = 12, -- the later big ones (eggs, luck)
-	markerOutline = 2,
-	hitWidth = 40, -- tap target per marker: this wide (neighbors may share), the track's height
+	-- Ink outlines: 3 px (the boxy rule) on the bar and every marker except the tiny later Gem
+	-- ones, where 3 px would swallow an 8 px square; those keep 2 px.
+	barOutline = 3,
+	markerOutline = 3,
+	laterOutline = 2,
+	-- Marker colors: passed gold, next blue (Theme). Later egg milestones use their tier's swatch
+	-- lightened this much toward white (Void's near-black would vanish on the slate bar); the luck
+	-- milestone has its own teal (Toxic's green is taken by the Toxic egg).
+	eggMarkerTint = 0.4,
+	luckColor = "#4AE0C8",
+	-- Passed markers' check: two ink bars in a square this fraction of the marker's side, each
+	-- { x, y (center, 0..1 of that square), length (0..1), rotation }.
+	checkRatio = 0.7,
+	checkThickness = 3,
+	checkBars = {
+		{ x = 0.28, y = 0.66, len = 0.38, angle = 45 },
+		{ x = 0.62, y = 0.5, len = 0.74, angle = -49 },
+	},
+	-- Tap targets: each marker owns the stretch of track closer to it than to its neighbours (no
+	-- overlaps, no gaps), up to half of max(hitWidth, minTapScreenPx on screen) on each side, the
+	-- track's full height. Labels are tappable too (they open their own marker).
+	hitWidth = 40,
+	minTapScreenPx = 44,
 
 	-- Labels: GothamBlack at labelSize, raised so they never draw below minScreenPx on screen
-	-- (small phones), up to maxLabelSize. Later labels that would collide drop their numbers
-	-- ("🥚Toxic"), then fall back to icons ("🥚"), then hide (the tooltip still tells). Widths
-	-- are estimated per character (em), generously, so estimated boxes cover the real text.
+	-- (small phones), up to maxLabelSize. The later big labels are packed left/right (each still
+	-- spans its marker by labelInset) so they fit in full ("100 🥚Toxic"); if they can't, all drop
+	-- to the number + icon ("100🥚"), then icons ("🥚"), then any icon that still collides hides
+	-- (the tooltip still tells). Widths are estimated per character (em; GothamBlack averages
+	-- about 0.62, this leaves a little slack for Roblox's metrics).
 	labelSize = 13,
 	minScreenPx = 11,
 	maxLabelSize = 21,
-	charEm = 0.74,
-	spaceEm = 0.32,
-	emojiEm = 1.3,
+	charEm = 0.66,
+	spaceEm = 0.3,
+	emojiEm = 1.25,
 	labelGap = 8, -- min space between two labels (and a label and the tooltip)
+	labelInset = 10, -- a label always reaches this far past its marker's center on both sides
 	tooltipPad = 8, -- tooltip box: text + this on each side
+	tooltipOutline = 3,
 
 	-- Under the track: tier tabs, the 6x2 species grid, the pager.
 	tabsGap = 6, -- track -> tabs

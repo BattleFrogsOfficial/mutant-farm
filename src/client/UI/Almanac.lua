@@ -334,32 +334,35 @@ local tip = Value(nil :: number?)
 local ROW_MID = AlmanacUI.markerRowHeight / 2
 local LABEL_H = AlmanacUI.trackHeight - AlmanacUI.labelTop
 
--- A check mark from two ink bars (the font has no check glyph), centered in a `size` square.
-local function checkMark(size: number, z: number)
-	local function bar(cx: number, cy: number, len: number, angle: number)
-		return New("Frame")({
-			BorderSizePixel = 0,
-			BackgroundColor3 = Theme.colors.ink,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(cx, cy),
-			Size = UDim2.new(len, 0, 0, 3),
-			Rotation = angle,
-			ZIndex = z,
-		})
+-- A check mark from two ink bars (the font has no check glyph), centered on the marker.
+local function checkMark(size: number, cx: number, z: number)
+	local bars = {}
+	for _, b in AlmanacUI.checkBars do
+		table.insert(
+			bars,
+			New("Frame")({
+				BorderSizePixel = 0,
+				BackgroundColor3 = Theme.colors.ink,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromScale(b.x, b.y),
+				Size = UDim2.new(b.len, 0, 0, AlmanacUI.checkThickness),
+				Rotation = b.angle,
+				ZIndex = z,
+			})
+		)
 	end
 	return New("Frame")({
 		Name = "Check",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 0, 0, ROW_MID),
+		Position = UDim2.fromOffset(cx, ROW_MID),
 		Size = UDim2.fromOffset(size, size),
 		ZIndex = z,
-		[Children] = {
-			bar(0.28, 0.66, 0.38, 45),
-			bar(0.62, 0.5, 0.74, -49),
-		},
+		[Children] = bars,
 	})
 end
+
+local LUCK_COLOR = Color3.fromHex(AlmanacUI.luckColor)
 
 local function markerColor(mk: AlmanacTrack.Marker): Color3
 	local m = mk.milestone
@@ -368,9 +371,9 @@ local function markerColor(mk: AlmanacTrack.Marker): Color3
 	elseif mk.role == "next" then
 		return Theme.colors.water
 	elseif m.kind == "egg" and Eggs.tiers[m.egg :: string] then
-		return Color3.fromHex(Eggs.tiers[m.egg :: string].color)
+		return Color3.fromHex(Eggs.tiers[m.egg :: string].color):Lerp(Theme.colors.white, AlmanacUI.eggMarkerTint)
 	elseif m.kind == "luck" then
-		return Theme.colors.toxic
+		return LUCK_COLOR
 	end
 	return Theme.colors.slateLight
 end
@@ -382,21 +385,25 @@ local function labelColor(mk: AlmanacTrack.Marker): Color3
 		else Theme.colors.cream
 end
 
--- One marker: a tap target (transparent, wider than the marker and as tall as the track, so its
--- label opens the tooltip too) holding the turned square.
+local function toggleTip(at: number)
+	tip:set(if tip:get(false) == at then nil else at)
+end
+
+-- One marker: a transparent tap target (its stretch of the track, full height, so the label row
+-- under it counts too) holding the turned square.
 local function marker(mk: AlmanacTrack.Marker)
 	local at = mk.milestone.at
+	local cx = mk.x - mk.hitLeft
 	return New("TextButton")({
 		Name = "Marker" .. at,
 		Text = "",
 		AutoButtonColor = false,
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromOffset(mk.x, 0),
-		Size = UDim2.fromOffset(math.max(mk.extent, AlmanacUI.hitWidth), AlmanacUI.trackHeight),
+		Position = UDim2.fromOffset(mk.hitLeft, 0),
+		Size = UDim2.fromOffset(mk.hitRight - mk.hitLeft, AlmanacUI.trackHeight),
 		ZIndex = 14,
 		[OnEvent("Activated")] = function()
-			tip:set(if tip:get(false) == at then nil else at)
+			toggleTip(at)
 		end,
 		[Children] = {
 			New("Frame")({
@@ -404,22 +411,26 @@ local function marker(mk: AlmanacTrack.Marker)
 				Name = if mk.role == "passed" then "Passed" elseif mk.role == "next" then "Next" else "Later",
 				BorderSizePixel = 0,
 				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.new(0.5, 0, 0, ROW_MID),
+				Position = UDim2.fromOffset(cx, ROW_MID),
 				Size = UDim2.fromOffset(mk.size, mk.size),
 				Rotation = 45,
 				BackgroundColor3 = markerColor(mk),
 				ZIndex = 15,
-				[Children] = C.stroke(Theme.colors.ink, AlmanacUI.markerOutline),
+				[Children] = C.stroke(Theme.colors.ink, mk.outline),
 			}),
-			if mk.role == "passed" then checkMark(math.floor(mk.size * 0.7), 16) else nil,
+			if mk.role == "passed" then checkMark(math.floor(mk.size * AlmanacUI.checkRatio), cx, 16) else nil,
 		},
 	})
 end
 
+-- A label is tappable too: it opens its own marker's tooltip (labels may sit a little to the side
+-- of their marker, over a neighbour's tap target).
 local function trackLabel(mk: AlmanacTrack.Marker, font: number)
 	local l = mk.label :: AlmanacTrack.Label
-	return New("TextLabel")({
-		Name = "Label" .. mk.milestone.at,
+	local at = mk.milestone.at
+	return New("TextButton")({
+		Name = "Label" .. at,
+		AutoButtonColor = false,
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(l.x, AlmanacUI.labelTop),
 		Size = UDim2.fromOffset(l.w, LABEL_H),
@@ -427,14 +438,17 @@ local function trackLabel(mk: AlmanacTrack.Marker, font: number)
 		TextSize = font,
 		TextColor3 = labelColor(mk),
 		Text = l.text,
-		ZIndex = 14,
+		ZIndex = 15,
+		[OnEvent("Activated")] = function()
+			toggleTip(at)
+		end,
 		[Children] = C.textStroke(1.5),
 	})
 end
 
 -- The track's contents for `found` species at label size `font`.
-local function trackChildren(found: number, font: number, tipAt: number?): { Instance }
-	local layout = AlmanacTrack.layout(found, TOTAL, CONTENT_W, font, tipAt)
+local function trackChildren(found: number, font: number, tipAt: number?, hit: number): { Instance }
+	local layout = AlmanacTrack.layout(found, TOTAL, CONTENT_W, font, tipAt, hit)
 	local barY = ROW_MID - AlmanacUI.barHeight / 2
 	local out: { Instance } = {
 		New("Frame")({
@@ -442,7 +456,7 @@ local function trackChildren(found: number, font: number, tipAt: number?): { Ins
 			BorderSizePixel = 0,
 			BackgroundColor3 = Theme.colors.ink,
 			BackgroundTransparency = 0.2,
-			Position = UDim2.fromOffset(layout.barLeft + 3, barY + 3),
+			Position = UDim2.fromOffset(layout.barLeft + Theme.shadow, barY + Theme.shadow),
 			Size = UDim2.fromOffset(layout.barRight - layout.barLeft, AlmanacUI.barHeight),
 			ZIndex = 11,
 		}),
@@ -453,7 +467,7 @@ local function trackChildren(found: number, font: number, tipAt: number?): { Ins
 			Position = UDim2.fromOffset(layout.barLeft, barY),
 			Size = UDim2.fromOffset(layout.barRight - layout.barLeft, AlmanacUI.barHeight),
 			ZIndex = 12,
-			[Children] = C.stroke(Theme.colors.ink, 2),
+			[Children] = C.stroke(Theme.colors.ink, AlmanacUI.barOutline),
 		}),
 		New("Frame")({
 			Name = "Fill",
@@ -475,15 +489,22 @@ local function trackChildren(found: number, font: number, tipAt: number?): { Ins
 	if t then
 		table.insert(
 			out,
-			New("Frame")({
+			-- A button over the markers and labels under it: tapping the tooltip closes it.
+			New("TextButton")({
 				Name = "Tooltip",
+				Text = "",
+				AutoButtonColor = false,
+				Active = true,
 				BorderSizePixel = 0,
 				BackgroundColor3 = Theme.colors.ink,
 				Position = UDim2.fromOffset(t.x, AlmanacUI.labelTop),
 				Size = UDim2.fromOffset(t.w, LABEL_H),
 				ZIndex = 17,
+				[OnEvent("Activated")] = function()
+					tip:set(nil)
+				end,
 				[Children] = {
-					C.stroke(Theme.colors.gold, 2),
+					C.stroke(Theme.colors.gold, AlmanacUI.tooltipOutline),
 					New("TextLabel")({
 						Name = "Text",
 						BackgroundTransparency = 1,
@@ -617,13 +638,15 @@ local function build()
 			State.panel:set("none")
 		end,
 		Content = {
-			-- Taps anywhere else in the panel close an open tooltip (under everything else).
+			-- Taps anywhere else in the panel (header and padding included) close an open tooltip:
+			-- under every control, over the panel's own blocker. The close X sits above it.
 			New("TextButton")({
 				Name = "TipCatcher",
 				Text = "",
 				AutoButtonColor = false,
 				BackgroundTransparency = 1,
-				Size = UDim2.fromScale(1, 1),
+				Position = UDim2.fromOffset(-AlmanacUI.contentPad, -AlmanacUI.contentTop),
+				Size = UDim2.new(1, 2 * AlmanacUI.contentPad, 1, AlmanacUI.contentTop + AlmanacUI.contentPad),
 				ZIndex = 10,
 				Visible = Computed(function()
 					return tip:get() ~= nil
@@ -657,7 +680,9 @@ local function build()
 						(screen.width / scale - 2 * HudConfig.panelMargin) / AlmanacUI.panelWidth,
 						(screen.height / scale - 2 * HudConfig.panelMargin) / AlmanacUI.panelHeight
 					)
-					return trackChildren(n, AlmanacTrack.fontSize(scale * fit), tip:get())
+					local onScreen = scale * fit
+					local hit = math.max(AlmanacUI.hitWidth, AlmanacUI.minTapScreenPx / onScreen)
+					return trackChildren(n, AlmanacTrack.fontSize(onScreen), tip:get(), hit)
 				end, Fusion.cleanup),
 			}),
 			New("Frame")({

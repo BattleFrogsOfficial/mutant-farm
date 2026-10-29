@@ -10,10 +10,12 @@
 --   * the later milestones spread proportionally over the rest of the bar, small, labeled only
 --     when they're big (eggs, luck);
 --   * when every milestone is passed, all of them, gold, spread over the whole (gold) bar.
--- Labels sit in a row under the markers. Their widths are estimated (Config/AlmanacUI em widths,
--- generous) so they can be placed without measuring text: later labels that would collide drop
--- their numbers, then fall back to icons, then hide. A tapped marker's tooltip takes the label row and hides the
--- labels it covers.
+-- Labels sit in a row under the markers. Their widths are estimated (Config/AlmanacUI em widths)
+-- so they can be placed without measuring text: the later big labels are packed sideways (each
+-- still spanning its marker) to fit in full; if they can't, they all drop to "100🥚", then to icons,
+-- and an icon that still collides hides. A tapped marker's tooltip takes the label row and hides
+-- the labels it covers. Each marker also gets a tap target: the stretch of track nearer to it than
+-- to its neighbours, capped (Config/AlmanacUI.hitWidth / minTapScreenPx).
 
 local GameConfig = require(script.Parent.Config.Game)
 local UIConfig = require(script.Parent.Config.AlmanacUI)
@@ -40,7 +42,10 @@ export type Marker = {
 	x: number, -- center (track px)
 	role: "passed" | "next" | "later",
 	size: number, -- side of the square (drawn turned 45 degrees)
-	extent: number, -- width/height on screen (diagonal + outline)
+	outline: number, -- ink outline (outside the square)
+	extent: number, -- width/height on screen (diagonal of the outlined square)
+	hitLeft: number, -- tap target (track px)
+	hitRight: number,
 	label: Label?,
 }
 
@@ -97,10 +102,10 @@ function AlmanacTrack.icon(m: Milestone): string
 	return if m.kind == "luck" then "🍀" elseif m.kind == "egg" then "🥚" else "💎"
 end
 
-export type Form = "full" | "reward" | "icon"
+export type Form = "full" | "short" | "icon"
 
--- The marker's label: "full" = "25 💎25", "100 🥚Toxic", "400 🍀+10% luck"; "reward" drops the
--- number ("🥚Toxic"); "icon" is just the icon ("🥚").
+-- The marker's label: "full" = "25 💎25", "100 🥚Toxic", "400 🍀+10% luck"; "short" is the number
+-- and the icon ("100🥚"); "icon" is just the icon ("🥚").
 function AlmanacTrack.label(m: Milestone, form: Form?): string
 	local icon = AlmanacTrack.icon(m)
 	if form == "icon" then
@@ -110,8 +115,8 @@ function AlmanacTrack.label(m: Milestone, form: Form?): string
 		then percent(m.luck :: number) .. " luck"
 		elseif m.kind == "egg" then m.egg :: string
 		else tostring(m.gems)
-	if form == "reward" then
-		return icon .. reward
+	if form == "short" then
+		return tostring(m.at) .. icon
 	end
 	return string.format("%d %s%s", m.at, icon, reward)
 end
@@ -147,9 +152,39 @@ function AlmanacTrack.fontSize(screenScale: number): number
 	return math.clamp(math.max(UIConfig.labelSize, need), UIConfig.labelSize, UIConfig.maxLabelSize)
 end
 
--- Space a marker takes on screen: the diagonal of its square plus the outline on both sides.
-function AlmanacTrack.extent(size: number): number
-	return size * SQRT2 + 2 * UIConfig.markerOutline
+-- Space a marker takes on screen: the diagonal of its square with the outline around it.
+function AlmanacTrack.extent(size: number, outline: number?): number
+	return (size + 2 * (outline or UIConfig.markerOutline)) * SQRT2
+end
+
+-- Packs labels (in marker order, each { w, center }) into [wall, width] with labelGap between
+-- them, each spanning its marker's center by labelInset, as close to centered as that allows.
+-- Returns the left edges, or nil when they can't all fit.
+local function pack(items: { { w: number, center: number } }, wall: number, width: number): { number }?
+	local gap, inset = UIConfig.labelGap, UIConfig.labelInset
+	local lo, hi, xs = {}, {}, {}
+	for i, it in items do
+		local reach = math.min(inset, it.w / 2)
+		lo[i] = math.max(wall, it.center + reach - it.w)
+		hi[i] = math.min(width - it.w, it.center - reach)
+		if lo[i] > hi[i] + 1e-6 then
+			return nil
+		end
+		xs[i] = math.clamp(it.center - it.w / 2, lo[i], hi[i])
+	end
+	-- Push right past each left neighbour, then pull left before each right neighbour.
+	for i = 2, #items do
+		xs[i] = math.max(xs[i], xs[i - 1] + items[i - 1].w + gap)
+	end
+	for i = #items, 1, -1 do
+		xs[i] = math.min(xs[i], hi[i], if i < #items then xs[i + 1] - gap - items[i].w else math.huge)
+	end
+	for i in items do
+		if xs[i] < lo[i] - 1e-6 or (i > 1 and xs[i] < xs[i - 1] + items[i - 1].w + gap - 1e-6) then
+			return nil
+		end
+	end
+	return xs
 end
 
 local function overlaps(a: Label, b: { x: number, w: number }, gap: number): boolean
@@ -162,7 +197,15 @@ end
 
 -- Track layout for `found` species out of `total`, on a track `width` px wide, with labels at
 -- `font` px. `tip` = the milestone whose tooltip is open (if it has a marker).
-function AlmanacTrack.layout(found: number, total: number, width: number, font: number, tip: number?): Layout
+-- `hit` = the widest tap target (design px; default Config hitWidth), for small screens.
+function AlmanacTrack.layout(
+	found: number,
+	total: number,
+	width: number,
+	font: number,
+	tip: number?,
+	hit: number?
+): Layout
 	local ms = AlmanacTrack.milestones(total)
 	local passed = 0
 	for _, m in ms do
@@ -184,7 +227,17 @@ function AlmanacTrack.layout(found: number, total: number, width: number, font: 
 			elseif role == "next" then UIConfig.nextSize
 			elseif m.big then UIConfig.laterBigSize
 			else UIConfig.laterSize
-		table.insert(markers, { milestone = m, x = x, role = role, size = size, extent = AlmanacTrack.extent(size) })
+		local outline = if role == "later" and not m.big then UIConfig.laterOutline else UIConfig.markerOutline
+		table.insert(markers, {
+			milestone = m,
+			x = x,
+			role = role,
+			size = size,
+			outline = outline,
+			extent = AlmanacTrack.extent(size, outline),
+			hitLeft = x,
+			hitRight = x,
+		})
 	end
 
 	local segStart, segEnd, fraction
@@ -213,8 +266,8 @@ function AlmanacTrack.layout(found: number, total: number, width: number, font: 
 	end
 
 	-- Labels, by priority: the next milestone (always, in full), the last passed one (its number,
-	-- at the left end), then the big later ones in one form for all: in full if they all fit, else
-	-- without their numbers, else as icons, and any icon that still collides hides.
+	-- at the left end), then the big later ones in one form for all: in full if they pack, else
+	-- "100🥚", else icons (centered; any icon that still collides hides).
 	local placed: { Label } = {}
 	local function make(text: string, center: number, short: boolean): Label
 		local w = AlmanacTrack.textWidth(text, font)
@@ -246,26 +299,55 @@ function AlmanacTrack.layout(found: number, total: number, width: number, font: 
 			table.insert(rest, mk)
 		end
 	end
-	for _, form: Form in { "full", "reward", "icon" } do
-		local tried: { Label } = {}
-		local allFit = true
+	table.sort(rest, function(a, b)
+		return a.x < b.x
+	end)
+	-- The fixed labels (next, last passed) all sit left of the later markers: a wall to pack from.
+	local wall = 0
+	for _, p in placed do
+		wall = math.max(wall, p.x + p.w + UIConfig.labelGap)
+	end
+	local done = false
+	for _, form: Form in { "full", "short" } do
+		local items = {}
 		for _, mk in rest do
-			local l = make(AlmanacTrack.label(mk.milestone, form), mk.x, form == "icon")
-			if not fits(l, placed) or not fits(l, tried) then
-				allFit = false
-			end
-			table.insert(tried, l)
+			local text = AlmanacTrack.label(mk.milestone, form)
+			table.insert(items, { text = text, w = AlmanacTrack.textWidth(text, font), center = mk.x })
 		end
-		if allFit or form == "icon" then
+		local xs = pack(items, wall, width)
+		if xs then
 			for i, mk in rest do
-				local l = tried[i]
-				if fits(l, placed) then
-					mk.label = l
-					table.insert(placed, l)
-				end
+				local l: Label = { text = items[i].text, x = xs[i], w = items[i].w, short = false, covered = false }
+				mk.label = l
+				table.insert(placed, l)
 			end
+			done = true
 			break
 		end
+	end
+	if not done then
+		for _, mk in rest do
+			local l = make(AlmanacTrack.label(mk.milestone, "icon"), mk.x, true)
+			if fits(l, placed) then
+				mk.label = l
+				table.insert(placed, l)
+			end
+		end
+	end
+
+	-- Tap targets: the stretch nearer to each marker than to its neighbours, at most `hit` wide.
+	local half = (hit or UIConfig.hitWidth) / 2
+	local order = table.clone(markers)
+	table.sort(order, function(a, b)
+		return a.x < b.x
+	end)
+	for i, mk in order do
+		local prev, nxt = order[i - 1], order[i + 1]
+		-- Neighbours split the free space between their edges, so each target covers its marker.
+		local left = if prev then (prev.x + prev.extent / 2 + mk.x - mk.extent / 2) / 2 else 0
+		local right = if nxt then (mk.x + mk.extent / 2 + nxt.x - nxt.extent / 2) / 2 else width
+		mk.hitLeft = math.max(left, math.min(mk.x - half, mk.x - mk.extent / 2))
+		mk.hitRight = math.min(right, math.max(mk.x + half, mk.x + mk.extent / 2))
 	end
 
 	-- The open tooltip takes the label row under its marker and covers the labels it overlaps.

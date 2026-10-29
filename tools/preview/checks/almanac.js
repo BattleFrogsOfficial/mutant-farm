@@ -48,6 +48,24 @@ registerCheck({
         if (w > 0.5 && h > 0.5) problems.push(`${a.name} overlaps ${b.name} (${w.toFixed(0)}x${h.toFixed(0)}px)`);
       }
     }
+    // Tap targets (the marker buttons themselves): side by side, never overlapping.
+    const hits = markers.map((el) => ({ name: el.title, r: el.getBoundingClientRect() })).sort((a, b) => a.r.left - b.r.left);
+    for (let i = 1; i < hits.length; i++) {
+      const over = hits[i - 1].r.right - hits[i].r.left;
+      if (over > 0.5) problems.push(`tap targets ${hits[i - 1].name} and ${hits[i].name} overlap by ${over.toFixed(1)}px`);
+    }
+    // Each label spans its own marker (packing may shift it sideways, never off its marker), and
+    // on desktop sizes the big later ones keep their numbers ("100 🥚Toxic", never just "🥚").
+    const desktop = W >= 1024 && H >= 540;
+    for (const el of labels) {
+      const at = el.title.slice("Label".length);
+      const mk = track.querySelector(`[title="Marker${at}"] [title="Passed"], [title="Marker${at}"] [title="Next"], [title="Marker${at}"] [title="Later"]`);
+      if (!mk) { problems.push(`${el.title} has no marker`); continue; }
+      const mr = mk.getBoundingClientRect(), lr = el.getBoundingClientRect();
+      const cx = (mr.left + mr.right) / 2;
+      if (lr.left > cx + 0.5 || lr.right < cx - 0.5) problems.push(`${el.title} doesn't span its marker`);
+      if (desktop && !el.textContent.includes(at)) problems.push(`${el.title} "${el.textContent.trim()}" lost its number on desktop`);
+    }
     // On-screen font: the label's px times every scale above it (HUD scale, panel fit).
     const fontOf = (el) => {
       const span = el.querySelector("span");

@@ -55,8 +55,8 @@ return function(t)
 			t.eq(Track.label(byAt[200]), "200 🥚Void")
 			t.eq(Track.label(byAt[300]), "300 🥚Cosmic")
 			t.eq(Track.label(byAt[400]), "400 🍀+10% luck")
-			t.eq(Track.label(byAt[100], "reward"), "🥚Toxic")
-			t.eq(Track.label(byAt[400], "reward"), "🍀+10% luck")
+			t.eq(Track.label(byAt[100], "short"), "100🥚")
+			t.eq(Track.label(byAt[400], "short"), "400🍀")
 			t.eq(Track.label(byAt[100], "icon"), "🥚")
 			t.eq(Track.label(byAt[400], "icon"), "🍀")
 			t.eq(Track.tooltip(byAt[25]), "25 species: 25 Gems")
@@ -155,6 +155,12 @@ return function(t)
 					end
 					if mk.label then
 						t.ok(mk.label.x >= 0 and mk.label.x + mk.label.w <= WIDTH, "label inside at " .. found)
+						-- Packed sideways at most so far that it still spans its marker.
+						local reach = math.min(UI.labelInset, mk.label.w / 2) - 1e-6
+						t.ok(
+							mk.label.x <= mk.x - reach and mk.label.x + mk.label.w >= mk.x + reach,
+							string.format("label '%s' spans its marker at %d", mk.label.text, found)
+						)
 						table.insert(labels, mk.label)
 					end
 				end
@@ -169,24 +175,64 @@ return function(t)
 				end
 			end)
 		end,
-		["desktop labels show the big later rewards in full at the start"] = function()
-			local l = Track.layout(5, TOTAL, WIDTH, UI.labelSize)
-			local shown = {}
-			for _, mk in l.markers do
-				if mk.label then
-					shown[mk.milestone.at] = mk.label.text
+		["desktop labels show the big later rewards in full, phones the numbers"] = function()
+			local function shown(found, font)
+				local out = {}
+				for _, mk in Track.layout(found, TOTAL, WIDTH, font).markers do
+					if mk.label then
+						out[mk.milestone.at] = mk.label.text
+					end
+				end
+				return out
+			end
+			for _, found in { 0, 5, 24, 26, 45, 99, 101, 175, 399 } do
+				local s = shown(found, UI.labelSize)
+				for at, text in
+					{
+						[100] = "100 🥚Toxic",
+						[200] = "200 🥚Void",
+						[300] = "300 🥚Cosmic",
+						[400] = "400 🍀+10% luck",
+					}
+				do
+					if at > found then
+						t.eq(s[at], text, string.format("desktop label %d at %d found", at, found))
+					end
 				end
 			end
-			t.eq(shown[25], "25 💎25")
-			t.eq(shown[100], "🥚Toxic")
-			t.eq(shown[200], "🥚Void")
-			t.eq(shown[300], "🥚Cosmic")
-			t.eq(shown[400], "🍀+10% luck")
-			-- Further along there's room for the numbers too.
-			local later = Track.layout(175, TOTAL, WIDTH, UI.labelSize)
-			for _, mk in later.markers do
-				if mk.milestone.at == 400 then
-					t.eq(mk.label and mk.label.text, "400 🍀+10% luck")
+			-- Small phones (bigger font): the number and the icon, so the eggs stay apart.
+			local s = shown(5, Track.fontSize(0.559))
+			t.eq(s[25], "25 💎25")
+			t.eq(s[100], "100🥚")
+			t.eq(s[200], "200🥚")
+			t.eq(s[300], "300🥚")
+			t.eq(s[400], "400🍀")
+		end,
+		["tap targets: nearest marker, no overlaps, at least the marker, capped"] = function()
+			for _, hit in { UI.hitWidth, 80 } do
+				each(function(found, _, _)
+					local l = Track.layout(found, TOTAL, WIDTH, UI.labelSize, nil, hit)
+					local ms = table.clone(l.markers)
+					table.sort(ms, function(a, b)
+						return a.x < b.x
+					end)
+					for i, mk in ms do
+						t.ok(mk.hitLeft >= 0 and mk.hitRight <= WIDTH, "tap target inside at " .. found)
+						t.ok(mk.hitLeft <= mk.x - mk.extent / 2 + 1e-6, "tap target covers the marker (left)")
+						t.ok(mk.hitRight >= mk.x + mk.extent / 2 - 1e-6, "tap target covers the marker (right)")
+						t.ok(mk.hitRight - mk.hitLeft <= math.max(hit, mk.extent) + 1e-6, "tap target capped")
+						if i > 1 then
+							t.ok(mk.hitLeft >= ms[i - 1].hitRight - 1e-6, "tap targets overlap at " .. found)
+						end
+					end
+				end)
+			end
+			-- Wide where there's room: the next diamond with 5 found gets the whole cap.
+			local l = Track.layout(5, TOTAL, WIDTH, UI.labelSize, nil, 80)
+			for _, mk in l.markers do
+				if mk.role == "next" then
+					t.near(mk.hitRight - mk.hitLeft, (mk.x - mk.hitLeft) + (mk.hitRight - mk.x), 1e-9)
+					t.near(mk.x - mk.hitLeft, 40, 1e-9)
 				end
 			end
 		end,
