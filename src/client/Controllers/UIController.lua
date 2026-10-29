@@ -1,6 +1,7 @@
 --!strict
--- Mounts the ScreenGui. Everything is laid out at a 900x540 design size and scaled down
--- with one UIScale so phones (the main audience) see the same layout, just smaller.
+-- Mounts the ScreenGui. Everything is laid out on a 900x540 design canvas and scaled with one
+-- UIScale (shared/HudScale: the shorter screen edge against 540, capped 1.25x with a mouse and
+-- 1.0x on touch), so phones (the main audience) see the same layout, just smaller.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,12 +11,12 @@ local UI = script.Parent.Parent.UI
 local Root = require(UI.Root)
 local Backdrop = require(UI.Backdrop)
 local State = require(script.Parent.Parent.State)
+local HudScale = require(ReplicatedStorage.Shared.HudScale)
 
-local New, Children, Value, Computed = Fusion.New, Fusion.Children, Fusion.Value, Fusion.Computed
+local New, Children, Value, Computed, Observer =
+	Fusion.New, Fusion.Children, Fusion.Value, Fusion.Computed, Fusion.Observer
 
 local UIController = {}
-
-local DESIGN_SIZE = Vector2.new(900, 540)
 
 function UIController.Init() end
 
@@ -81,17 +82,19 @@ function UIController.Start()
 		}),
 	})
 
-	-- Scale from the area the GUI actually covers (the full screen).
+	-- Scale from the area the GUI actually covers (below the top bar): the shorter edge against
+	-- the design height, capped lower on touch screens (shared/HudScale, Config/Hud).
 	local function updateScale()
 		local size = gui.AbsoluteSize
 		if size.X < 1 or size.Y < 1 then
 			return
 		end
-		local s = math.clamp(math.min(size.X / DESIGN_SIZE.X, size.Y / DESIGN_SIZE.Y), 0.5, 1.4)
+		local s = HudScale.of(size.X, size.Y, State.touch:get(false))
 		scale:set(s)
 		State.screen:set({ width = size.X, height = size.Y, scale = s })
 	end
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateScale)
+	Observer(State.touch):onChange(updateScale)
 	updateScale()
 end
 

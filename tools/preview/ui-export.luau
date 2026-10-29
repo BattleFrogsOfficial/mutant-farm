@@ -211,6 +211,9 @@ env = {
 
 local client = game:GetService("StarterPlayer").StarterPlayerScripts.Client
 local State = requireModule(client.State)
+local Shared = game:GetService("ReplicatedStorage").Shared
+local HudScale = requireModule(Shared.HudScale)
+local HudConfig = requireModule(Shared.Config.Hud)
 local UI = client.UI
 
 local function stateValue(v)
@@ -422,12 +425,19 @@ local function capture(name: string)
 		if next(attrs) then
 			node.attrs = attrs
 		end
+		-- A hidden GuiObject draws nothing below it: keep the node (checks look it up by name) but
+		-- not its subtree, which is most of the UI (every closed panel) and would bloat the JSON.
+		if p.Visible == false then
+			node.pruned = true
+			return node
+		end
 		for _, child in inst:GetChildren() do
 			table.insert(node.children, ser(child))
 		end
 		return node
 	end
-	table.insert(scenes, { name = name, root = ser(root) })
+	-- touch: ui-render scales touch scenes with Config/Hud.maxScaleTouch, like UIController.
+	table.insert(scenes, { name = name, root = ser(root), touch = State.touch:get(false) == true })
 end
 
 local function set(value, v)
@@ -445,18 +455,28 @@ set(State.toasts, {
 set(State.panel, "none")
 -- HUD states, each captured once per screen size (some layout depends on the real screen size,
 -- e.g. the egg tray shifting clear of the chat). Named "hud...@WxH"; ui-render checks each at
--- its own size. Keep this list in sync with ui-render's sizes + checkSizes.
-local SCREENS = { { 1280, 720 }, { 844, 390 }, { 667, 375 }, { 800, 360 }, { 1024, 768 }, { 1920, 1080 } }
+-- its own size. Keep this list in sync with ui-render's sizes + checkSizes. The scale is the
+-- game's (shared/HudScale: the shorter edge below the 58 px top bar against 540, capped).
+local SCREENS = {
+	{ 1280, 720 },
+	{ 844, 390 },
+	{ 667, 375 },
+	{ 800, 360 },
+	{ 1024, 768 },
+	{ 1920, 1080 },
+	{ 1663, 726 },
+}
+local TOPBAR = 58
+local function screenAt(w: number, h: number)
+	return { width = w, height = h - TOPBAR, scale = HudScale.of(w, h - TOPBAR, State.touch:get(false)) }
+end
 local function captureHud(name)
 	for _, wh in SCREENS do
 		local w, h = wh[1], wh[2]
-		set(
-			State.screen,
-			{ width = w, height = h - 58, scale = math.clamp(math.min(w / 900, (h - 58) / 540), 0.5, 1.4) }
-		)
+		set(State.screen, screenAt(w, h))
 		capture(string.format("%s@%dx%d", name, w, h))
 	end
-	set(State.screen, { width = 1280, height = 720, scale = 720 / 540 })
+	set(State.screen, screenAt(1280, 720))
 end
 set(State.zone, "hub")
 captureHud("hud")
@@ -635,5 +655,61 @@ do
 	capture("hatch")
 end
 
-fs.writeFile(outPath, serde.encode("json", { scenes = scenes }))
+-- More scenes, one file per area: tools/preview/scenes/*.luau, each returning function(api), run in
+-- name order. Each starts from the default mock state (api.reset) and should leave it that way.
+do
+	local function reset()
+		set(State.panel, "none")
+		set(State.snapshot, snapshot)
+		set(State.now, 1_800_000_000)
+		set(State.zone, "hub")
+		set(State.touch, false)
+		set(State.toasts, {})
+		set(State.weather, { nextId = "AcidRain", nextAt = 1_800_000_000 + 252, id = "", endsAt = 0 })
+		set(State.objective, { text = "Next soil patch: $675", progress = 0.62 })
+		set(State.almanac, almanac)
+		set(State.screen, screenAt(1280, 720))
+	end
+	local defaultRoot = root
+	local api = {
+		State = State,
+		set = set,
+		capture = capture,
+		captureHud = captureHud,
+		requireModule = requireModule,
+		UI = UI,
+		Shared = Shared,
+		client = client,
+		snapshot = snapshot, -- the default mock snapshot (clone before changing)
+		almanac = almanac, -- the default mock Almanac entries
+		item = item, -- item(id, tier, rarity, n, size, mutations) -> a bag item
+		roblox = roblox,
+		Instance = Instance,
+		reset = reset,
+		-- Capture something other than the whole UI: setRoot(frame) (ui-render draws the root's
+		-- children, so wrap a single element in a holder frame), then restoreRoot().
+		setRoot = function(r)
+			root = r
+		end,
+		restoreRoot = function()
+			root = defaultRoot
+		end,
+	}
+	local files = {}
+	for _, file in if fs.isDir("tools/preview/scenes") then fs.readDir("tools/preview/scenes") else {} do
+		if file:match("%.luau$") then
+			table.insert(files, file)
+		end
+	end
+	table.sort(files)
+	for _, file in files do
+		reset()
+		local scenesOf = require("./scenes/" .. file:gsub("%.luau$", ""))
+		scenesOf(api)
+		root = defaultRoot
+	end
+	reset()
+end
+
+fs.writeFile(outPath, serde.encode("json", { scenes = scenes, hud = HudConfig }))
 print(string.format("exported %d UI scenes", #scenes))

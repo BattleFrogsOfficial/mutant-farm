@@ -9,10 +9,8 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 
 const [uiPath, outDir, bgPath] = process.argv.slice(2);
 fs.mkdirSync(outDir, { recursive: true });
-const ui = fs.readFileSync(uiPath, "utf8");
 const bg = bgPath && fs.existsSync(bgPath) ? "data:image/png;base64," + fs.readFileSync(bgPath).toString("base64") : "";
 
-const DESIGN = { w: 900, h: 540 };
 const TOPBAR = 58; // Roblox's top bar inset in 2025+ clients
 const sizes = [
   ["desktop", 1280, 720],
@@ -24,6 +22,7 @@ const checkSizes = [
   ["phone-wide", 800, 360],
   ["tablet", 1024, 768],
   ["hd", 1920, 1080],
+  ["wide", 1663, 726],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
 const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "InstantWeather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
@@ -42,7 +41,13 @@ body { margin: 0; overflow: hidden; font-family: "Fredoka", "Arial Rounded MT Bo
 .vp.sil { background: #000d; }
 </style></head><body><div id="screen"><div id="topbar"><i style="left:6px;width:36px"></i><i style="left:50px;width:108px"></i></div></div>
 <script>
-const data = ${ui};
+// The scene JSON is ~100 MB: it's fetched after the page loads (window.loadData), not inlined.
+var data = null;
+window.loadData = async () => {
+  data = await (await fetch("/ui.json")).json();
+  window.data = data;
+  window.sceneCount = data.scenes.length;
+};
 const rgba = (c, t) => c ? \`rgba(\${Math.round(c[0]*255)},\${Math.round(c[1]*255)},\${Math.round(c[2]*255)},\${1-(t??0)})\` : "transparent";
 const MODS = new Set(["UICorner","UIStroke","UIPadding","UIListLayout","UIGridLayout","UIScale","UIGradient","UIAspectRatioConstraint","UITextSizeConstraint","UISizeConstraint"]);
 const GUI = new Set(["Frame","TextLabel","TextButton","TextBox","ImageLabel","ImageButton","ScrollingFrame","ViewportFrame","CanvasGroup"]);
@@ -210,7 +215,11 @@ window.render = (sceneIndex, W, H) => {
   const full = data.scenes[sceneIndex].name === "hatch";
   const inset = full ? 0 : ${TOPBAR};
   const usableH = H - inset;
-  const scale = Math.min(Math.max(Math.min(W / ${DESIGN.w}, usableH / ${DESIGN.h}), 0.5), 1.4);
+  // The game's scale (shared/HudScale, numbers from Config/Hud): the shorter edge against the design
+  // height, capped lower on touch screens.
+  const hud = data.hud;
+  const touch = data.scenes[sceneIndex].touch === true;
+  const scale = Math.min(Math.max(Math.min(W, usableH) / hud.designHeight, hud.minScale), touch ? hud.maxScaleTouch : hud.maxScale);
   const gui = document.createElement("div");
   gui.className = "gui inner";
   gui.style.left = "0"; gui.style.top = inset + "px";
@@ -223,7 +232,15 @@ window.render = (sceneIndex, W, H) => {
   fitText();
   return data.scenes[sceneIndex].name;
 };
-window.sceneCount = data.scenes.length;
+window.sceneScale = (sceneIndex, W, H) => {
+  const hud = data.hud, full = data.scenes[sceneIndex].name === "hatch";
+  const usableH = H - (full ? 0 : ${TOPBAR});
+  return Math.min(Math.max(Math.min(W, usableH) / hud.designHeight, hud.minScale), data.scenes[sceneIndex].touch ? hud.maxScaleTouch : hud.maxScale);
+};
+// Extra checks, one file per area (tools/preview/checks/*.js, loaded after this page): each calls
+// registerCheck({ name, match: (sceneName) => bool, run: (W, H, sceneName) => problems[] }).
+window.sceneChecks = [];
+window.registerCheck = (c) => window.sceneChecks.push(c);
 
 // Painted area of a zone: union of its visible descendants that draw something (fill, outline or
 // text), so transparent layout containers don't count.
@@ -427,7 +444,18 @@ window.checkOverlaps = (W, H, touch) => {
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on("pageerror", (e) => console.error("page error:", e.message));
-await page.setContent(html, { timeout: 300_000 }); // the scene JSON is tens of MB: give it time to load
+// Serve the page and the scene JSON from a fake origin (inlining ~100 MB of JSON crashes Chromium).
+await page.route("http://preview.local/**", (route) => {
+  const url = new URL(route.request().url());
+  if (url.pathname === "/ui.json") return route.fulfill({ status: 200, contentType: "application/json", body: fs.readFileSync(uiPath) });
+  return route.fulfill({ status: 200, contentType: "text/html", body: html });
+});
+await page.goto("http://preview.local/", { timeout: 300_000 });
+await page.evaluate(() => window.loadData());
+const checksDir = path.join(path.dirname(new URL(import.meta.url).pathname), "checks");
+for (const f of (fs.existsSync(checksDir) ? fs.readdirSync(checksDir) : []).filter((f) => f.endsWith(".js")).sort()) {
+  await page.addScriptTag({ content: fs.readFileSync(path.join(checksDir, f), "utf8") });
+}
 const count = await page.evaluate(() => window.sceneCount);
 // Scenes named "name@WxH" were exported for one screen size: render only at that size, saved
 // as name-<label>.png.
@@ -534,4 +562,27 @@ for (const [sceneName, index] of panelScenes) {
   }
 }
 console.log(`Panel check: ${panelIssues} issue(s) across ${panelChecked} scenes`);
+// Extra checks (tools/preview/checks/*.js): each registered check on every scene it matches, at the
+// scene's own size ("name@WxH") or at every size.
+{
+  let extraIssues = 0, extraRuns = 0;
+  const pairs = await page.evaluate(() => {
+    const out = [];
+    window.sceneChecks.forEach((c, ci) => data.scenes.forEach((s, si) => { if (c.match(s.name)) out.push([ci, si, s.name, c.name]); }));
+    return out;
+  });
+  for (const [ci, si, sceneName, checkName] of pairs) {
+    const sized = /@(\d+)x(\d+)$/.exec(sceneName);
+    for (const [label, W, H] of [...sizes, ...checkSizes]) {
+      if (sized && (+sized[1] !== W || +sized[2] !== H)) continue;
+      await page.setViewportSize({ width: W, height: H });
+      await page.evaluate(([i, W, H]) => window.render(i, W, H), [si, W, H]);
+      const problems = await page.evaluate(([ci, W, H, n]) => window.sceneChecks[ci].run(W, H, n), [ci, W, H, sceneName]);
+      extraRuns++;
+      for (const p of problems) console.log(`[${checkName}] ${sceneName} ${label} ${W}x${H}: ${p}`);
+      extraIssues += problems.length;
+    }
+  }
+  console.log(`Extra checks: ${extraIssues} issue(s) across ${extraRuns} scene renders`);
+}
 await browser.close();

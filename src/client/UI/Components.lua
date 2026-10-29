@@ -10,6 +10,7 @@ local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local Theme = require(script.Parent.Theme)
 local State = require(script.Parent.Parent.State)
 local Sfx = require(script.Parent.Parent.Sfx)
+local HudConfig = require(ReplicatedStorage.Shared.Config.Hud)
 
 local New, Children, OnEvent, Value, Computed, Spring =
 	Fusion.New, Fusion.Children, Fusion.OnEvent, Fusion.Value, Fusion.Computed, Fusion.Spring
@@ -500,17 +501,33 @@ function Components.panel(
 		32,
 		0.7
 	)
+	-- Panels are sized to their content (design px), never to the screen. Only when the design
+	-- canvas is smaller than the panel (a narrow window at the 1.25x cap) does it shrink to fit.
+	local size = props.Size or UDim2.fromOffset(640, 480)
+	local fit = Computed(function()
+		local screen = State.screen:get()
+		local canvasW, canvasH = screen.width / screen.scale, screen.height / screen.scale
+		return math.min(
+			1,
+			(canvasW - 2 * HudConfig.panelMargin) / size.X.Offset,
+			(canvasH - 2 * HudConfig.panelMargin) / size.Y.Offset
+		)
+	end)
 	return New("Frame")({
 		Name = "Panel",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = props.Size or UDim2.fromOffset(640, 480),
+		Size = size,
 		BackgroundTransparency = 1,
 		Visible = props.IsOpen,
 		Active = true, -- swallow taps so they don't reach the farm behind the panel
 		ZIndex = 10,
 		[Children] = {
-			New("UIScale")({ Scale = scale }),
+			New("UIScale")({
+				Scale = Computed(function()
+					return scale:get() * fit:get()
+				end),
+			}),
 			Components.shadow(nil, 8),
 			-- Catches clicks anywhere on the panel that no control takes, so they never fall
 			-- through to the backdrop behind it (which closes the panel).
