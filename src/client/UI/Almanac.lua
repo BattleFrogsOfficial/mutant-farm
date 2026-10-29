@@ -3,6 +3,9 @@
 -- own tab after the tiers, and their species say "LIMITED · <event>". Undiscovered species are black
 -- silhouettes marked "???". Discovered ones open a detail page with a spinning 3D model,
 -- description, traits, size range, your biggest one, hatch count, first-hatch date and a fun fact.
+-- Under the title, the milestone track (math in shared/AlmanacTrack, layout in Config/AlmanacUI):
+-- the fill runs from the last passed milestone to the next one (the big diamond), the later ones
+-- sit proportionally along the rest; tapping a marker shows its reward as a tooltip.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -12,15 +15,22 @@ local Eggs = require(Shared.Config.Eggs)
 local Rarities = require(Shared.Config.Rarities)
 local Mutants = require(Shared.Config.Mutants)
 local MutantModel = require(Shared.MutantModel)
-local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
+local AlmanacUI = require(Shared.Config.AlmanacUI)
+local AlmanacTrack = require(Shared.AlmanacTrack)
+local HudConfig = require(Shared.Config.Hud)
 local State = require(script.Parent.Parent.State)
 local Theme = require(script.Parent.Theme)
 local C = require(script.Parent.Components)
 local Viewport = require(script.Parent.Viewport)
 
-local New, Children, Computed, Value = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.Value
+local New, Children, Computed, Value, OnEvent, Observer =
+	Fusion.New, Fusion.Children, Fusion.Computed, Fusion.Value, Fusion.OnEvent, Fusion.Observer
 
 local PER_PAGE = 12 -- 6 x 2
+local CONTENT_W = AlmanacUI.panelWidth - 2 * AlmanacUI.contentPad
+local TABS_TOP = AlmanacUI.trackHeight + AlmanacUI.tabsGap
+local GRID_TOP = TABS_TOP + AlmanacUI.tabHeight + AlmanacUI.gridGap
+local GRID_H = 2 * AlmanacUI.cellHeight + AlmanacUI.cellGap
 local TOTAL = 0
 for _ in Mutants.species do
 	TOTAL += 1
@@ -316,13 +326,194 @@ local function card(id: string, order: number, entry: any, onOpen: (string) -> (
 	})
 end
 
-return function()
+-------------------------------------------------------------------------- milestone track
+
+-- The milestone whose tooltip is open (nil = none). Module-level so the UI preview can open one.
+local tip = Value(nil :: number?)
+
+local ROW_MID = AlmanacUI.markerRowHeight / 2
+local LABEL_H = AlmanacUI.trackHeight - AlmanacUI.labelTop
+
+-- A check mark from two ink bars (the font has no check glyph), centered in a `size` square.
+local function checkMark(size: number, z: number)
+	local function bar(cx: number, cy: number, len: number, angle: number)
+		return New("Frame")({
+			BorderSizePixel = 0,
+			BackgroundColor3 = Theme.colors.ink,
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(cx, cy),
+			Size = UDim2.new(len, 0, 0, 3),
+			Rotation = angle,
+			ZIndex = z,
+		})
+	end
+	return New("Frame")({
+		Name = "Check",
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0, ROW_MID),
+		Size = UDim2.fromOffset(size, size),
+		ZIndex = z,
+		[Children] = {
+			bar(0.28, 0.66, 0.38, 45),
+			bar(0.62, 0.5, 0.74, -49),
+		},
+	})
+end
+
+local function markerColor(mk: AlmanacTrack.Marker): Color3
+	local m = mk.milestone
+	if mk.role == "passed" then
+		return Theme.colors.gold
+	elseif mk.role == "next" then
+		return Theme.colors.water
+	elseif m.kind == "egg" and Eggs.tiers[m.egg :: string] then
+		return Color3.fromHex(Eggs.tiers[m.egg :: string].color)
+	elseif m.kind == "luck" then
+		return Theme.colors.toxic
+	end
+	return Theme.colors.slateLight
+end
+
+local function labelColor(mk: AlmanacTrack.Marker): Color3
+	return if mk.role == "passed"
+		then Theme.colors.gold
+		elseif mk.role == "next" then Theme.colors.white
+		else Theme.colors.cream
+end
+
+-- One marker: a tap target (transparent, wider than the marker and as tall as the track, so its
+-- label opens the tooltip too) holding the turned square.
+local function marker(mk: AlmanacTrack.Marker)
+	local at = mk.milestone.at
+	return New("TextButton")({
+		Name = "Marker" .. at,
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromOffset(mk.x, 0),
+		Size = UDim2.fromOffset(math.max(mk.extent, AlmanacUI.hitWidth), AlmanacUI.trackHeight),
+		ZIndex = 14,
+		[OnEvent("Activated")] = function()
+			tip:set(if tip:get(false) == at then nil else at)
+		end,
+		[Children] = {
+			New("Frame")({
+				-- Named by role so the preview checks can tell them apart.
+				Name = if mk.role == "passed" then "Passed" elseif mk.role == "next" then "Next" else "Later",
+				BorderSizePixel = 0,
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.new(0.5, 0, 0, ROW_MID),
+				Size = UDim2.fromOffset(mk.size, mk.size),
+				Rotation = 45,
+				BackgroundColor3 = markerColor(mk),
+				ZIndex = 15,
+				[Children] = C.stroke(Theme.colors.ink, AlmanacUI.markerOutline),
+			}),
+			if mk.role == "passed" then checkMark(math.floor(mk.size * 0.7), 16) else nil,
+		},
+	})
+end
+
+local function trackLabel(mk: AlmanacTrack.Marker, font: number)
+	local l = mk.label :: AlmanacTrack.Label
+	return New("TextLabel")({
+		Name = "Label" .. mk.milestone.at,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(l.x, AlmanacUI.labelTop),
+		Size = UDim2.fromOffset(l.w, LABEL_H),
+		Font = Theme.font,
+		TextSize = font,
+		TextColor3 = labelColor(mk),
+		Text = l.text,
+		ZIndex = 14,
+		[Children] = C.textStroke(1.5),
+	})
+end
+
+-- The track's contents for `found` species at label size `font`.
+local function trackChildren(found: number, font: number, tipAt: number?): { Instance }
+	local layout = AlmanacTrack.layout(found, TOTAL, CONTENT_W, font, tipAt)
+	local barY = ROW_MID - AlmanacUI.barHeight / 2
+	local out: { Instance } = {
+		New("Frame")({
+			Name = "BarShadow",
+			BorderSizePixel = 0,
+			BackgroundColor3 = Theme.colors.ink,
+			BackgroundTransparency = 0.2,
+			Position = UDim2.fromOffset(layout.barLeft + 3, barY + 3),
+			Size = UDim2.fromOffset(layout.barRight - layout.barLeft, AlmanacUI.barHeight),
+			ZIndex = 11,
+		}),
+		New("Frame")({
+			Name = "Bar",
+			BorderSizePixel = 0,
+			BackgroundColor3 = Theme.colors.slate,
+			Position = UDim2.fromOffset(layout.barLeft, barY),
+			Size = UDim2.fromOffset(layout.barRight - layout.barLeft, AlmanacUI.barHeight),
+			ZIndex = 12,
+			[Children] = C.stroke(Theme.colors.ink, 2),
+		}),
+		New("Frame")({
+			Name = "Fill",
+			BorderSizePixel = 0,
+			BackgroundColor3 = if layout.allPassed then Theme.colors.gold else Theme.colors.water,
+			Position = UDim2.fromOffset(layout.segStart, barY),
+			Size = UDim2.fromOffset(layout.fillWidth, AlmanacUI.barHeight),
+			ZIndex = 13,
+			[Children] = C.shine(),
+		}),
+	}
+	for _, mk in layout.markers do
+		table.insert(out, marker(mk))
+		if mk.label and not mk.label.covered then
+			table.insert(out, trackLabel(mk, font))
+		end
+	end
+	local t = layout.tooltip
+	if t then
+		table.insert(
+			out,
+			New("Frame")({
+				Name = "Tooltip",
+				BorderSizePixel = 0,
+				BackgroundColor3 = Theme.colors.ink,
+				Position = UDim2.fromOffset(t.x, AlmanacUI.labelTop),
+				Size = UDim2.fromOffset(t.w, LABEL_H),
+				ZIndex = 17,
+				[Children] = {
+					C.stroke(Theme.colors.gold, 2),
+					New("TextLabel")({
+						Name = "Text",
+						BackgroundTransparency = 1,
+						Size = UDim2.fromScale(1, 1),
+						Font = Theme.font,
+						TextSize = font,
+						TextColor3 = Theme.colors.white,
+						Text = t.text,
+						ZIndex = 18,
+					}),
+				},
+			})
+		)
+	end
+	return out
+end
+
+local function build()
 	local isOpen = Computed(function()
 		return State.panel:get() == "almanac"
 	end)
 	local tab = Value(Eggs.order[1])
 	local page = Value(1)
 	local selected = Value(nil :: string?)
+	-- Closing the panel (X, backdrop or anything else) closes the tooltip too.
+	Observer(isOpen):onChange(function()
+		if not isOpen:get(false) then
+			tip:set(nil)
+		end
+	end)
 
 	local foundCount = Computed(function()
 		local n = 0
@@ -340,7 +531,7 @@ return function()
 		}),
 	}
 	-- Tabs share the content width (728): 6 tiers fit at 112, more get narrower.
-	local tabWidth = math.min(112, math.floor((728 - 6 * (#TABS - 1)) / #TABS))
+	local tabWidth = math.min(112, math.floor((CONTENT_W - 6 * (#TABS - 1)) / #TABS))
 	for i, tierId in TABS do
 		local limitedIcon = Eggs.tiers[tierId].limited and Eggs.tiers[tierId].icon
 		table.insert(
@@ -348,7 +539,7 @@ return function()
 			C.button({
 				Name = tierId,
 				LayoutOrder = i,
-				Size = UDim2.fromOffset(tabWidth, 46),
+				Size = UDim2.fromOffset(tabWidth, AlmanacUI.tabHeight),
 				Color = Color3.fromHex(Eggs.tiers[tierId].color):Lerp(Theme.colors.slateLight, 0.4),
 				MaxTextSize = 17,
 				Selected = Computed(function()
@@ -368,6 +559,7 @@ return function()
 					tab:set(tierId)
 					page:set(1)
 					selected:set(nil)
+					tip:set(nil)
 				end,
 			})
 		)
@@ -392,6 +584,7 @@ return function()
 				out,
 				card(id, i, almanac[id], function(openId)
 					selected:set(openId)
+					tip:set(nil)
 				end)
 			)
 		end
@@ -411,53 +604,67 @@ return function()
 	end, Fusion.cleanup)
 
 	return C.panel({
+		-- Found / total only: the rewards are on the milestone track.
 		Title = Computed(function()
-			-- Next milestone (every 25 found pays Gems automatically, see GrowthService).
-			local every = GameConfig.almanacMilestones.every
-			local nextAt = (foundCount:get() // every + 1) * every
-			if nextAt > TOTAL then
-				return string.format("📖 Almanac   %d / %d found", foundCount:get(), TOTAL)
-			end
-			local big = GameConfig.almanacMilestones.big[nextAt]
-			local reward = string.format("💎 %d", GameConfig.almanacMilestones.gems)
-			if big and big.luck then
-				reward = string.format("🍀 +%d%% LUCK", math.floor(big.luck * 100 + 0.5))
-			elseif big and big.eggs then
-				local eggId = next(big.eggs)
-				reward = "🥚 " .. string.upper(eggId :: string) .. " EGG"
-			end
-			return string.format("📖 Almanac  %d / %d  ·  %s at %d", foundCount:get(), TOTAL, reward, nextAt)
+			return string.format("📖 Almanac %d / %d", foundCount:get(), TOTAL)
 		end),
 		Accent = Theme.colors.purple,
-		Size = UDim2.fromOffset(760, 480),
+		Size = UDim2.fromOffset(AlmanacUI.panelWidth, AlmanacUI.panelHeight),
 		IsOpen = isOpen,
 		OnClose = function()
 			selected:set(nil)
+			tip:set(nil)
 			State.panel:set("none")
 		end,
 		Content = {
-			-- Overall progress bar.
+			-- Taps anywhere else in the panel close an open tooltip (under everything else).
+			New("TextButton")({
+				Name = "TipCatcher",
+				Text = "",
+				AutoButtonColor = false,
+				BackgroundTransparency = 1,
+				Size = UDim2.fromScale(1, 1),
+				ZIndex = 10,
+				Visible = Computed(function()
+					return tip:get() ~= nil
+				end),
+				[OnEvent("Activated")] = function()
+					tip:set(nil)
+				end,
+			}),
+			-- Milestone track (hidden on a species page). Its label size follows the on-screen
+			-- scale (HUD scale x the panel's fit) so labels stay readable on small phones.
 			New("Frame")({
-				Name = "Progress",
-				Size = UDim2.new(1, 0, 0, 10),
-				BackgroundColor3 = Theme.colors.slate,
+				Name = "AlmanacTrack",
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, AlmanacUI.trackHeight),
+				Visible = Computed(function()
+					return selected:get() == nil
+				end),
 				ZIndex = 11,
-				[Children] = {
-					New("Frame")({
-						BackgroundColor3 = Theme.colors.toxic,
-						Size = Computed(function()
-							return UDim2.fromScale(foundCount:get() / TOTAL, 1)
-						end),
-						ZIndex = 12,
-						[Children] = C.shine(),
-					}),
-				},
+				[Children] = Computed(function()
+					if State.panel:get() ~= "almanac" then
+						return {}
+					end
+					local n = 0
+					for _ in State.almanac:get() do
+						n += 1
+					end
+					local screen = State.screen:get()
+					local scale = math.max(screen.scale, 0.01)
+					local fit = math.min(
+						1,
+						(screen.width / scale - 2 * HudConfig.panelMargin) / AlmanacUI.panelWidth,
+						(screen.height / scale - 2 * HudConfig.panelMargin) / AlmanacUI.panelHeight
+					)
+					return trackChildren(n, AlmanacTrack.fontSize(scale * fit), tip:get())
+				end, Fusion.cleanup),
 			}),
 			New("Frame")({
 				Name = "Tabs",
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(0, 18),
-				Size = UDim2.new(1, 0, 0, 48),
+				Position = UDim2.fromOffset(0, TABS_TOP),
+				Size = UDim2.new(1, 0, 0, AlmanacUI.tabHeight),
 				Visible = Computed(function()
 					return selected:get() == nil
 				end),
@@ -467,18 +674,17 @@ return function()
 			New("Frame")({
 				Name = "Grid",
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(0, 74),
-				Size = UDim2.new(1, 0, 1, -128),
+				Position = UDim2.fromOffset(0, GRID_TOP),
+				Size = UDim2.new(1, 0, 0, GRID_H),
 				Visible = Computed(function()
 					return selected:get() == nil
 				end),
 				ZIndex = 11,
 				[Children] = {
 					New("UIGridLayout")({
-						-- 2 rows must fit the grid height (480 panel - 90 chrome - 74 tabs - 54 pager).
-						-- 6 columns must fit the content width (760 - 32): 6 x 110 + 5 x 8 = 700.
-						CellSize = UDim2.fromOffset(110, 120),
-						CellPadding = UDim2.fromOffset(8, 9),
+						-- 2 rows between the tabs and the pager, 6 columns in the content width.
+						CellSize = UDim2.fromOffset(AlmanacUI.cellWidth, AlmanacUI.cellHeight),
+						CellPadding = UDim2.fromOffset(AlmanacUI.cellGap, AlmanacUI.cellGap),
 						SortOrder = Enum.SortOrder.LayoutOrder,
 						HorizontalAlignment = Enum.HorizontalAlignment.Center,
 					}),
@@ -490,7 +696,7 @@ return function()
 				BackgroundTransparency = 1,
 				AnchorPoint = Vector2.new(0.5, 1),
 				Position = UDim2.fromScale(0.5, 1),
-				Size = UDim2.fromOffset(320, 48),
+				Size = UDim2.fromOffset(320, AlmanacUI.pagerHeight),
 				Visible = Computed(function()
 					return selected:get() == nil
 				end),
@@ -505,6 +711,7 @@ return function()
 						end),
 						OnClick = function()
 							page:set(math.max(1, page:get(false) - 1))
+							tip:set(nil)
 						end,
 					}),
 					C.label({
@@ -526,6 +733,7 @@ return function()
 						end),
 						OnClick = function()
 							page:set(math.min(pageCount:get(false), page:get(false) + 1))
+							tip:set(nil)
 						end,
 					}),
 				},
@@ -559,3 +767,10 @@ return function()
 		},
 	})
 end
+
+-- Root mounts it with Almanac(); .tip is the open tooltip's milestone (nil = none), for the preview.
+return setmetatable({ tip = tip }, {
+	__call = function()
+		return build()
+	end,
+}) :: any
