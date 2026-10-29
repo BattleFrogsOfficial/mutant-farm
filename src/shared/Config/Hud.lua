@@ -26,17 +26,21 @@ return {
 		gemsWidth = 120,
 		gap = 8,
 		icon = 24, -- coin / gem glyphs
+		iconInset = 10, -- glyph's left edge from the panel's left edge
+		iconNudge = -1, -- glyph's vertical offset from the panel's middle
 	},
 
-	-- Upgrades / Daily / Almanac tiles, top-right, left to right, a fixed gap apart. The red dot is
-	-- a small diamond kept inside the tile (its center `dotInset` px from the top-right corner).
+	-- Upgrades / Daily / Almanac tiles, top-right, left to right, `gap` px apart (between the tile
+	-- faces; each face's hard shadow falls into the gap). The red dot is a small diamond kept inside
+	-- the tile (its center `dotInset` px from the top-right corner); the glyph sits left of center so
+	-- the glyph, its outline and its shadow end before the dot.
 	tiles = {
-		width = 48,
+		width = 52,
 		gap = 8,
-		glyph = 22,
-		glyphShift = -4, -- the glyph sits a little left of center, clear of the dot
-		dot = 9,
-		dotInset = 10,
+		glyph = 20,
+		glyphShift = -6,
+		dot = 8,
+		dotInset = 9,
 	},
 
 	-- Right column under the tiles, top to bottom: weather countdown, Instant Weather, Starter
@@ -51,6 +55,13 @@ return {
 		bagWidth = 130,
 		bagHeight = 44,
 		bagGlyph = 24,
+		bagGlyphInset = 14,
+		bagText = { x = 22, y = 7, text = 20 }, -- count label: `x` px right of the glyph, `y` from top/bottom
+		height = 240, -- the column frame (rows stack from its top; nothing is clipped)
+		-- Two-line buttons (Instant Weather, Starter Bundle): { y, height, text size }, inset `lineInset`.
+		lineInset = 6,
+		line1 = { y = 4, height = 18, text = 15 },
+		line2 = { y = 24, height = 15, text = 13 },
 	},
 
 	-- SHOP: the biggest button in the hub. At the plot it is the WATER button's size, beside it.
@@ -61,37 +72,65 @@ return {
 		plotText = 22,
 	},
 
-	-- WATER and SHOP at the plot (same size). Desktop: bottom-right, Water left of Shop when there
-	-- is room right of the egg tray (`trayClearance`), else above it. Touch: mid-right, side by side
-	-- (the jump button owns the corner).
+	-- WATER and SHOP at the plot (same size), always side by side, Water on the left. Desktop:
+	-- bottom-right when that clears the egg tray by `trayClearance`, else (a narrow window) mid-right
+	-- like touch screens, where the jump button owns the corner.
 	plotButtons = {
 		width = 132,
 		height = 64,
 		gap = 8,
 		glyph = 28,
+		glyphInset = 10, -- the drop's left edge from the button's left edge
 		trayClearance = 12,
 		ringWidth = 5, -- the drain ring along the Water button's edge
+		-- WATER's two lines ("WATER" / "2x 30s"), right of the glyph: x = glyphInset + glyph + `textGap`.
+		textGap = 8,
+		textRight = 6,
+		line1 = { y = 9, height = 24, text = 20 },
+		line2 = { y = 33, height = 20, text = 15 },
 	},
 
 	-- Egg tray (plot, bottom center): owned eggs + one "next egg" tile, HATCH on the right.
+	-- Tiles size to content: egg art, a name line, a count (or price) badge in the corner. The next
+	-- egg tile is wider for its second line, "AT THE EGG SHOP".
 	tray = {
 		width = 424,
 		height = 146,
 		bottom = 12,
-		tileWidth = 84,
+		tileWidth = 78,
+		nextTileWidth = 120,
 		tileHeight = 104,
-		tileGap = 10,
+		tileGap = 8,
 		art = 64,
-		hatchWidth = 108,
+		artY = 2,
+		lift = 8, -- the picked egg rises this much
+		badgeWidth = 32, -- "x3"
+		nextBadgeWidth = 46, -- "$500"
+		badgeHeight = 20,
+		badgeInset = 3,
+		badgeText = 14,
+		labelInset = 4, -- name line: from the tile's sides and bottom
+		labelHeight = 18,
+		labelText = 14,
+		-- Next egg tile: the name line sits above "AT THE EGG SHOP".
+		nextNameBottom = 20,
+		nextShopHeight = 14,
+		nextShopText = 12,
+		nextShopInset = 3, -- "AT THE EGG SHOP" needs nearly the whole tile width
+		hatchWidth = 102,
+		hatchInset = 10, -- from the tray's right edge, lined up with the 2x Luck badge
 		hatchGlyph = 34,
+		hatchGlyphY = 8,
+		hatchLine1 = { y = 48, height = 20, text = 18 }, -- "HATCH 3"
+		hatchLine2 = { y = 70, height = 16, text = 14 }, -- "TAP!" / "GROWING"
 		chatWidth = 215, -- the chat window at its smallest (WidthScale 0.5), plus margin
 	},
 	nextUpBottom = 190, -- Next Up's bottom edge above the screen bottom
 
-	-- Vector glyphs (UI/Glyphs.lua): ink outline and hard shadow, in design px.
+	-- Vector glyphs (UI/Glyphs.lua): ink outline and the boxy hard shadow (Theme.shadow), opaque so
+	-- overlapping shapes never show seams, in design px.
 	glyph = {
 		stroke = 3,
-		shadow = 3,
-		shadowTransparency = 0.25,
+		shadow = 4,
 	},
 }

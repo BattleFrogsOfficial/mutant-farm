@@ -99,18 +99,28 @@ local inHub = Computed(function()
 	return State.zone:get() == "hub"
 end)
 
--- Plot buttons (WATER, SHOP; same size) on a mouse screen: side by side in the bottom-right corner
--- when that clears the egg tray, else WATER stacks right above SHOP. Touch screens: always side by
--- side at mid-right (the jump button owns the corner).
-local plotSideBySide = Computed(function()
-	if State.touch:get() then
-		return true
-	end
-	local screen = State.screen:get()
+-- Plot buttons (WATER, SHOP; same size) are always side by side, WATER on the left. Mouse screens:
+-- in the bottom-right corner when that clears the egg tray, else (a narrow window) mid-right, like
+-- touch screens, where the jump button owns the corner.
+-- (Both Computeds read State directly, never each other: Fusion 0.2 can't order a Computed that
+-- is first read mid-update, so a touch -> mouse switch would leave SHOP mid-right on stale data.)
+local function bottomRowTooNarrow(screen: { width: number, height: number, scale: number }): boolean
 	local canvasW = screen.width / screen.scale
 	local trayRight = canvasW / 2 + shiftFor(screen) + TRAY_HALF + Theme.shadow
 	local waterLeft = canvasW - EDGE - 2 * PLOT.width - PLOT.gap
-	return waterLeft >= trayRight + PLOT.trayClearance
+	return waterLeft < trayRight + PLOT.trayClearance
+end
+local plotMidRight = Computed(function()
+	local touch = State.touch:get()
+	local narrow = bottomRowTooNarrow(State.screen:get())
+	return touch or narrow
+end)
+-- SHOP mid-right: always on touch screens; at the plot also when the bottom row has no room.
+local shopMidRight = Computed(function()
+	local touch = State.touch:get()
+	local plot = State.zone:get() == "plot"
+	local narrow = bottomRowTooNarrow(State.screen:get())
+	return touch or (plot and narrow)
 end)
 
 -- "4:12" / "1:02:09"
@@ -198,7 +208,7 @@ local function cashBox()
 			}),
 			Glyphs.new("coin", {
 				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 10, 0.5, -1),
+				Position = UDim2.new(0, L.top.iconInset, 0.5, L.top.iconNudge),
 				Size = L.top.icon,
 				ZIndex = 2,
 			}),
@@ -385,7 +395,7 @@ local function gemsBox()
 		Children = {
 			Glyphs.new("gem", {
 				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 10, 0.5, -1),
+				Position = UDim2.new(0, L.top.iconInset, 0.5, L.top.iconNudge),
 				Size = L.top.icon,
 				ZIndex = 2,
 			}),
@@ -491,12 +501,13 @@ end
 local function shopButton()
 	return C.button({
 		Name = "Shop",
-		-- On touch screens the jump button owns the bottom-right corner: Shop moves to mid-right.
+		-- On touch screens the jump button owns the bottom-right corner: Shop moves to mid-right (at
+		-- the plot also on a narrow mouse screen, where WATER and SHOP don't fit beside the tray).
 		AnchorPoint = Computed(function()
-			return if State.touch:get() then Vector2.new(1, 0.5) else Vector2.new(1, 1)
+			return if shopMidRight:get() then Vector2.new(1, 0.5) else Vector2.new(1, 1)
 		end),
 		Position = Computed(function()
-			return if State.touch:get() then UDim2.new(1, -EDGE, 0.5, 0) else UDim2.new(1, -EDGE, 1, -EDGE)
+			return if shopMidRight:get() then UDim2.new(1, -EDGE, 0.5, 0) else UDim2.new(1, -EDGE, 1, -EDGE)
 		end),
 		Size = Computed(function()
 			return if inHub:get()
@@ -560,7 +571,9 @@ local function weatherText()
 		end),
 		BackgroundTransparency = 1,
 		Visible = Computed(function()
-			return soon:get() or (inHub:get() and info:get() ~= nil)
+			-- Read every dependency up front (Fusion 0.2: no Computed first read mid-update).
+			local isSoon, hub, i = soon:get(), inHub:get(), info:get()
+			return isSoon or (hub and i ~= nil)
 		end),
 		[Children] = {
 			C.label({
@@ -602,6 +615,17 @@ local function weatherText()
 	})
 end
 
+-- One text line of a two-line column button (Instant Weather, Starter Bundle).
+local function columnLine(line: { y: number, height: number, text: number }, text: any)
+	return C.label({
+		Text = text,
+		Position = UDim2.fromOffset(COLUMN.lineInset, line.y),
+		Size = UDim2.new(1, -2 * COLUMN.lineInset, 0, line.height),
+		MaxTextSize = line.text,
+		ZIndex = 4,
+	})
+end
+
 -- The only promo on screen, gone when its timer ends.
 local function bundleRibbon()
 	local left = Computed(function()
@@ -626,22 +650,13 @@ local function bundleRibbon()
 				openPanel("store")
 			end,
 			Children = {
-				C.label({
-					Text = "🎁 STARTER BUNDLE",
-					Position = UDim2.fromOffset(6, 4),
-					Size = UDim2.new(1, -12, 0, 18),
-					MaxTextSize = 15,
-					ZIndex = 4,
-				}),
-				C.label({
-					Text = Computed(function()
+				columnLine(COLUMN.line1, "🎁 STARTER BUNDLE"),
+				columnLine(
+					COLUMN.line2,
+					Computed(function()
 						return "ENDS IN " .. clock(left:get())
-					end),
-					Position = UDim2.fromOffset(6, 24),
-					Size = UDim2.new(1, -12, 0, 14),
-					MaxTextSize = 12,
-					ZIndex = 4,
-				}),
+					end)
+				),
 			},
 		}),
 	})
@@ -649,31 +664,87 @@ end
 
 ---------------------------------------------------------------------------- plot only
 
--- Tray tiles size to their content: the egg art (TRAY.art), a name line, a badge in the corner.
+-- Tray tiles size to their content: the egg art (TRAY.art), a name line, a badge in the corner,
+-- and for the next egg tile a second line under the name.
 local function trayTile(props: {
 	Name: string,
 	LayoutOrder: number,
 	EggId: string,
+	Width: number,
 	Badge: string,
 	BadgeColor: Color3?,
 	BadgeWidth: number,
 	Label: string,
-	LabelHeight: number,
-	LabelMax: number,
+	LabelBottom: number,
+	Sub: string?,
 	Selected: any,
 	OnClick: () -> (),
 })
 	local lift = Spring(
 		Computed(function()
-			return if props.Selected and props.Selected:get() then -8 else 0
+			return if props.Selected and props.Selected:get() then -TRAY.lift else 0
 		end),
 		35,
 		0.6
 	)
+	local children: { any } = {
+		Viewport.new({
+			Build = function()
+				return MutantModel.buildEgg(props.EggId, 1, {})
+			end,
+			Spin = true,
+			SpinSpeed = 1.4,
+			AnchorPoint = Vector2.new(0.5, 0),
+			Size = UDim2.fromOffset(TRAY.art, TRAY.art),
+			Position = UDim2.new(0.5, 0, 0, TRAY.artY),
+			ZIndex = 4,
+		}),
+		C.label({
+			Name = "Label",
+			Text = props.Label,
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -props.LabelBottom),
+			Size = UDim2.new(1, -2 * TRAY.labelInset, 0, TRAY.labelHeight),
+			MaxTextSize = TRAY.labelText,
+			ZIndex = 4,
+		}),
+		New("Frame")({
+			Name = "Count",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -TRAY.badgeInset, 0, TRAY.badgeInset),
+			Size = UDim2.fromOffset(props.BadgeWidth, TRAY.badgeHeight),
+			BackgroundColor3 = Theme.colors.ink,
+			BorderSizePixel = 0,
+			ZIndex = 5,
+			[Children] = C.label({
+				Text = props.Badge,
+				Size = UDim2.new(1, -4, 1, -2),
+				Position = UDim2.fromOffset(2, 1),
+				TextColor3 = props.BadgeColor or Theme.colors.white,
+				MaxTextSize = TRAY.badgeText,
+				ZIndex = 6,
+			}),
+		}),
+	}
+	if props.Sub then
+		table.insert(
+			children,
+			C.label({
+				Name = "Sub",
+				Text = props.Sub,
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.new(0.5, 0, 1, -TRAY.labelInset),
+				Size = UDim2.new(1, -2 * TRAY.nextShopInset, 0, TRAY.nextShopHeight),
+				MaxTextSize = TRAY.nextShopText,
+				TextColor3 = Theme.colors.cream,
+				ZIndex = 4,
+			})
+		)
+	end
 	return New("Frame")({
 		Name = props.Name,
 		LayoutOrder = props.LayoutOrder,
-		Size = UDim2.fromOffset(TRAY.tileWidth, TRAY.tileHeight),
+		Size = UDim2.fromOffset(props.Width, TRAY.tileHeight),
 		BackgroundTransparency = 1,
 		[Children] = New("Frame")({
 			BackgroundTransparency = 1,
@@ -687,48 +758,15 @@ local function trayTile(props: {
 				Text = "",
 				Selected = props.Selected,
 				OnClick = props.OnClick,
-				Children = {
-					Viewport.new({
-						Build = function()
-							return MutantModel.buildEgg(props.EggId, 1, {})
-						end,
-						Spin = true,
-						SpinSpeed = 1.4,
-						AnchorPoint = Vector2.new(0.5, 0),
-						Size = UDim2.fromOffset(TRAY.art, TRAY.art),
-						Position = UDim2.new(0.5, 0, 0, 2),
-						ZIndex = 4,
-					}),
-					C.label({
-						Name = "Label",
-						Text = props.Label,
-						AnchorPoint = Vector2.new(0.5, 1),
-						Position = UDim2.new(0.5, 0, 1, -4),
-						Size = UDim2.new(1, -8, 0, props.LabelHeight),
-						MaxTextSize = props.LabelMax,
-						ZIndex = 4,
-					}),
-					New("Frame")({
-						Name = "Count",
-						AnchorPoint = Vector2.new(1, 0),
-						Position = UDim2.new(1, -3, 0, 3),
-						Size = UDim2.fromOffset(props.BadgeWidth, 20),
-						BackgroundColor3 = Theme.colors.ink,
-						BorderSizePixel = 0,
-						ZIndex = 5,
-						[Children] = C.label({
-							Text = props.Badge,
-							Size = UDim2.new(1, -4, 1, -2),
-							Position = UDim2.fromOffset(2, 1),
-							TextColor3 = props.BadgeColor or Theme.colors.white,
-							MaxTextSize = 14,
-							ZIndex = 6,
-						}),
-					}),
-				},
+				Children = children,
 			}),
 		}),
 	})
+end
+
+-- "SWAMP" for the Swamp Egg.
+local function shortName(eggId: string): string
+	return string.upper((Eggs.tiers[eggId].name:gsub(" Egg", "")))
 end
 
 -- One owned egg: tap to pick it, then tap soil to plant.
@@ -741,12 +779,12 @@ local function eggCard(eggId: string, count: number)
 			then (table.find(Eggs.gemOrder, eggId) :: number) + 10
 			else nil) or ((table.find(Eggs.limitedOrder, eggId) or 0) + 20),
 		EggId = eggId,
+		Width = TRAY.tileWidth,
 		Badge = "x" .. count,
-		BadgeWidth = 32,
+		BadgeWidth = TRAY.badgeWidth,
 		-- Limited eggs carry their icon ("🎃 PUMPKIN").
-		Label = (if tier.icon then tier.icon .. " " else "") .. string.upper((tier.name:gsub(" Egg", ""))),
-		LabelHeight = 18,
-		LabelMax = 14,
+		Label = (if tier.icon then tier.icon .. " " else "") .. shortName(eggId),
+		LabelBottom = TRAY.labelInset,
 		Selected = Computed(function()
 			return State.selectedEgg:get() == eggId
 		end),
@@ -756,20 +794,21 @@ local function eggCard(eggId: string, count: number)
 	})
 end
 
--- The one "next egg" tile after the owned eggs: the cheapest unlocked Cash egg you have none of,
--- with its price, "at the Egg Shop" (ShopRules.nextTrayEgg). Tap: Egg Shop. Gated tiers never
--- show here; Lab's $25K progress lives in the shop carousel and Next Up.
+-- The one "next egg" tile after the owned eggs: the cheapest unlocked Cash egg you have none of
+-- (ShopRules.nextTrayEgg), with its name, its price and "AT THE EGG SHOP". Tap: Egg Shop. Gated
+-- tiers never show here; Lab's $25K progress lives in the shop carousel and Next Up.
 local function nextEggCard(eggId: string)
 	return trayTile({
 		Name = "NextEgg",
 		LayoutOrder = 100,
 		EggId = eggId,
+		Width = TRAY.nextTileWidth,
 		Badge = Format.cash(Eggs.tiers[eggId].cost),
 		BadgeColor = Theme.colors.gold,
-		BadgeWidth = 46,
-		Label = "AT THE EGG SHOP",
-		LabelHeight = 26,
-		LabelMax = 12,
+		BadgeWidth = TRAY.nextBadgeWidth,
+		Label = shortName(eggId),
+		LabelBottom = TRAY.nextNameBottom,
+		Sub = "AT THE EGG SHOP",
 		OnClick = function()
 			openPanel("shop")
 		end,
@@ -885,7 +924,7 @@ local function hatchButton()
 	return C.button({
 		Name = "Hatch",
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -12, 0.5, 10),
+		Position = UDim2.new(1, -TRAY.hatchInset, 0.5, 10),
 		Size = UDim2.fromOffset(TRAY.hatchWidth, TRAY.tileHeight),
 		Color = NAVY,
 		Text = "",
@@ -903,7 +942,7 @@ local function hatchButton()
 		Children = {
 			Glyphs.new("egg", {
 				AnchorPoint = Vector2.new(0.5, 0),
-				Position = UDim2.new(0.5, -2, 0, 8),
+				Position = UDim2.new(0.5, -L.glyph.shadow / 2, 0, TRAY.hatchGlyphY),
 				Size = TRAY.hatchGlyph,
 				ZIndex = 4,
 			}),
@@ -912,9 +951,9 @@ local function hatchButton()
 					local n = State.readyCount:get()
 					return if n > 0 then string.format("HATCH %d", n) else "HATCH"
 				end),
-				Position = UDim2.fromOffset(6, 48),
-				Size = UDim2.new(1, -12, 0, 20),
-				MaxTextSize = 18,
+				Position = UDim2.fromOffset(6, TRAY.hatchLine1.y),
+				Size = UDim2.new(1, -12, 0, TRAY.hatchLine1.height),
+				MaxTextSize = TRAY.hatchLine1.text,
 				ZIndex = 4,
 			}),
 			C.label({
@@ -922,9 +961,9 @@ local function hatchButton()
 				Text = Computed(function()
 					return if ready:get() then "TAP!" else "GROWING"
 				end),
-				Position = UDim2.fromOffset(6, 70),
-				Size = UDim2.new(1, -12, 0, 16),
-				MaxTextSize = 14,
+				Position = UDim2.fromOffset(6, TRAY.hatchLine2.y),
+				Size = UDim2.new(1, -12, 0, TRAY.hatchLine2.height),
+				MaxTextSize = TRAY.hatchLine2.text,
 				TextColor3 = Theme.colors.cream,
 				ZIndex = 4,
 			}),
@@ -1035,10 +1074,19 @@ end
 
 -- WATER: one tap waters the whole plot (GameConfig.waterMultiplier for waterDuration). A square
 -- drain ring empties clockwise while it lasts and the button is dimmed meanwhile (navy, never pink:
--- it's free). The first tap in a session explains it in a toast.
-local WATER_LABEL = string.format("WATER · %dx %ds", GameConfig.waterMultiplier, GameConfig.waterDuration)
-local WATER_TOAST =
-	string.format("Watered! Eggs grow %dx faster for %d s.", GameConfig.waterMultiplier, GameConfig.waterDuration)
+-- it's free). The first tap in a session explains it in a toast. The label is "WATER · 2x 30s" on
+-- two lines, the line break standing in for the dot: "WATER" / "2x 30s".
+-- 2 -> "2", 1.5 -> "1.5" (config values may be fractional; %d would throw on them).
+local function plainNumber(n: number): string
+	return if n == math.floor(n) then tostring(math.floor(n)) else tostring(n)
+end
+local WATER_BOOST = plainNumber(GameConfig.waterMultiplier) .. "x"
+local WATER_SUB = WATER_BOOST .. " " .. plainNumber(GameConfig.waterDuration) .. "s"
+local WATER_TOAST = "Watered! Eggs grow "
+	.. WATER_BOOST
+	.. " faster for "
+	.. plainNumber(GameConfig.waterDuration)
+	.. " s."
 local wateredThisSession = false
 
 local function waterButton()
@@ -1057,6 +1105,7 @@ local function waterButton()
 	local growing = Computed(function()
 		return State.nextReadyIn:get() ~= nil
 	end)
+	local TEXT_X = PLOT.glyphInset + PLOT.glyph + PLOT.textGap
 	-- One edge of the ring: its quarter of `left`, in order top, right, bottom, left.
 	local RING = PLOT.ringWidth
 	local ANCHORS = { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(1, 1), Vector2.new(0, 1) }
@@ -1080,19 +1129,13 @@ local function waterButton()
 	end
 	return New("Frame")({
 		Name = "Water",
-		-- Beside SHOP, the same size (plotSideBySide: left of it, else right above it on a narrow
-		-- mouse screen); on touch screens both sit mid-right, clear of the jump button.
+		-- Left of SHOP, the same size; bottom-right, or mid-right with SHOP (plotMidRight).
 		AnchorPoint = Computed(function()
-			return if State.touch:get() then Vector2.new(1, 0.5) else Vector2.new(1, 1)
+			return if plotMidRight:get() then Vector2.new(1, 0.5) else Vector2.new(1, 1)
 		end),
 		Position = Computed(function()
 			local beside = -(EDGE + PLOT.width + PLOT.gap)
-			if State.touch:get() then
-				return UDim2.new(1, beside, 0.5, 0)
-			end
-			return if plotSideBySide:get()
-				then UDim2.new(1, beside, 1, -EDGE)
-				else UDim2.new(1, -EDGE, 1, -(EDGE + PLOT.height + PLOT.gap))
+			return if plotMidRight:get() then UDim2.new(1, beside, 0.5, 0) else UDim2.new(1, beside, 1, -EDGE)
 		end),
 		Size = UDim2.fromOffset(PLOT.width, PLOT.height),
 		BackgroundTransparency = 1,
@@ -1104,7 +1147,8 @@ local function waterButton()
 				Text = "",
 				Disabled = watering,
 				Pulse = Computed(function()
-					return not watering:get() and growing:get()
+					local isWatering, isGrowing = watering:get(), growing:get()
+					return not isWatering and isGrowing
 				end),
 				Selected = Computed(function()
 					return State.objective:get().ui == "Water"
@@ -1119,26 +1163,32 @@ local function waterButton()
 				Children = {
 					Glyphs.new("drop", {
 						AnchorPoint = Vector2.new(0, 0.5),
-						Position = UDim2.new(0, 10, 0.5, -1),
+						Position = UDim2.new(0, PLOT.glyphInset, 0.5, L.top.iconNudge),
 						Size = PLOT.glyph,
 						ZIndex = 4,
 					}),
 					C.label({
 						Name = "Label",
+						Text = "WATER",
+						Position = UDim2.fromOffset(TEXT_X, PLOT.line1.y),
+						Size = UDim2.new(1, -(TEXT_X + PLOT.textRight), 0, PLOT.line1.height),
+						MaxTextSize = PLOT.line1.text,
+						ZIndex = 4,
+					}),
+					C.label({
+						Name = "Sub",
+						-- "2x 30s"; while watered, the time left: "2x · 0:18".
 						Text = Computed(function()
 							local snap = State.snapshot:get()
 							if watering:get() and snap then
-								return string.format(
-									"%dx · %s",
-									GameConfig.waterMultiplier,
-									clock(snap.wateredUntil - State.now:get())
-								)
+								return WATER_BOOST .. " · " .. clock(snap.wateredUntil - State.now:get())
 							end
-							return WATER_LABEL
+							return WATER_SUB
 						end),
-						Position = UDim2.fromOffset(PLOT.glyph + 18, 4),
-						Size = UDim2.new(1, -(PLOT.glyph + 24), 1, -8),
-						MaxTextSize = 18,
+						Position = UDim2.fromOffset(TEXT_X, PLOT.line2.y),
+						Size = UDim2.new(1, -(TEXT_X + PLOT.textRight), 0, PLOT.line2.height),
+						MaxTextSize = PLOT.line2.text,
+						TextColor3 = Theme.colors.cream,
 						ZIndex = 4,
 					}),
 				},
@@ -1190,8 +1240,8 @@ local function nextUp()
 		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,
 		Visible = Computed(function()
-			local o = objective:get()
-			return o.text ~= "" and (atPlot:get() or o.hub == true)
+			local o, plot = objective:get(), atPlot:get()
+			return o.text ~= "" and (plot or o.hub == true)
 		end),
 		[Children] = {
 			C.stroke(Theme.colors.ink, 3),
@@ -1301,20 +1351,8 @@ local function instantWeatherButton()
 				openPanel("instantWeather")
 			end,
 			Children = {
-				C.label({
-					Text = "☢ INSTANT WEATHER",
-					Position = UDim2.fromOffset(6, 4),
-					Size = UDim2.new(1, -12, 0, 18),
-					MaxTextSize = 15,
-					ZIndex = 4,
-				}),
-				C.label({
-					Text = string.format("%d 💎", Products.gems.InstantWeather.cost),
-					Position = UDim2.fromOffset(6, 23),
-					Size = UDim2.new(1, -12, 0, 15),
-					MaxTextSize = 13,
-					ZIndex = 4,
-				}),
+				columnLine(COLUMN.line1, "☢ INSTANT WEATHER"),
+				columnLine(COLUMN.line2, Format.number(Products.gems.InstantWeather.cost) .. " 💎"),
 			},
 		}),
 	})
@@ -1328,7 +1366,7 @@ local function rightColumn()
 		Name = "RightColumn",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -EDGE, 0, ROW_Y + ROW_H + COLUMN.gap),
-		Size = UDim2.fromOffset(COLUMN.width, 240),
+		Size = UDim2.fromOffset(COLUMN.width, COLUMN.height),
 		BackgroundTransparency = 1,
 		[Children] = {
 			New("UIListLayout")({

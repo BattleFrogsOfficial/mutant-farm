@@ -1,13 +1,19 @@
 // HUD layout checks (scenes from ui-export's built-ins and tools/preview/scenes/hud.luau), on every
 // "hud..." scene at its size. Design px = on-screen px / the HUD scale. See Config/Hud.lua.
-//   top-right tiles exactly 8 px apart, red dots inside their tiles
+//   top-right tiles exactly 8 px apart (frame to frame), red dots inside their tiles and clear of
+//   the glyph (its outline and shadow)
 //   right column rows in order weather, Instant Weather, bundle, bag, 8 px apart (and 8 px under
 //   the tiles); Instant Weather as wide as the bundle ribbon
-//   plot: SHOP the same size as WATER and right beside it; WATER reads "WATER · 2x 30s", dimmed
+//   plot: SHOP the same size as WATER and right beside it (same row, WATER on the left; never
+//   stacked); WATER reads "WATER · 2x 30s" (two lines, "WATER" / "2x 30s"), dimmed
 //   (never pink) with its drain ring while watered
 //   hub: SHOP is the biggest button on screen
 //   no ImageLabel/ImageButton in the HUD; the tile/Cash/Gems/HATCH/bag/WATER icons are vector glyphs
-//   egg tray: owned eggs + at most one "next egg" tile (price + "at the Egg Shop"); gated tiers never
+//   egg tray: owned eggs + at most one "next egg" tile (name, price, "at the Egg Shop"); each of
+//   its lines on one line, at the HUD's smallest design size or more (MIN_DESIGN_FONT, i.e. not
+//   squeezed by TextScaled) and at least MIN_FONT px on screen; gated tiers never
+const MIN_DESIGN_FONT = 12 * 0.9;
+const MIN_FONT = 6;
 registerCheck({
   name: "hud",
   match: (n) => n.startsWith("hud"),
@@ -39,6 +45,17 @@ registerCheck({
         const stroke = (parseFloat((getComputedStyle(dot).boxShadow.match(/0px 0px 0px ([\d.]+)px/) || [])[1]) || 0) * s * Math.SQRT2;
         if (dr.left - stroke < tr.left - 0.5 || dr.right + stroke > tr.right + 0.5 || dr.top - stroke < tr.top - 0.5 || dr.bottom + stroke > tr.bottom + 0.5)
           problems.push(`${n}'s red dot pokes out of the tile`);
+        // The dot is a diamond: its outline reaches L1 radius (bbox half-width + stroke) from its
+        // center. No part of the glyph (fill, outline or shadow; rotated parts by their bounding
+        // box) may come within it.
+        const cx = (dr.left + dr.right) / 2, cy = (dr.top + dr.bottom) / 2;
+        const radius = (dr.right - dr.left) / 2 + stroke;
+        for (const part of t.querySelectorAll('[title="Glyph"] [title="Part"]')) {
+          if (!vis(part)) continue;
+          const pr = rect(part);
+          const px = Math.min(Math.max(cx, pr.left), pr.right), py = Math.min(Math.max(cy, pr.top), pr.bottom);
+          if (Math.abs(px - cx) + Math.abs(py - cy) < radius - 0.5) { problems.push(`${n}'s glyph runs into its red dot`); break; }
+        }
       }
     }
 
@@ -68,9 +85,8 @@ registerCheck({
           problems.push(`Shop ${a.width.toFixed(0)}x${a.height.toFixed(0)} != Water ${b.width.toFixed(0)}x${b.height.toFixed(0)}`);
         const gx = Math.max(a.left, b.left) - Math.min(a.right, b.right);
         const gy = Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom);
-        const sideBySide = near(a.top, b.top) && gx >= 0 && gx / s <= 16;
-        const stacked = near(a.left, b.left) && gy >= 0 && gy / s <= 16;
-        if (!sideBySide && !stacked) problems.push("Shop isn't right beside Water");
+        const sideBySide = near(a.top, b.top) && b.right <= a.left + 0.5 && gx >= 0 && gx / s <= 16;
+        if (!sideBySide) problems.push(`Shop isn't right beside Water (Water ${b.left.toFixed(0)},${b.top.toFixed(0)} Shop ${a.left.toFixed(0)},${a.top.toFixed(0)}${gy >= 0 ? ", stacked" : ""})`);
       }
     } else if (vis(shop)) {
       const shopArea = rect(shop).width * rect(shop).height;
@@ -88,9 +104,12 @@ registerCheck({
       const look = face ? getComputedStyle(face).backgroundImage : "";
       if (look.includes("255, 79, 163")) problems.push("Water is pink");
       const ring = vis(water.querySelector('[title="Ring1"]'));
-      const label = (water.querySelector('[title="Label"] span') || {}).textContent || "";
+      const line1 = (water.querySelector('[title="Label"] span') || {}).textContent || "";
+      const line2 = (water.querySelector('[title="Sub"] span') || {}).textContent || "";
+      const label = `${line1} · ${line2}`;
       if (ring) {
         if (!look.includes("85, 91, 112")) problems.push("Water isn't dimmed while the ring runs");
+        if (line1 !== "WATER" || !/^2x · \d+:\d\d$/.test(line2)) problems.push(`watered Water label "${label}"`);
       } else if (label !== "WATER · 2x 30s") problems.push(`Water label "${label}"`);
       if (kind.startsWith("hud-plot-watered") && !ring) problems.push("drain ring not running in the watered scene");
     }
@@ -124,13 +143,14 @@ registerCheck({
       if (tiles.includes("Locked")) problems.push("the old padlock card is in the tray");
       const next = el("NextEgg");
       const nextText = next ? [...next.querySelectorAll("span")].map((s) => s.textContent).join(" | ") : "";
+      // next: [price, name line]
       const EXPECT = {
         "hud-plot": { owned: ["Starter", "Swamp", "Pumpkin"], next: null },
         "hud-plot-touch": { owned: ["Starter", "Swamp", "Pumpkin"], next: null },
         "hud-plot-instant-weather": { owned: ["Starter", "Swamp", "Pumpkin"], next: null },
-        "hud-plot-eggs0": { owned: [], next: "$50" },
-        "hud-plot-eggs1-new": { owned: ["Starter"], next: "$500" },
-        "hud-plot-eggs2": { owned: ["Starter", "Swamp"], next: "$5K" },
+        "hud-plot-eggs0": { owned: [], next: ["$50", "STARTER"] },
+        "hud-plot-eggs1-new": { owned: ["Starter"], next: ["$500", "SWAMP"] },
+        "hud-plot-eggs2": { owned: ["Starter", "Swamp"], next: ["$5K", "LAB"] },
         "hud-plot-eggs6": { owned: ["Starter", "Swamp", "Lab", "StarterGem", "SwampGem", "Pumpkin"], next: null },
         "hud-plot-eggs6-touch": { owned: ["Starter", "Swamp", "Lab", "StarterGem", "SwampGem", "Pumpkin"], next: null },
         "hud-plot-watered": { owned: ["Starter", "Swamp"], next: null },
@@ -146,8 +166,20 @@ registerCheck({
           if (!tiles.includes("NextEgg")) problems.push(`no next-egg tile (want ${want.next})`);
           else {
             const price = (next.querySelector('[title="Count"] span') || {}).textContent;
-            if (price !== want.next) problems.push(`next egg priced "${price}" (want ${want.next})`);
-            if (!/at the egg shop/i.test(nextText)) problems.push(`next egg tile says "${nextText}"`);
+            const name = (next.querySelector('[title="Label"] span') || {}).textContent;
+            const sub = (next.querySelector('[title="Sub"] span') || {}).textContent || "";
+            if (price !== want.next[0]) problems.push(`next egg priced "${price}" (want ${want.next[0]})`);
+            if (name !== want.next[1]) problems.push(`next egg named "${name}" (want ${want.next[1]})`);
+            if (!/^at the egg shop$/i.test(sub)) problems.push(`next egg tile says "${nextText}"`);
+            for (const sp of next.querySelectorAll("span")) {
+              const host = sp.parentElement;
+              if (!vis(host) || !sp.textContent) continue;
+              const design = parseFloat(getComputedStyle(host).fontSize), px = design * scaleOf(host);
+              if (design < MIN_DESIGN_FONT) problems.push(`next egg "${sp.textContent}" squeezed to ${design.toFixed(1)} design px (min ${MIN_DESIGN_FONT})`);
+              if (px < MIN_FONT) problems.push(`next egg "${sp.textContent}" at ${px.toFixed(1)} px on screen (min ${MIN_FONT})`);
+              if (sp.getClientRects().length > 1 || sp.getBoundingClientRect().height > parseFloat(getComputedStyle(host).fontSize) * scaleOf(host) * 1.6)
+                problems.push(`next egg "${sp.textContent}" wraps`);
+            }
           }
         }
       }

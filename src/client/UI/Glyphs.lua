@@ -3,7 +3,8 @@
 -- A glyph is a list of rects in a unit box: { x, y, w, h, color, rot = true (45 degrees),
 -- detail = true }. It is drawn in three layers so overlapping shapes read as one silhouette with
 -- no seams inside it:
---   shadow   every outlined shape grown by the stroke, in ink, offset down-right, semi-transparent
+--   shadow   every outlined shape grown by the stroke, in ink, offset down-right by the boxy hard
+--            shadow (Theme.shadow); opaque, so overlapping shapes don't stack into visible seams
 --   outline  the same grown shapes in solid ink
 --   fill     the shapes in their colors; `detail` rects (ribbons, page lines, highlights) are
 --            drawn only here, on top, without an outline
@@ -68,7 +69,8 @@ Glyphs.shapes = {
 	-- Gems: a cut gem (a diamond with a light facet).
 	gem = {
 		{ 0.17, 0.17, 0.66, 0.66, c.water, rot = true },
-		{ 0.5, 0.5, 0.33, 0.33, c.waterDark, rot = true, detail = true },
+		-- (the dark facet stays inside the main diamond: |dx| + |dy| + half-diagonal <= 0.467)
+		{ 0.43, 0.43, 0.3, 0.3, c.waterDark, rot = true, detail = true },
 		{ 0.34, 0.28, 0.14, 0.14, Theme.colors.white, rot = true, detail = true },
 	},
 	-- HATCH: a blocky egg with green spots.
@@ -101,12 +103,11 @@ Glyphs.shapes = {
 	},
 }
 
-local function rectFrame(r: Rect, grow: number, offset: number, color: Color3, z: number, transparency: number)
+local function rectFrame(r: Rect, grow: number, offset: number, color: Color3, z: number)
 	return New("Frame")({
 		Name = "Part",
 		BorderSizePixel = 0,
 		BackgroundColor3 = color,
-		BackgroundTransparency = transparency,
 		Position = UDim2.new(r[1], offset - grow, r[2], offset - grow),
 		Size = UDim2.new(r[3], 2 * grow, r[4], 2 * grow),
 		Rotation = if r.rot then 45 else 0,
@@ -119,27 +120,24 @@ function Glyphs.new(name: string, props: { [string]: any }?): any
 	local shape = Glyphs.shapes[name]
 	assert(shape, "unknown glyph " .. tostring(name))
 	local stroke = p.Stroke or HudConfig.glyph.stroke
-	local shadow = p.Shadow or HudConfig.glyph.shadow
+	local shadow = p.Shadow or HudConfig.glyph.shadow or Theme.shadow
 	local z = p.ZIndex or 4
 	local layers = { shadow = {}, outline = {}, fill = {} }
 	for _, r in shape do
 		if not r.detail then
-			table.insert(
-				layers.shadow,
-				rectFrame(r, stroke, shadow, Theme.colors.ink, z, HudConfig.glyph.shadowTransparency)
-			)
-			table.insert(layers.outline, rectFrame(r, stroke, 0, Theme.colors.ink, z + 1, 0))
+			table.insert(layers.shadow, rectFrame(r, stroke, shadow, Theme.colors.ink, z))
+			table.insert(layers.outline, rectFrame(r, stroke, 0, Theme.colors.ink, z + 1))
 		end
 	end
 	-- Fills: outlined shapes first, details on top of them.
 	for _, r in shape do
 		if not r.detail then
-			table.insert(layers.fill, rectFrame(r, 0, 0, r[5], z + 2, 0))
+			table.insert(layers.fill, rectFrame(r, 0, 0, r[5], z + 2))
 		end
 	end
 	for _, r in shape do
 		if r.detail then
-			table.insert(layers.fill, rectFrame(r, 0, 0, r[5], z + 3, 0))
+			table.insert(layers.fill, rectFrame(r, 0, 0, r[5], z + 3))
 		end
 	end
 	local function layer(layerName: string, children: { any }, lz: number)
