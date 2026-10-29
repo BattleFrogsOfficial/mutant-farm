@@ -20,9 +20,8 @@ return function(api)
 		return s
 	end
 
-	-- Mount a fresh copy of the main UI (the same Root the game mounts; State is shared): the
-	-- export's default root is left on the hatch screen by the built-in scenes.
-	api.setRoot(api.requireModule(api.UI.Root)())
+	-- The main UI mount (scene files start from it).
+	api.restoreRoot()
 
 	set(State.zone, "plot")
 

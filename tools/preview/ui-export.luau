@@ -54,7 +54,13 @@ local task = {
 	defer = function(f, ...)
 		table.insert(deferred, { f, ... })
 	end,
-	delay = function() end,
+	-- Delayed callbacks run at the next flush (before each capture): transient effects such as
+	-- the "+$" pops under Cash clean themselves up, as if their time had passed.
+	delay = function(_seconds, f, ...)
+		if type(f) == "function" then
+			table.insert(deferred, { f, ... })
+		end
+	end,
 	wait = function()
 		return 0
 	end,
@@ -242,6 +248,9 @@ else
 	})
 end
 local _ = stateValue
+-- The main UI mount. Scenes that capture something else (the hatch overlay, the Altar sign) put
+-- this back afterwards; scene files start from it (api.restoreRoot).
+local mainRoot = root
 
 ---------------------------------------------------------------------------- mock game states
 
@@ -653,6 +662,7 @@ do
 	})
 	root = screen.root
 	capture("hatch")
+	root = mainRoot
 end
 
 -- More scenes, one file per area: tools/preview/scenes/*.luau, each returning function(api), run in
@@ -670,7 +680,7 @@ do
 		set(State.almanac, almanac)
 		set(State.screen, screenAt(1280, 720))
 	end
-	local defaultRoot = root
+	local defaultRoot = mainRoot
 	local api = {
 		State = State,
 		set = set,

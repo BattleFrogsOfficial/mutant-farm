@@ -139,10 +139,8 @@ return function(api)
 	local NextUp = api.requireModule(Shared.NextUp)
 	local lab = NextUp.labGoal(0, 12_400, { Swamp = 1 }, {})
 	assert(lab, "labGoal should apply at R0 with a Swamp egg and $12.4K earned")
-	-- Mount a fresh UI root: ui-export's default root (restoreRoot) is still the hatch screen it
-	-- captured last, so it can't be used for HUD scenes here.
-	local hud = api.requireModule(api.UI.Root)()
-	api.setRoot(hud)
+	-- The main UI mount (scene files start from it).
+	api.restoreRoot()
 	api.set(api.State.zone, "plot")
 	api.set(api.State.objective, { text = lab.text, progress = lab.progress })
 	api.captureHud("hud-plot-lab")
