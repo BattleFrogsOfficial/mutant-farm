@@ -9,9 +9,7 @@ local HttpService = game:GetService("HttpService")
 
 local Shared = ReplicatedStorage.Shared
 local Growth = require(Shared.Growth)
-local Format = require(Shared.Format)
-local Valuation = require(Shared.Valuation)
-local GameConfig = require(Shared.Config.Game)
+local GateSign = require(Shared.GateSign)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
 local World = require(script.Parent.Parent.Util.World)
@@ -23,32 +21,6 @@ local owners: { [Player]: World.Plot } = {}
 
 function PlotService.getPlot(player: Player): World.Plot?
 	return owners[player]
-end
-
-local function priceLabel(slot: BasePart): TextLabel
-	local gui = slot:FindFirstChild("PriceGui") :: SurfaceGui?
-	if not gui then
-		local g = Instance.new("SurfaceGui")
-		g.Name = "PriceGui"
-		g.Face = Enum.NormalId.Top
-		g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-		g.PixelsPerStud = 50
-		g.LightInfluence = 0
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.fromScale(1, 1)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.GothamBlack
-		label.TextScaled = true
-		label.TextColor3 = Color3.new(1, 1, 1)
-		label.Rotation = 180 -- readable from the gate side
-		local stroke = Instance.new("UIStroke")
-		stroke.Thickness = 3
-		stroke.Parent = label
-		label.Parent = g
-		g.Parent = slot
-		gui = g
-	end
-	return (gui :: SurfaceGui):FindFirstChildOfClass("TextLabel") :: TextLabel
 end
 
 -- Shows or hides the sign board a SurfaceGui label sits on (label -> SurfaceGui -> board part).
@@ -85,14 +57,9 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 	end
 	plot.model:SetAttribute("WateredUntil", data.wateredUntil)
 	plot.model:SetAttribute("Speed", DataService.speed(data))
-	local income = DataService.incomePerMinute(data)
-	-- First-session hint until the first hatch; after that the board shows pen income, or hides.
-	local incomeText = if income > 0
-		then Format.cash(income) .. " / min"
-		elseif data.stats.harvested == 0 then "Hatch mutants!"
-		else ""
-	plot.income.Text = incomeText
-	setBoardVisible(plot.income, incomeText ~= "")
+	-- The gate's second line: live pen income ("$0/min · plant eggs to earn" before the first harvest).
+	plot.income.Text = GateSign.incomeText(DataService.incomePerMinute(data), data.stats.harvested)
+	setBoardVisible(plot.income, true)
 	local pen = penJson(data)
 	if plot.model:GetAttribute("Pen") ~= pen then
 		plot.model:SetAttribute("Pen", pen)
@@ -113,15 +80,10 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 			part.Transparency = 0.3
 			part.Color = World.colors.buy
 			part.Material = Enum.Material.SmoothPlastic
-			local price = DataService.nextSlotCost(data) or 0
-			part:SetAttribute("Price", price)
-			priceLabel(part).Text = "🔒\n" .. Format.cash(price)
+			-- The owner's client draws the price on the patch (PlotController's soil marker).
+			part:SetAttribute("Price", DataService.nextSlotCost(data) or 0)
 		else
 			part.Transparency = 1
-		end
-		local priceGui = part:FindFirstChild("PriceGui") :: SurfaceGui?
-		if priceGui then
-			priceGui.Enabled = state == "buy"
 		end
 
 		local slot = data.slots[tostring(i)]
@@ -153,10 +115,6 @@ local function clear(plot: World.Plot)
 		local click = part:FindFirstChildOfClass("ClickDetector")
 		if click then
 			click.MaxActivationDistance = 0
-		end
-		local priceGui = part:FindFirstChild("PriceGui") :: SurfaceGui?
-		if priceGui then
-			priceGui.Enabled = false
 		end
 	end
 end

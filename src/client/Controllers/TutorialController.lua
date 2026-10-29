@@ -2,13 +2,15 @@
 -- Guided first session. Works out the current step from the player's stats (so it survives
 -- rejoins with nothing extra saved), shows it in the "Next up" panel, and draws a glowing beam
 -- from the player to whatever they should tap or walk to. After the tutorial, "Next up" keeps
--- pointing at the nearest goal (the next soil patch).
+-- pointing at the nearest goal: Lab's earned gate once a Swamp egg is owned (shared/NextUp), else
+-- the next soil patch.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Shared = ReplicatedStorage.Shared
 local Format = require(Shared.Format)
+local NextUp = require(Shared.NextUp)
 local Types = require(Shared.Types)
 local State = require(script.Parent.Parent.State)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -23,6 +25,7 @@ type Step = {
 	target: (() -> BasePart?)?,
 	ui: string?, -- name of a HUD element to pulse ("Water", "Harvest")
 	hub: boolean?, -- the step happens in the hub, so Next Up shows there too
+	soil: boolean?, -- a plant step: the "+" markers on your empty soil pulse (PlotController)
 	progress: number?,
 }
 
@@ -81,13 +84,13 @@ local function currentStep(snap: Types.Snapshot): Step
 	local st = snap.stats
 	local planted = next(snap.slots) ~= nil
 	if st.eggsPlanted == 0 then
-		return { text = "Tap a soil patch to plant your egg", target = emptySlot }
+		return { text = "Tap a soil patch to plant your egg", target = emptySlot, soil = true }
 	elseif st.waters == 0 and planted then
 		return { text = "Tap WATER to grow 2x faster", ui = "Water" }
 	elseif st.harvested == 0 then
 		return { text = "Tap your egg when it says HATCH!", target = plantedSlot }
 	elseif st.eggsPlanted < 2 and eggCount(snap) > 0 then
-		return { text = "Plant your 2nd egg. It's guaranteed RARE!", target = emptySlot }
+		return { text = "Plant your 2nd egg. It's guaranteed RARE!", target = emptySlot, soil = true }
 	elseif st.harvested < 2 and planted then
 		return { text = "Hatch your Rare mutant!", target = plantedSlot }
 	elseif st.sold == 0 then
@@ -110,13 +113,18 @@ local function currentStep(snap: Types.Snapshot): Step
 		local cost = snap.nextSlotCost :: number
 		return {
 			text = if snap.cash >= cost
-				then "Tap the glowing + patch to grow your farm!"
+				then string.format("Tap the %s patch to grow your farm!", Format.cash(cost))
 				else "Save up for a new soil patch",
 			target = if snap.cash >= cost then buySlot else nil,
 			progress = math.clamp(snap.cash / cost, 0, 1),
 		}
 	end
-	-- After the tutorial: always show the nearest goal.
+	-- After the tutorial: always show the nearest goal. Lab's earned gate once a Swamp egg is owned,
+	-- else the next soil patch.
+	local lab = NextUp.labGoal(snap.rebirths, snap.stats.totalCashEarned or 0, snap.eggs, snap.slots)
+	if lab then
+		return { text = lab.text, progress = lab.progress }
+	end
 	if snap.nextSlotCost then
 		local cost = snap.nextSlotCost :: number
 		return {
@@ -196,7 +204,13 @@ function TutorialController.Start()
 		local snap = State.get()
 		if snap and snap.stats then
 			local step = currentStep(snap)
-			State.objective:set({ text = step.text, progress = step.progress, ui = step.ui, hub = step.hub })
+			State.objective:set({
+				text = step.text,
+				progress = step.progress,
+				ui = step.ui,
+				hub = step.hub,
+				soil = step.soil,
+			})
 			setTarget(if step.target then step.target() else nil)
 		end
 		task.wait(0.25)

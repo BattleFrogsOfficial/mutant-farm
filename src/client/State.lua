@@ -38,8 +38,15 @@ State.weather = Value({ nextId = "", nextAt = 0, id = "", endsAt = 0 })
 -- Your own Instant Weather event (player attributes PlotWeatherId / EndsAt): id "" when none.
 State.plotWeather = Value({ id = "", endsAt = 0 })
 State.toasts = Value({} :: { { id: number, text: string, kind: string } })
--- "Next up" panel: { text, progress?, ui? } where ui names a HUD button to pulse.
-State.objective = Value({ text = "", progress = nil :: number?, ui = nil :: string?, hub = nil :: boolean? })
+-- "Next up" panel: { text, progress?, ui?, hub?, soil? } where ui names a HUD button to pulse, hub
+-- shows it in the hub too, and soil pulses the "+" markers on your empty soil (the plant steps).
+State.objective = Value({
+	text = "",
+	progress = nil :: number?,
+	ui = nil :: string?,
+	hub = nil :: boolean?,
+	soil = nil :: boolean?,
+})
 -- Almanac entries the player has discovered: speciesId -> { n, first, best }
 State.almanac = Value({} :: { [string]: { n: number, first: number, best: number } })
 -- Where the player is: "hub" (the plaza and paths) or "plot" (on their own island). The HUD
