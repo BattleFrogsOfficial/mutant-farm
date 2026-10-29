@@ -23,6 +23,7 @@ const checkSizes = [
   ["tablet", 1024, 768],
   ["hd", 1920, 1080],
   ["wide", 1663, 726],
+  ["win43", 960, 720],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
 const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "InstantWeather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
@@ -219,7 +220,8 @@ window.render = (sceneIndex, W, H) => {
   // height, capped lower on touch screens.
   const hud = data.hud;
   const touch = data.scenes[sceneIndex].touch === true;
-  const scale = Math.min(Math.max(Math.min(W, usableH) / hud.designHeight, hud.minScale), touch ? hud.maxScaleTouch : hud.maxScale);
+  const fitted = Math.min(Math.min(W, usableH) / hud.designHeight, W / hud.designWidth);
+  const scale = Math.min(Math.max(fitted, hud.minScale), touch ? hud.maxScaleTouch : hud.maxScale);
   const gui = document.createElement("div");
   gui.className = "gui inner";
   gui.style.left = "0"; gui.style.top = inset + "px";
@@ -231,11 +233,6 @@ window.render = (sceneIndex, W, H) => {
   for (const c of kids(root)) build(c, gui, null);
   fitText();
   return data.scenes[sceneIndex].name;
-};
-window.sceneScale = (sceneIndex, W, H) => {
-  const hud = data.hud, full = data.scenes[sceneIndex].name === "hatch";
-  const usableH = H - (full ? 0 : ${TOPBAR});
-  return Math.min(Math.max(Math.min(W, usableH) / hud.designHeight, hud.minScale), data.scenes[sceneIndex].touch ? hud.maxScaleTouch : hud.maxScale);
 };
 // Extra checks, one file per area (tools/preview/checks/*.js, loaded after this page): each calls
 // registerCheck({ name, match: (sceneName) => bool, run: (W, H, sceneName) => problems[] }).

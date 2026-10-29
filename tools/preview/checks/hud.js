@@ -1,19 +1,22 @@
 // HUD layout checks (scenes from ui-export's built-ins and tools/preview/scenes/hud.luau), on every
 // "hud..." scene at its size. Design px = on-screen px / the HUD scale. See Config/Hud.lua.
-//   top-right tiles exactly 8 px apart (frame to frame), red dots inside their tiles and clear of
-//   the glyph (its outline and shadow)
-//   right column rows in order weather, Instant Weather, bundle, bag, 8 px apart (and 8 px under
-//   the tiles); Instant Weather as wide as the bundle ribbon
+//   top-right tiles 8 px apart AS DRAWN (one tile's shadow to the next one's ink outline), red dots
+//   inside their tiles and clear of the glyph (its outline and shadow); in hud-dots all three dots
+//   are lit
+//   right column rows in order weather, Instant Weather, bundle, bag, 8 px apart as drawn (and 8 px
+//   under the tiles' shadows); Instant Weather as wide as the bundle ribbon
 //   plot: SHOP the same size as WATER and right beside it (same row, WATER on the left; never
 //   stacked); WATER reads "WATER · 2x 30s" (two lines, "WATER" / "· 2x 30s"), dimmed
 //   (never pink) with its drain ring while watered
 //   hub: SHOP is the biggest button on screen
 //   no ImageLabel/ImageButton in the HUD; the tile/Cash/Gems/HATCH/bag/WATER icons are vector glyphs
-//   egg tray: owned eggs + at most one "next egg" tile (name, price, "at the Egg Shop"); each of
-//   its lines on one line, at the HUD's smallest design size or more (MIN_DESIGN_FONT, i.e. not
-//   squeezed by TextScaled) and at least MIN_FONT px on screen; gated tiers never
+//   egg tray: owned eggs + at most one "next egg" tile (name, price, "at the Egg Shop"); in EVERY
+//   tray tile each text line fits on one line at nearly its full size (MIN_DESIGN_FONT, i.e. not
+//   squeezed by TextScaled because the tile is too narrow) and at least MIN_FONT px on screen;
+//   rebirth-gated tiers never appear as the next egg; the egg art is Config/Hud tray.art (64) px
 const MIN_DESIGN_FONT = 12 * 0.9;
-const MIN_FONT = 6;
+const MIN_FONT = 7;
+const TRAY_ART = 64;
 registerCheck({
   name: "hud",
   match: (n) => n.startsWith("hud"),
@@ -27,19 +30,44 @@ registerCheck({
     const scaleOf = (e) => e.getBoundingClientRect().width / (e.offsetWidth || 1);
     const rect = (e) => e.getBoundingClientRect();
     const near = (a, b, tol = 1) => Math.abs(a - b) <= tol;
+    // What an element draws on screen: its filled boxes, grown by their ink outline (a UIStroke is
+    // a box-shadow spread in the render), plus its hard shadow frame. Plain text rows (no fill, no
+    // outline) count by their frame.
+    const drawn = (e) => {
+      let r = null;
+      for (const d of [e, ...e.querySelectorAll("*")]) {
+        if (d !== e && d.offsetParent === null) continue;
+        if (d.tagName === "SPAN") continue;
+        const cs = getComputedStyle(d);
+        if (cs.visibility === "hidden" || cs.display === "none") continue;
+        const alpha = /rgba\([^)]*,\s*([\d.]+)\)$/.exec(cs.backgroundColor);
+        const fill = cs.backgroundColor !== "transparent" && !(alpha && +alpha[1] === 0);
+        const m = /0px 0px 0px ([\d.]+)px/.exec(cs.boxShadow);
+        if (!fill && !m) continue;
+        const b = d.getBoundingClientRect();
+        if (b.width < 1 || b.height < 1) continue;
+        const grow = m ? parseFloat(m[1]) * scaleOf(d) : 0;
+        const g = { left: b.left - grow, top: b.top - grow, right: b.right + grow, bottom: b.bottom + grow };
+        r = r ? { left: Math.min(r.left, g.left), top: Math.min(r.top, g.top), right: Math.max(r.right, g.right), bottom: Math.max(r.bottom, g.bottom) } : g;
+      }
+      return r || rect(e);
+    };
 
-    // Tiles: Upgrades | Daily | Almanac, 8 design px apart, red dots inside.
+    // Tiles: Upgrades | Daily | Almanac, 8 design px apart as drawn, red dots inside.
     const tiles = ["Upgrades", "Daily", "Almanac"].map((n) => [n, el(n)]);
     if (tiles.some(([, e]) => !vis(e))) problems.push("a top-right tile is missing");
     else {
       const s = scaleOf(tiles[0][1]);
       for (let i = 0; i + 1 < tiles.length; i++) {
-        const gap = (rect(tiles[i + 1][1]).left - rect(tiles[i][1]).right) / s;
-        if (!near(gap, 8)) problems.push(`${tiles[i][0]} -> ${tiles[i + 1][0]} gap ${gap.toFixed(1)} px (want 8)`);
+        const gap = (drawn(tiles[i + 1][1]).left - drawn(tiles[i][1]).right) / s;
+        if (!near(gap, 8, 1.5)) problems.push(`${tiles[i][0]} -> ${tiles[i + 1][0]} drawn gap ${gap.toFixed(1)} px (want 8)`);
       }
       for (const [n, t] of tiles) {
         const dot = [...t.querySelectorAll('[title="Dot"]')].find(vis);
-        if (!dot) continue;
+        if (!dot) {
+          if (kind.endsWith("-dots")) problems.push(`${n}'s red dot isn't lit in ${kind}`);
+          continue;
+        }
         const tr = rect(t), dr = rect(dot);
         // The dot's ink outline (UIStroke, box-shadow) is drawn outside its box.
         const stroke = (parseFloat((getComputedStyle(dot).boxShadow.match(/0px 0px 0px ([\d.]+)px/) || [])[1]) || 0) * s * Math.SQRT2;
@@ -59,16 +87,19 @@ registerCheck({
       }
     }
 
-    // Right column: visible rows in order, 8 px apart, the first 8 px under the tiles.
+    // Right column: visible rows in order, 8 px apart as drawn, the first 8 px under the tiles.
     const order = ["Weather", "InstantWeather", "Bundle", "BagChip"];
     const rows = order.map((n) => [n, el(n)]).filter(([, e]) => vis(e));
+    // In screen order too (a reordered layout would still pass the gap checks).
+    for (let i = 0; i + 1 < rows.length; i++)
+      if (rect(rows[i + 1][1]).top < rect(rows[i][1]).top) problems.push(`${rows[i + 1][0]} sits above ${rows[i][0]}`);
     if (rows.length && vis(tiles[0][1])) {
       const s = scaleOf(rows[0][1]);
-      const first = (rect(rows[0][1]).top - rect(tiles[2][1]).bottom) / s;
-      if (!near(first, 8)) problems.push(`${rows[0][0]} is ${first.toFixed(1)} px under the tiles (want 8)`);
+      const first = (drawn(rows[0][1]).top - drawn(tiles[2][1]).bottom) / s;
+      if (!near(first, 8, 1.5)) problems.push(`${rows[0][0]} is ${first.toFixed(1)} px under the tiles as drawn (want 8)`);
       for (let i = 0; i + 1 < rows.length; i++) {
-        const gap = (rect(rows[i + 1][1]).top - rect(rows[i][1]).bottom) / s;
-        if (!near(gap, 8)) problems.push(`${rows[i][0]} -> ${rows[i + 1][0]} gap ${gap.toFixed(1)} px (want 8)`);
+        const gap = (drawn(rows[i + 1][1]).top - drawn(rows[i][1]).bottom) / s;
+        if (!near(gap, 8, 1.5)) problems.push(`${rows[i][0]} -> ${rows[i + 1][0]} drawn gap ${gap.toFixed(1)} px (want 8)`);
       }
     }
     const iw = el("InstantWeather"), bundle = el("Bundle");
@@ -88,7 +119,8 @@ registerCheck({
         const sideBySide = near(a.top, b.top) && b.right <= a.left + 0.5 && gx >= 0 && gx / s <= 16;
         if (!sideBySide) problems.push(`Shop isn't right beside Water (Water ${b.left.toFixed(0)},${b.top.toFixed(0)} Shop ${a.left.toFixed(0)},${a.top.toFixed(0)}${gy >= 0 ? ", stacked" : ""})`);
       }
-    } else if (vis(shop)) {
+    } else if (!vis(shop)) problems.push("Shop missing in the hub");
+    else {
       const shopArea = rect(shop).width * rect(shop).height;
       for (const face of document.querySelectorAll('.gui [title="Face"]')) {
         if (!vis(face) || shop.contains(face) || face.tagName !== "DIV") continue;
@@ -132,9 +164,6 @@ registerCheck({
       const emoji = [...host.querySelectorAll("span")].find((sp) => vis(sp.parentElement) && OLD.test(sp.textContent));
       if (emoji) problems.push(`${n} still shows "${emoji.textContent}"`);
     }
-    if (!plot) {
-      // Tiles also have to be glyph-only (checked above); nothing more for the hub.
-    }
 
     // Egg tray: owned eggs + one next tile; gated tiers never; expected per scene.
     if (plot) {
@@ -172,19 +201,28 @@ registerCheck({
             if (price !== want.next[0]) problems.push(`next egg priced "${price}" (want ${want.next[0]})`);
             if (name !== want.next[1]) problems.push(`next egg named "${name}" (want ${want.next[1]})`);
             if (!/^at the egg shop$/i.test(sub)) problems.push(`next egg tile says "${nextText}"`);
-            for (const sp of next.querySelectorAll("span")) {
-              const host = sp.parentElement;
-              if (!vis(host) || !sp.textContent) continue;
-              const design = parseFloat(getComputedStyle(host).fontSize), px = design * scaleOf(host);
-              if (design < MIN_DESIGN_FONT) problems.push(`next egg "${sp.textContent}" squeezed to ${design.toFixed(1)} design px (min ${MIN_DESIGN_FONT})`);
-              if (px < MIN_FONT) problems.push(`next egg "${sp.textContent}" at ${px.toFixed(1)} px on screen (min ${MIN_FONT})`);
-              if (sp.getClientRects().length > 1 || sp.getBoundingClientRect().height > parseFloat(getComputedStyle(host).fontSize) * scaleOf(host) * 1.6)
-                problems.push(`next egg "${sp.textContent}" wraps`);
-            }
           }
         }
       }
       if (tiles.filter((t) => t === "NextEgg").length > 1) problems.push("more than one next-egg tile");
+      // Every scene: the next egg is never a rebirth-gated tier (all mocks are at Rebirth 0).
+      const nextName = next ? ((next.querySelector('[title="Label"] span') || {}).textContent || "") : "";
+      if (/TOXIC|VOID|COSMIC/.test(nextName)) problems.push(`gated tier "${nextName}" as the next egg`);
+      // Every tray tile: 64 px art, and each text line at nearly full size on one line.
+      for (const tileName of tiles) {
+        const tile = inner && [...inner.children].find((c) => c.title === tileName);
+        if (!tile) continue;
+        const art = tile.querySelector('[title="Viewport"]');
+        if (art && vis(art) && !near(art.offsetWidth, TRAY_ART, 0.5)) problems.push(`${tileName}'s egg art is ${art.offsetWidth} px (want ${TRAY_ART})`);
+        for (const sp of tile.querySelectorAll("span")) {
+          const host = sp.parentElement;
+          if (!vis(host) || !sp.textContent.trim()) continue;
+          const design = parseFloat(getComputedStyle(host).fontSize), px = design * scaleOf(host);
+          if (design < MIN_DESIGN_FONT) problems.push(`${tileName} "${sp.textContent}" squeezed to ${design.toFixed(1)} design px (min ${MIN_DESIGN_FONT})`);
+          if (px < MIN_FONT) problems.push(`${tileName} "${sp.textContent}" at ${px.toFixed(1)} px on screen (min ${MIN_FONT})`);
+          if (sp.getClientRects().length > 1 || sp.getBoundingClientRect().height > px * 1.6) problems.push(`${tileName} "${sp.textContent}" wraps`);
+        }
+      }
     }
     return problems;
   },

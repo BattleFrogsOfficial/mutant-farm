@@ -1,7 +1,7 @@
 --!strict
 -- Building blocks shared by every screen, in one boxy style: square corners, 3px ink outlines,
 -- hard offset shadows, a darker "lip" under every button face, and a stud texture on the primary buttons. Chunky 3D buttons, menu tiles
--- with badges, stat boxes, panels that pop open over a dimmed screen, a drawn padlock, outlined
+-- with badges, stat boxes, panels that pop open over a dimmed screen, outlined
 -- labels, and a pulse helper for anything that wants attention. Everything uses Fusion 0.2.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -420,58 +420,6 @@ function Components.pill(props: { [string]: any })
 						ZIndex = 2,
 					}),
 					props.Children,
-				},
-			}),
-		},
-	})
-end
-
--- A padlock drawn from frames (no image assets). props: Size, Position, AnchorPoint, Color, ZIndex
-function Components.padlock(props: { [string]: any })
-	local color = props.Color or Theme.colors.gold
-	local z = props.ZIndex or 5
-	return New("Frame")({
-		Name = "Padlock",
-		BackgroundTransparency = 1,
-		Size = props.Size or UDim2.fromOffset(48, 56),
-		Position = props.Position,
-		AnchorPoint = props.AnchorPoint,
-		ZIndex = z,
-		[Children] = {
-			New("Frame")({
-				-- Squared-off shackle: an outline box whose bottom is hidden behind the body.
-				Name = "Shackle",
-				BackgroundTransparency = 1,
-				AnchorPoint = Vector2.new(0.5, 0),
-				Position = UDim2.fromScale(0.5, 0.04),
-				Size = UDim2.fromScale(0.56, 0.6),
-				ZIndex = z,
-				[Children] = New("UIStroke")({
-					Color = Theme.darker(color, 0.15),
-					Thickness = 6,
-					LineJoinMode = Enum.LineJoinMode.Miter,
-				}),
-			}),
-			New("Frame")({
-				Name = "Body",
-				AnchorPoint = Vector2.new(0.5, 1),
-				Position = UDim2.fromScale(0.5, 1),
-				Size = UDim2.fromScale(0.9, 0.58),
-				BackgroundColor3 = color,
-				BorderSizePixel = 0,
-				ZIndex = z + 1,
-				[Children] = {
-					Components.stroke(Theme.colors.ink, 2.5),
-					Components.shine(),
-					New("Frame")({
-						Name = "Keyhole",
-						AnchorPoint = Vector2.new(0.5, 0.5),
-						Position = UDim2.fromScale(0.5, 0.45),
-						Size = UDim2.fromScale(0.14, 0.34),
-						BackgroundColor3 = Theme.colors.ink,
-						BorderSizePixel = 0,
-						ZIndex = z + 2,
-					}),
 				},
 			}),
 		},

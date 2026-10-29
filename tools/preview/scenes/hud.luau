@@ -1,6 +1,6 @@
 -- HUD scenes (tools/preview/checks/hud.js checks them): the egg tray with 0 / 1 / 2 / 6 owned egg
--- types (the "next egg" tile and gated tiers), the 6-egg tray on a touch screen, and the watered
--- state (drain ring running, WATER dimmed). Every scene is captured at every preview size through
+-- types (the "next egg" tile and gated tiers), the 6-egg tray on a touch screen, the watered
+-- state (drain ring running, WATER dimmed), and every red dot lit (hud-dots, hud-plot-dots). Every scene is captured at every preview size through
 -- captureHud, so it also runs through the HUD overlap check. The hub at every size is the built-in
 -- hud@WxH set.
 return function(api)
@@ -87,6 +87,23 @@ return function(api)
 		end
 		api.setRoot(holder)
 		api.capture("glyphs")
+	end
+
+	-- All three red dots lit (Upgrades affordable, Daily claimable, a new Almanac species), so the
+	-- dot checks run on every tile instead of skipping unlit ones.
+	api.reset()
+	api.restoreRoot()
+	do
+		local found = 0
+		for _ in api.almanac do
+			found += 1
+		end
+		set(State.almanacSeen, found - 1)
+		set(State.zone, "hub")
+		api.captureHud("hud-dots")
+		set(State.zone, "plot")
+		api.captureHud("hud-plot-dots")
+		set(State.almanacSeen, -1)
 	end
 
 	api.reset()

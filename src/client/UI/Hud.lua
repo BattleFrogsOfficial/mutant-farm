@@ -56,6 +56,9 @@ local CASH_W = L.top.cashWidth
 local ROW_Y = L.top.y -- the top row, directly under Roblox's top bar
 local ROW_H = L.top.height
 local EDGE = L.edge
+-- What a button/pill draws outside its frame between two neighbours: its ink outline on one side
+-- and its hard shadow on the other. Frames are spaced gap + INK so the visible gap is `gap`.
+local INK = L.faceOutline + Theme.shadow
 local COLUMN = L.column
 local PLOT = L.plotButtons
 -- Text right of a glyph: the Cash / Gems amount and the bag count.
@@ -432,13 +435,14 @@ local function gemsBox()
 end
 
 -- Small tile in the top-right row, `slot` tiles in from the right edge (Almanac 0, Daily 1,
--- Upgrades 2), a fixed L.tiles.gap apart, with a vector glyph and its red dot inside the tile.
+-- Upgrades 2), L.tiles.gap apart as drawn (INK covers the outline and shadow between frames), with
+-- a vector glyph and its red dot inside the tile.
 local function iconButton(name: string, glyph: string, slot: number, alert: any, onClick: () -> ())
 	local T = L.tiles
 	return New("Frame")({
 		Name = name,
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -(EDGE + slot * (T.width + T.gap)), 0, ROW_Y),
+		Position = UDim2.new(1, -(EDGE + slot * (T.width + T.gap + INK)), 0, ROW_Y),
 		Size = UDim2.fromOffset(T.width, ROW_H),
 		BackgroundTransparency = 1,
 		[Children] = {
@@ -532,8 +536,8 @@ end
 
 ---------------------------------------------------------------------------- hub only
 
--- Weather: "☢ ACID RAIN IN 12:40" as plain text in the hub; from Weather.announceSeconds (5 min)
--- before an event until it ends, a server-wide countdown chip in every zone, in the event's
+-- Weather, the column's first row: "☢ ACID RAIN IN 12:40" in a quiet chip in the hub; from
+-- Weather.announceSeconds (5 min) before an event until it ends, in every zone and in the event's
 -- color: "☢ ACID RAIN IN 4:12", then "☢ ACID RAIN NOW · 1:12".
 local function weatherText()
 	local info = Computed(function()
@@ -562,59 +566,44 @@ local function weatherText()
 		local name = i.event.icon .. " " .. string.upper(i.event.name)
 		return if i.active then name .. " NOW · " .. clock(i.left) else name .. " IN " .. clock(i.left)
 	end)
-	local color = Computed(function()
-		local i = info:get()
-		return if i then Color3.fromHex(i.event.color) else Theme.colors.cream
+	-- Far from an event: a quiet navy chip with cream text; from announceSeconds before it until
+	-- it ends: the event's color. Always a chip, so the column's rows are spaced the same as drawn.
+	local rim = Computed(function()
+		local i, isSoon = info:get(), soon:get()
+		return if i and isSoon then Color3.fromHex(i.event.color) else NAVY
 	end)
+	local textColor = Computed(function()
+		local i, isSoon = info:get(), soon:get()
+		return if i and isSoon then Color3.fromHex(i.event.color) else Theme.colors.cream
+	end)
+	local W = COLUMN.weather
 	return New("Frame")({
 		Name = "Weather",
 		LayoutOrder = 1,
-		Size = Computed(function()
-			return UDim2.fromOffset(COLUMN.width, if soon:get() then COLUMN.weatherChipHeight else COLUMN.weatherHeight)
-		end),
+		Size = UDim2.fromOffset(COLUMN.width, W.height),
 		BackgroundTransparency = 1,
 		Visible = Computed(function()
 			-- Read every dependency up front (Fusion 0.2: no Computed first read mid-update).
 			local isSoon, hub, i = soon:get(), inHub:get(), info:get()
 			return isSoon or (hub and i ~= nil)
 		end),
-		[Children] = {
-			C.label({
-				Name = "Plain",
-				Size = UDim2.fromScale(1, 1),
-				TextXAlignment = Enum.TextXAlignment.Right,
-				MaxTextSize = 17,
-				StrokeThickness = 2.5,
-				Visible = Computed(function()
-					return not soon:get()
-				end),
-				Text = text,
-			}),
-			New("Frame")({
-				Name = "Chip",
-				Size = UDim2.fromScale(1, 1),
-				BackgroundTransparency = 1,
-				Visible = soon,
-				[Children] = {
-					C.pill({
-						Size = UDim2.fromScale(1, 1),
-						Rim = color,
-						Children = {
-							C.label({
-								Position = UDim2.fromOffset(12, 3),
-								Size = UDim2.new(1, -18, 1, -6),
-								TextXAlignment = Enum.TextXAlignment.Left,
-								MaxTextSize = 17,
-								TextColor3 = color,
-								StrokeThickness = 2.5,
-								Text = text,
-								ZIndex = 3,
-							}),
-						},
-					}),
-				},
-			}),
-		},
+		[Children] = C.pill({
+			Name = "Chip",
+			Size = UDim2.fromScale(1, 1),
+			Rim = rim,
+			Children = {
+				C.label({
+					Position = UDim2.fromOffset(W.textX, W.textY),
+					Size = UDim2.new(1, -(W.textX + W.textRight), 1, -2 * W.textY),
+					TextXAlignment = Enum.TextXAlignment.Left,
+					MaxTextSize = W.text,
+					TextColor3 = textColor,
+					StrokeThickness = 2.5,
+					Text = text,
+					ZIndex = 3,
+				}),
+			},
+		}),
 	})
 end
 
@@ -772,9 +761,22 @@ local function shortName(eggId: string): string
 	return string.upper((Eggs.tiers[eggId].name:gsub(" Egg", "")))
 end
 
+-- A tray tile's width: at least `minWidth`, and wide enough for each of its text lines at full size
+-- ({ text, text size, side inset }), so names like "STARTER GEM" or "🎃 PUMPKIN" never shrink.
+local function tileWidthFor(minWidth: number, lines: { { any } }): number
+	local width = minWidth
+	for _, line in lines do
+		local text, size, inset = line[1] :: string, line[2] :: number, line[3] :: number
+		width = math.max(width, math.ceil((utf8.len(text) or #text) * size * TRAY.charWidth) + 2 * inset)
+	end
+	return width
+end
+
 -- One owned egg: tap to pick it, then tap soil to plant.
 local function eggCard(eggId: string, count: number)
 	local tier = Eggs.tiers[eggId]
+	-- Limited eggs carry their icon ("🎃 PUMPKIN").
+	local label = (if tier.icon then tier.icon .. " " else "") .. shortName(eggId)
 	return trayTile({
 		Name = eggId,
 		-- Cash eggs first, then Gem eggs, each in tier order, then limited eggs.
@@ -782,11 +784,10 @@ local function eggCard(eggId: string, count: number)
 			then (table.find(Eggs.gemOrder, eggId) :: number) + 10
 			else nil) or ((table.find(Eggs.limitedOrder, eggId) or 0) + 20),
 		EggId = eggId,
-		Width = TRAY.tileWidth,
+		Width = tileWidthFor(TRAY.tileWidth, { { label, TRAY.labelText, TRAY.labelInset } }),
 		Badge = "x" .. count,
 		BadgeWidth = TRAY.badgeWidth,
-		-- Limited eggs carry their icon ("🎃 PUMPKIN").
-		Label = (if tier.icon then tier.icon .. " " else "") .. shortName(eggId),
+		Label = label,
 		LabelBottom = TRAY.labelInset,
 		Selected = Computed(function()
 			return State.selectedEgg:get() == eggId
@@ -797,6 +798,8 @@ local function eggCard(eggId: string, count: number)
 	})
 end
 
+local NEXT_EGG_SUB = "AT THE EGG SHOP"
+
 -- The one "next egg" tile after the owned eggs: the cheapest unlocked Cash egg you have none of
 -- (ShopRules.nextTrayEgg), with its name, its price and "AT THE EGG SHOP". Tap: Egg Shop. Gated
 -- tiers never show here; Lab's $25K progress lives in the shop carousel and Next Up.
@@ -805,13 +808,16 @@ local function nextEggCard(eggId: string)
 		Name = "NextEgg",
 		LayoutOrder = 100,
 		EggId = eggId,
-		Width = TRAY.nextTileWidth,
+		Width = tileWidthFor(TRAY.nextTileWidth, {
+			{ shortName(eggId), TRAY.labelText, TRAY.labelInset },
+			{ NEXT_EGG_SUB, TRAY.nextShopText, TRAY.nextShopInset },
+		}),
 		Badge = Format.cash(Eggs.tiers[eggId].cost),
 		BadgeColor = Theme.colors.gold,
 		BadgeWidth = TRAY.nextBadgeWidth,
 		Label = shortName(eggId),
 		LabelBottom = TRAY.nextNameBottom,
-		Sub = "AT THE EGG SHOP",
+		Sub = NEXT_EGG_SUB,
 		OnClick = function()
 			openPanel("shop")
 		end,
@@ -1077,8 +1083,8 @@ end
 
 -- WATER: one tap waters the whole plot (GameConfig.waterMultiplier for waterDuration). A square
 -- drain ring empties clockwise while it lasts and the button is dimmed meanwhile (navy, never pink:
--- it's free). The first tap in a session explains it in a toast. The label is "WATER · 2x 30s" on
--- two lines, the line break standing in for the dot: "WATER" / "2x 30s".
+-- it's free). The first tap in a session explains it in a toast. The label "WATER · 2x 30s" is on
+-- two lines: "WATER" / "· 2x 30s" (the button is too narrow for one).
 -- 2 -> "2", 1.5 -> "1.5" (config values may be fractional; %d would throw on them).
 local function plainNumber(n: number): string
 	return if n == math.floor(n) then tostring(math.floor(n)) else tostring(n)
@@ -1362,21 +1368,21 @@ local function instantWeatherButton()
 	})
 end
 
--- Right column under the top-right tiles, top to bottom, COLUMN.gap apart: weather, Instant
--- Weather, Starter Bundle (always, while it runs), bag count (plot). Kept off the left side
--- (Roblox's buttons and chat) and narrow enough to stay clear of the toast lane.
+-- Right column under the top-right tiles, top to bottom, COLUMN.gap apart as drawn (INK covers each
+-- row's outline and shadow): weather, Instant Weather, Starter Bundle (always, while it runs), bag
+-- count (plot). Kept off the left side (Roblox's buttons and chat) and clear of the toast lane.
 local function rightColumn()
 	return New("Frame")({
 		Name = "RightColumn",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -EDGE, 0, ROW_Y + ROW_H + COLUMN.gap),
+		Position = UDim2.new(1, -EDGE, 0, ROW_Y + ROW_H + COLUMN.gap + INK),
 		Size = UDim2.fromOffset(COLUMN.width, COLUMN.height),
 		BackgroundTransparency = 1,
 		[Children] = {
 			New("UIListLayout")({
 				SortOrder = Enum.SortOrder.LayoutOrder,
 				HorizontalAlignment = Enum.HorizontalAlignment.Right,
-				Padding = UDim.new(0, COLUMN.gap),
+				Padding = UDim.new(0, COLUMN.gap + INK),
 			}),
 			weatherText(),
 			instantWeatherButton(),

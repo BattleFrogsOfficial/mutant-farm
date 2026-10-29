@@ -8,8 +8,11 @@ return function(t)
 			t.eq(HudScale.of(1920, 1022, true), 1.0)
 			t.near(HudScale.of(844, 332, true), 332 / 540, 1e-9) -- phone: height is the short edge
 			t.eq(HudScale.of(200, 100, false), 0.5) -- floor
-			t.eq(HudScale.of(700, 2000, false), 1.25) -- portrait: width is the short edge
-			t.near(HudScale.of(500, 2000, true), 500 / 540, 1e-9)
+			-- Never a canvas narrower than 900: 4:3 and portrait windows scale by their width.
+			t.near(HudScale.of(960, 662, false), 960 / 900, 1e-9) -- 960x720 window
+			t.near(HudScale.of(1024, 710, false), 1024 / 900, 1e-9) -- 1024x768 window
+			t.near(HudScale.of(700, 2000, false), 700 / 900, 1e-9)
+			t.near(HudScale.of(500, 2000, true), 500 / 900, 1e-9)
 		end,
 	}
 end

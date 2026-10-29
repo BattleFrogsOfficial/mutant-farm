@@ -1,10 +1,12 @@
 --!strict
 -- Mounts the ScreenGui. Everything is laid out on a 900x540 design canvas and scaled with one
--- UIScale (shared/HudScale: the shorter screen edge against 540, capped 1.25x with a mouse and
--- 1.0x on touch), so phones (the main audience) see the same layout, just smaller.
+-- UIScale (shared/HudScale: the shorter screen edge against 540, never a canvas under 900 wide,
+-- capped 1.25x with a mouse and 1.0x on touch), so phones (the main audience) see the same
+-- layout, just smaller.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local UI = script.Parent.Parent.UI
@@ -13,8 +15,7 @@ local Backdrop = require(UI.Backdrop)
 local State = require(script.Parent.Parent.State)
 local HudScale = require(ReplicatedStorage.Shared.HudScale)
 
-local New, Children, Value, Computed, Observer =
-	Fusion.New, Fusion.Children, Fusion.Value, Fusion.Computed, Fusion.Observer
+local New, Children, Value, Computed = Fusion.New, Fusion.Children, Fusion.Value, Fusion.Computed
 
 local UIController = {}
 
@@ -83,18 +84,20 @@ function UIController.Start()
 	})
 
 	-- Scale from the area the GUI actually covers (below the top bar): the shorter edge against
-	-- the design height, capped lower on touch screens (shared/HudScale, Config/Hud).
+	-- the design height, capped lower on touch devices (shared/HudScale, Config/Hud). The cap is
+	-- chosen once per device, not per input: a hybrid laptop switching between taps and the mouse
+	-- would otherwise rescale the whole HUD mid-tap (State.touch still moves SHOP/WATER).
+	local touchDevice = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 	local function updateScale()
 		local size = gui.AbsoluteSize
 		if size.X < 1 or size.Y < 1 then
 			return
 		end
-		local s = HudScale.of(size.X, size.Y, State.touch:get(false))
+		local s = HudScale.of(size.X, size.Y, touchDevice)
 		scale:set(s)
 		State.screen:set({ width = size.X, height = size.Y, scale = s })
 	end
 	gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateScale)
-	Observer(State.touch):onChange(updateScale)
 	updateScale()
 end
 

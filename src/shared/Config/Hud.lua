@@ -4,7 +4,8 @@
 
 return {
 	-- Scaling (shared/HudScale.lua): the HUD scales with the SHORTER screen edge against the
-	-- design height, capped so big monitors don't get a giant HUD (touch screens stay at 1:1).
+	-- design height, capped so big monitors don't get a giant HUD (touch devices stay at 1:1), and
+	-- never so far that the canvas gets narrower than designWidth (4:3 / docked windows).
 	designWidth = 900,
 	designHeight = 540,
 	minScale = 0.5,
@@ -16,6 +17,10 @@ return {
 
 	-- Distance from the screen edges (right column, Shop, Water).
 	edge = 14,
+	-- Buttons and pills draw a 3 px ink outline outside their frame and a hard shadow (Theme.shadow)
+	-- below-right of it. Gaps below are what you SEE between those drawn edges, so frames are spaced
+	-- gap + faceOutline + Theme.shadow apart.
+	faceOutline = 3,
 
 	-- Top row, directly under Roblox's top bar: Cash (centered `cashX` off the middle) and Gems.
 	top = {
@@ -34,26 +39,28 @@ return {
 		plusGap = 4, -- between the Gems amount and the "+"
 	},
 
-	-- Upgrades / Daily / Almanac tiles, top-right, left to right, `gap` px apart (between the tile
-	-- faces; each face's hard shadow falls into the gap). The red dot is a small diamond kept inside
-	-- the tile (its center `dotInset` px from the top-right corner); the glyph sits left of center so
-	-- the glyph, its outline and its shadow end before the dot.
+	-- Upgrades / Daily / Almanac tiles, top-right, left to right, `gap` px apart as drawn (from one
+	-- tile's shadow to the next tile's outline). The red dot is a small diamond kept inside the tile
+	-- (its center `dotInset` px from the top-right corner); the glyph sits left of center so the
+	-- glyph, its outline and its shadow end before the dot.
 	tiles = {
 		width = 52,
 		gap = 8,
 		glyph = 20,
-		glyphShift = -6,
+		glyphShift = -8,
 		dot = 8,
 		dotInset = 9,
 	},
 
 	-- Right column under the tiles, top to bottom: weather countdown, Instant Weather, Starter
-	-- Bundle, bag count, `gap` px apart. Weather, Instant Weather and the bundle share `width`.
+	-- Bundle, bag count, `gap` px apart as drawn (shadow to outline; the first row `gap` under the
+	-- tiles' shadows). Weather, Instant Weather and the bundle share `width`.
 	column = {
 		gap = 8,
 		width = 200,
-		weatherHeight = 22, -- plain text (hub)
-		weatherChipHeight = 32, -- countdown chip (5 min before an event until it ends)
+		-- Weather countdown chip (hub; every zone from 5 min before an event until it ends): text
+		-- `textX` px in from the left, `textRight` from the right, `textY` from top and bottom.
+		weather = { height = 32, textX = 12, textRight = 6, textY = 3, text = 17 },
 		instantHeight = 50,
 		bundleHeight = 54,
 		bagWidth = 130,
@@ -97,14 +104,17 @@ return {
 	},
 
 	-- Egg tray (plot, bottom center): owned eggs + one "next egg" tile, HATCH on the right.
-	-- Tiles size to content: egg art, a name line, a count (or price) badge in the corner. The next
-	-- egg tile is wider for its second line, "AT THE EGG SHOP".
+	-- Tiles size to content: egg art, a name line, a count (or price) badge in the corner. A tile
+	-- is at least `tileWidth` (`nextTileWidth` for the next egg tile with its "AT THE EGG SHOP"
+	-- line) and grows with its text, estimated at `charWidth` em per character of GothamBlack caps
+	-- (a little generous, so text never has to shrink).
 	tray = {
 		width = 424,
 		height = 146,
 		bottom = 12,
 		tileWidth = 78,
 		nextTileWidth = 120,
+		charWidth = 0.74,
 		tileHeight = 104,
 		tileGap = 8,
 		art = 64,
@@ -121,7 +131,7 @@ return {
 		-- Next egg tile: the name line sits above "AT THE EGG SHOP".
 		nextNameBottom = 20,
 		nextShopHeight = 14,
-		nextShopText = 12,
+		nextShopText = 13, -- >= 7 px on the narrowest phone (scale ~0.56)
 		nextShopInset = 3, -- "AT THE EGG SHOP" needs nearly the whole tile width
 		hatchWidth = 102,
 		hatchInset = 10, -- from the tray's right edge, lined up with the 2x Luck badge
