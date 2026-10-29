@@ -1,6 +1,8 @@
 --!strict
 -- Draws every plot from the attributes the server replicates: eggs growing in the soil (with their
--- mutations showing), timers on your own plot, and each owner's best mutants roaming their pen.
+-- mutations showing), timers on your own plot (UI/SlotTimer, with a "2x" chip while watered), a
+-- marker on each empty or buyable patch of your own soil (UI/SoilMarker: "+" or the price), and
+-- each owner's best mutants roaming their pen.
 -- Turns clicks on your own soil into Plant / Harvest / BuySlot intents. All visuals are client-only.
 
 local Players = game:GetService("Players")
@@ -16,6 +18,9 @@ local MutantModel = require(Shared.MutantModel)
 local State = require(script.Parent.Parent.State)
 local Sfx = require(script.Parent.Parent.Sfx)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local SlotTimer = require(script.Parent.Parent.UI.SlotTimer)
+local SoilMarker = require(script.Parent.Parent.UI.SoilMarker)
+local WorldUI = require(Shared.Config.WorldUI)
 
 local PlotController = {}
 
@@ -30,8 +35,9 @@ type SlotVisual = {
 	egg: Model?,
 	key: string,
 	gui: BillboardGui?,
-	fill: Frame?,
-	text: TextLabel?,
+	timer: SlotTimer.Timer?,
+	markerGui: SurfaceGui?,
+	marker: SoilMarker.Marker?,
 }
 
 type Roamer = {
@@ -106,42 +112,64 @@ local function growthOf(v: SlotVisual, now: number): (number, number)
 end
 
 local function makeTimer(v: SlotVisual)
+	local cfg = WorldUI.timer
 	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(84, 22)
-	gui.StudsOffsetWorldSpace = Vector3.new(0, 4.2, 0)
-	gui.MaxDistance = 45
+	gui.Size = UDim2.fromOffset(SlotTimer.SIZE.X, SlotTimer.SIZE.Y)
+	gui.StudsOffsetWorldSpace = Vector3.new(0, cfg.studsAbove, 0)
+	gui.MaxDistance = cfg.maxDistance
 	gui.Adornee = v.slot
 	gui.LightInfluence = 0
-	local bar = Instance.new("Frame")
-	bar.Size = UDim2.fromScale(1, 1)
-	bar.BackgroundColor3 = Theme.colors.slate
-	bar.BackgroundTransparency = 0.15
-	bar.BorderSizePixel = 0
-	local outline = Instance.new("UIStroke")
-	outline.Color = Theme.colors.ink
-	outline.Thickness = 2
-	outline.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	outline.Parent = bar
-	bar.Parent = gui
-	local fill = Instance.new("Frame")
-	fill.BackgroundColor3 = Theme.colors.toxic
-	fill.Size = UDim2.fromScale(0, 1)
-	fill.BorderSizePixel = 0
-	fill.Parent = bar
-	local text = Instance.new("TextLabel")
-	text.BackgroundTransparency = 1
-	text.Size = UDim2.fromScale(1, 1)
-	text.Font = Theme.font
-	text.TextScaled = true
-	text.TextColor3 = Theme.colors.white
-	text.ZIndex = 2
-	Instance.new("UIStroke", text).Thickness = 1.5
-	text.Parent = bar
+	local timer = SlotTimer.new()
+	timer.root.Parent = gui
 	gui.Parent = folder
-	v.gui, v.fill, v.text = gui, fill, text
+	v.gui, v.timer = gui, timer
+end
+
+-- The tile on your own empty ("+") or buyable (price) patch; nothing on planted, locked or other
+-- players' patches. The "+" pulses during the tutorial's plant steps.
+local function updateMarker(v: SlotVisual, t: number)
+	local state = v.slot:GetAttribute("State")
+	local eggId = (v.slot:GetAttribute("EggId") or "") :: string
+	local kind: SoilMarker.Kind? = nil
+	if isMine(v.plot) then
+		if state == "owned" and eggId == "" then
+			kind = "plus"
+		elseif state == "buy" then
+			kind = "price"
+		end
+	end
+	if not kind then
+		if v.markerGui then
+			v.markerGui.Enabled = false
+		end
+		return
+	end
+	if not v.markerGui then
+		-- On the patch's Top face; the server's ClickDetector on the part still takes the taps.
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "SoilMarker"
+		gui.Face = Enum.NormalId.Top
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = WorldUI.soil.pixelsPerStud
+		gui.LightInfluence = 0
+		gui.Active = false
+		local marker = SoilMarker.new()
+		marker.root.Parent = gui
+		gui.Parent = v.slot
+		v.markerGui, v.marker = gui, marker
+	end
+	local gui, marker = v.markerGui :: SurfaceGui, v.marker :: SoilMarker.Marker
+	gui.Enabled = true
+	if kind == "price" then
+		SoilMarker.set(marker, "price", Format.cash((v.slot:GetAttribute("Price") or 0) :: number), 1)
+	else
+		local pulse = State.objective:get(false).soil == true
+		SoilMarker.set(marker, "plus", nil, if pulse then SoilMarker.pulseScale(t) else 1)
+	end
 end
 
 local function updateSlot(v: SlotVisual, now: number, t: number)
+	updateMarker(v, t)
 	local eggId = v.slot:GetAttribute("EggId") :: string?
 	local owned = v.slot:GetAttribute("State") == "owned"
 	if not owned or not eggId or not Eggs.tiers[eggId] then
@@ -195,18 +223,15 @@ local function updateSlot(v: SlotVisual, now: number, t: number)
 	if not v.gui then
 		makeTimer(v)
 	end
-	local gui, fill, text = v.gui :: BillboardGui, v.fill :: Frame, v.text :: TextLabel
+	local gui = v.gui :: BillboardGui
 	gui.Enabled = true
-	fill.Size = UDim2.fromScale(progress, 1)
-	if ready then
-		fill.BackgroundColor3 = Theme.colors.gold
-		text.Text = "HATCH!"
-	else
-		local wateredUntil = (v.plot:GetAttribute("WateredUntil") or 0) :: number
-		local speed = (v.plot:GetAttribute("Speed") or 1) :: number
-		fill.BackgroundColor3 = if now < wateredUntil then Theme.colors.water else Theme.colors.toxic
-		text.Text = Format.duration(Growth.secondsRemaining(growth, required, now, wateredUntil, speed))
-	end
+	local wateredUntil = (v.plot:GetAttribute("WateredUntil") or 0) :: number
+	local speed = (v.plot:GetAttribute("Speed") or 1) :: number
+	local timeText = if ready
+		then ""
+		else Format.duration(Growth.secondsRemaining(growth, required, now, wateredUntil, speed))
+	-- "2x" chip while the plot is watered (WateredUntil) and the egg is still growing.
+	SlotTimer.set(v.timer :: SlotTimer.Timer, progress, ready, now < wateredUntil, timeText)
 end
 
 local function onSlotClicked(plot: Model, slot: BasePart)
