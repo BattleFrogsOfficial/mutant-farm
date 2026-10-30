@@ -72,6 +72,11 @@ return {
 	-- the content height (480 - 72 - 16).
 	tabsGap = 8, -- track -> tabs
 	tabHeight = 40,
+	-- A tab: the tier name on top, its found / total count on a smaller line under it, each at its
+	-- full size (a 7th tab makes them 98 wide; text never shrinks to fit).
+	tabTextInset = 7,
+	tabName = { y = 3, height = 20, text = 17 },
+	tabCount = { y = 23, height = 13, text = 12 },
 	gridGap = 8, -- tabs -> grid
 	cellWidth = 110, -- 6 x 110 + 5 x 8 = 700 <= content width (728)
 	cellHeight = 106,

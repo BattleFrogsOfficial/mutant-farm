@@ -129,6 +129,18 @@ registerCheck({
       if (w > 0.5 && h > 0.5) problems.push(`${blocks[i].name} overlaps ${blocks[j].name}`);
     }
 
+    // Tabs: the tier name and its count, each on one line at its full size (never squeezed).
+    const tabsEl = panel.querySelector('[title="Tabs"]');
+    for (const part of tabsEl ? tabsEl.querySelectorAll('[title="TabName"], [title="TabCount"]') : []) {
+      const host = part.querySelector(".txt");
+      const span = host && host.querySelector("span");
+      if (!span || !vis(part)) continue;
+      const size = parseFloat(getComputedStyle(host).fontSize), max = +host.dataset.max || size;
+      if (size < max * 0.98) problems.push(`tab "${span.textContent}" squeezed to ${size.toFixed(1)} px (full ${max})`);
+      if (span.getClientRects().length > 1) problems.push(`tab "${span.textContent}" wraps`);
+    }
+    if (!tabsEl || tabsEl.querySelectorAll('[title="TabName"]').length < 7) problems.push("tabs missing their name line");
+
     // Tooltip: only in the tip scene, the tapped marker's reward, inside the track, readable.
     if (tipScene) {
       if (!tooltip) problems.push("tooltip missing");

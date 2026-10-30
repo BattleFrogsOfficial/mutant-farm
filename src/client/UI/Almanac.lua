@@ -554,7 +554,7 @@ local function build()
 	-- Tabs share the content width (728): 6 tiers fit at 112, more get narrower.
 	local tabWidth = math.min(112, math.floor((CONTENT_W - 6 * (#TABS - 1)) / #TABS))
 	for i, tierId in TABS do
-		local limitedIcon = Eggs.tiers[tierId].limited and Eggs.tiers[tierId].icon
+		local tierName = (Eggs.tiers[tierId].name:gsub(" Egg$", ""))
 		table.insert(
 			tabs,
 			C.button({
@@ -562,20 +562,39 @@ local function build()
 				LayoutOrder = i,
 				Size = UDim2.fromOffset(tabWidth, AlmanacUI.tabHeight),
 				Color = Color3.fromHex(Eggs.tiers[tierId].color):Lerp(Theme.colors.slateLight, 0.4),
-				MaxTextSize = 17,
 				Selected = Computed(function()
 					return tab:get() == tierId
 				end),
-				Text = Computed(function()
-					local almanac = State.almanac:get()
-					local n = 0
-					for _, id in byTier[tierId] do
-						if almanac[id] then
-							n += 1
-						end
-					end
-					return string.format("%s %d/%d", limitedIcon or tierId, n, #byTier[tierId])
-				end),
+				Text = "",
+				Children = {
+					C.label({
+						Name = "TabName",
+						Text = tierName,
+						Position = UDim2.fromOffset(AlmanacUI.tabTextInset, AlmanacUI.tabName.y),
+						Size = UDim2.new(1, -2 * AlmanacUI.tabTextInset, 0, AlmanacUI.tabName.height),
+						MaxTextSize = AlmanacUI.tabName.text,
+						StrokeThickness = 2.5,
+						ZIndex = 3,
+					}),
+					C.label({
+						Name = "TabCount",
+						Text = Computed(function()
+							local almanac = State.almanac:get()
+							local n = 0
+							for _, id in byTier[tierId] do
+								if almanac[id] then
+									n += 1
+								end
+							end
+							return string.format("%d/%d", n, #byTier[tierId])
+						end),
+						Position = UDim2.fromOffset(AlmanacUI.tabTextInset, AlmanacUI.tabCount.y),
+						Size = UDim2.new(1, -2 * AlmanacUI.tabTextInset, 0, AlmanacUI.tabCount.height),
+						MaxTextSize = AlmanacUI.tabCount.text,
+						TextColor3 = Theme.colors.cream,
+						ZIndex = 3,
+					}),
+				},
 				OnClick = function()
 					tab:set(tierId)
 					page:set(1)
