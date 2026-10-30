@@ -479,6 +479,21 @@ local function trackChildren(found: number, font: number, tipAt: number?, hit: n
 			[Children] = C.shine(),
 		}),
 	}
+	-- The passed stretch (0 .. the last passed milestone) is done: gold under its markers.
+	if not layout.allPassed and layout.segStart > layout.barLeft then
+		table.insert(
+			out,
+			New("Frame")({
+				Name = "Done",
+				BorderSizePixel = 0,
+				BackgroundColor3 = Theme.colors.gold,
+				Position = UDim2.fromOffset(layout.barLeft, barY),
+				Size = UDim2.fromOffset(layout.segStart - layout.barLeft, AlmanacUI.barHeight),
+				ZIndex = 13,
+				[Children] = C.shine(),
+			})
+		)
+	end
 	for _, mk in layout.markers do
 		table.insert(out, marker(mk))
 		if mk.label and not mk.label.covered then

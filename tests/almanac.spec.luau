@@ -92,7 +92,7 @@ return function(t)
 				t.eq(l.fillWidth, l.barRight - l.barLeft)
 			end
 		end,
-		["markers: passed gold at the left end, next at the segment end, later proportional"] = function()
+		["markers: every passed one gold on the left, next at the segment end, later proportional"] = function()
 			each(function(found, _, l)
 				local roles = { passed = 0, next = 0, later = 0 }
 				for _, mk in l.markers do
@@ -105,12 +105,14 @@ return function(t)
 					t.eq(#l.markers, #l.milestones)
 					return
 				end
-				t.eq(roles.passed, if l.passed > 0 then 1 else 0, "one passed marker at " .. found)
+				t.eq(roles.passed, l.passed, "every passed milestone drawn at " .. found)
 				t.eq(roles.next, 1)
 				t.eq(roles.later, #l.milestones - l.passed - 1)
 				for _, mk in l.markers do
 					if mk.role == "passed" then
-						t.eq(mk.x, l.segStart)
+						-- Proportional over the passed stretch; the last passed one at the segment's start.
+						local p = mk.milestone.at / (l.last :: any).at
+						t.near(mk.x, l.barLeft + p * (l.segStart - l.barLeft), 1e-6)
 					elseif mk.role == "next" then
 						t.eq(mk.x, l.segEnd)
 					else
@@ -119,12 +121,13 @@ return function(t)
 						t.near(mk.x, l.segEnd + p * (l.barRight - l.segEnd), 1e-6)
 					end
 				end
-				-- The segment takes its fixed fraction while later milestones remain.
-				if l.passed + 2 <= #l.milestones then
-					t.near(l.segEnd - l.segStart, UI.segmentFraction * (l.barRight - l.barLeft), 1e-6)
-				else
-					t.eq(l.segEnd, l.barRight)
-				end
+				-- The segment takes its fixed fraction; the passed and later stretches share the rest by
+				-- the species they cover.
+				local span = l.barRight - l.barLeft
+				t.near(l.segEnd - l.segStart, UI.segmentFraction * span, 1e-6)
+				local doneRange, laterRange = l.last and l.last.at or 0, lastAt - l.next.at
+				local other = (1 - UI.segmentFraction) * span
+				t.near(l.segStart - l.barLeft, other * doneRange / (doneRange + laterRange), 1e-6)
 			end)
 		end,
 		["no two markers overlap"] = function()
@@ -261,8 +264,11 @@ return function(t)
 			-- At the right end it stays inside the track.
 			local r = Track.layout(26, TOTAL, WIDTH, Track.fontSize(0.559), 400)
 			t.ok(r.tooltip and r.tooltip.x + r.tooltip.w <= WIDTH, "400 tooltip inside")
-			-- No marker for that milestone (already passed, off the track) -> no tooltip.
-			t.eq(Track.layout(101, TOTAL, WIDTH, UI.labelSize, 25).tooltip, nil)
+			-- A passed milestone has its marker too: tapping it shows its reward.
+			local passedTip = Track.layout(101, TOTAL, WIDTH, UI.labelSize, 25).tooltip
+			t.ok(passedTip and passedTip.at == 25, "tooltip for a passed milestone")
+			-- No marker for a milestone that doesn't exist -> no tooltip.
+			t.eq(Track.layout(101, TOTAL, WIDTH, UI.labelSize, 30).tooltip, nil)
 		end,
 	}
 end

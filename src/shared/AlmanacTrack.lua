@@ -4,11 +4,13 @@
 -- Milestones come from Config/Game.almanacMilestones: every `every` species found pays `gems`
 -- Gems, except the `big` ones (eggs, or permanent luck), up to the last multiple of `every` not
 -- above the species total. The track shows:
---   * the current segment (last passed milestone .. next one) on the left `segmentFraction` of the
---     bar, with the fill growing inside it from the last passed milestone (a gold check marker at
---     the left end) to the next one (the big diamond at the segment's right end);
---   * the later milestones spread proportionally over the rest of the bar, small, labeled only
---     when they're big (eggs, luck);
+--   * every passed milestone gold with a check, spread proportionally over a gold stretch at the
+--     left end (0 .. the last passed one; only the last passed one is labeled);
+--   * the current segment (last passed milestone .. next one) on `segmentFraction` of the bar,
+--     with the fill growing inside it to the next milestone (the big diamond at its right end);
+--   * the later milestones spread proportionally over the rest, small, labeled only when they're
+--     big (eggs, luck). The passed and later stretches share what the segment leaves, in
+--     proportion to the species counts they cover;
 --   * when every milestone is passed, all of them, gold, spread over the whole (gold) bar.
 -- Labels sit in a row under the markers. Their widths are estimated (Config/AlmanacUI em widths)
 -- so they can be placed without measuring text: the later big labels are packed sideways (each
@@ -250,23 +252,27 @@ function AlmanacTrack.layout(
 	else
 		local next = nextM :: Milestone
 		local fromAt = if last then last.at else 0
-		local hasLater = passed + 2 <= #ms
-		segStart = barLeft
-		segEnd = if hasLater then barLeft + UIConfig.segmentFraction * span else barRight
+		local lastAt = ms[#ms].at
+		-- The passed stretch (0 .. last passed) and the later one (next .. last milestone) share
+		-- what the segment leaves, in proportion to the species they cover.
+		local doneRange, laterRange = fromAt, lastAt - next.at
+		local other = if doneRange + laterRange > 0 then (1 - UIConfig.segmentFraction) * span else 0
+		local doneW = if other > 0 then other * doneRange / (doneRange + laterRange) else 0
+		segStart = barLeft + doneW
+		segEnd = barRight - (other - doneW)
 		fraction = math.clamp((found - fromAt) / (next.at - fromAt), 0, 1)
-		if last then
-			add(last, segStart, "passed")
+		for i = 1, passed do
+			add(ms[i], barLeft + ms[i].at / fromAt * doneW, "passed")
 		end
 		add(next, segEnd, "next")
-		local lastAt = ms[#ms].at
 		for i = passed + 2, #ms do
 			local m = ms[i]
-			add(m, segEnd + (m.at - next.at) / (lastAt - next.at) * (barRight - segEnd), "later")
+			add(m, segEnd + (m.at - next.at) / laterRange * (barRight - segEnd), "later")
 		end
 	end
 
 	-- Labels, by priority: the next milestone (always, in full), the last passed one (its number,
-	-- at the left end), then the big later ones in one form for all: in full if they pack, else
+	-- at the segment's start; earlier passed ones stay unlabeled), then the big later ones in one form for all: in full if they pack, else
 	-- "100🥚", else icons (centered; any icon that still collides hides).
 	local placed: { Label } = {}
 	local function make(text: string, center: number, short: boolean): Label
@@ -290,6 +296,9 @@ function AlmanacTrack.layout(
 	end
 	for _, mk in markers do
 		if mk.role == "passed" and not allPassed then
+			if mk.milestone ~= last then
+				continue
+			end
 			local l = make(tostring(mk.milestone.at), mk.x, false)
 			if fits(l, placed) then
 				mk.label = l

@@ -99,9 +99,9 @@ registerCheck({
       if (want !== undefined && Math.abs(fr.width - want) > 2) problems.push(`fill ${fr.width.toFixed(1)}px, want ${want.toFixed(1)}px`);
     }
 
-    // Passed markers: gold with a check; one at the left end (all of them once everything's passed).
+    // Passed markers: every passed milestone, gold with a check.
     const passed = [...track.querySelectorAll('[title="Passed"]')].filter(vis);
-    const wantPassed = n < EVERY ? 0 : allPassed ? LAST / EVERY : 1;
+    const wantPassed = Math.min(Math.floor(n / EVERY), LAST / EVERY);
     if (passed.length !== wantPassed) problems.push(`${passed.length} passed markers, want ${wantPassed}`);
     for (const p of passed) {
       if (getComputedStyle(p).backgroundColor !== "rgb(255, 210, 74)") problems.push(`passed marker ${p.parentElement.closest(".g").title} isn't gold`);
