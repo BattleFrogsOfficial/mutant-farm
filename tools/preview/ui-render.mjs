@@ -474,12 +474,16 @@ for (const f of (fs.existsSync(checksDir) ? fs.readdirSync(checksDir) : []).filt
   await page.addScriptTag({ content: fs.readFileSync(path.join(checksDir, f), "utf8") });
 }
 const count = await page.evaluate(() => window.sceneCount);
+// ONLY=<prefix> (fix loops): screenshots AND checks only for scenes whose name starts with it; the
+// full run (no ONLY) once at the end.
+const only = (name) => !process.env.ONLY || name.startsWith(process.env.ONLY);
+if (process.env.ONLY) console.log(`ONLY=${process.env.ONLY}: screenshots and checks limited to those scenes`);
 // Scenes named "name@WxH" were exported for one screen size: render only at that size, saved
 // as name-<label>.png.
 const sceneNames = await page.evaluate(() => data.scenes.map((s) => s.name));
 for (let i = 0; i < count; i++) {
   const sized = /^(.*)@(\d+)x(\d+)$/.exec(sceneNames[i]);
-  if (process.env.ONLY && !sceneNames[i].startsWith(process.env.ONLY)) continue; // ONLY=shop: just those screenshots
+  if (!only(sceneNames[i])) continue;
   for (const [label, W, H] of sizes) {
     if (sized && (+sized[2] !== W || +sized[3] !== H)) continue;
     await page.setViewportSize({ width: W, height: H });
@@ -493,7 +497,7 @@ for (let i = 0; i < count; i++) {
 }
 // Overlap check on every HUD state (hub, plot) at every screen size.
 let issues = 0, checked = 0;
-const hudScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("hud")));
+const hudScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("hud")))).filter(([n]) => only(n));
 for (const [sceneName, hudIndex] of hudScenes) {
   const sized = /@(\d+)x(\d+)$/.exec(sceneName);
   for (const [label, W, H] of [...sizes, ...checkSizes]) {
@@ -515,7 +519,7 @@ console.log(`HUD overlap check: ${issues} issue(s) across ${checked} state x scr
 // Egg Shop carousel checks at every screen size, in Cash, Gems and policy-restricted modes, plus the
 // mid-session unlock scene.
 let shopIssues = 0, shopChecked = 0;
-const shopScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("shop")));
+const shopScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("shop")))).filter(([n]) => only(n));
 const cashRects = {};
 for (const [sceneName, index] of shopScenes) {
   const [, kind, w, h] = /^([\w-]+)@(\d+)x(\d+)$/.exec(sceneName);
@@ -564,7 +568,7 @@ for (const [sceneName, index] of shopScenes) {
 console.log(`Shop check: ${shopIssues} issue(s) across ${shopChecked} scenes`);
 // Rebirth Now (panel and Altar sign) at every size, and the Instant Weather picker.
 let panelIssues = 0, panelChecked = 0;
-const panelScenes = await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("rebirth-now") || n === "instantWeather"));
+const panelScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("rebirth-now") || n === "instantWeather"))).filter(([n]) => only(n));
 for (const [sceneName, index] of panelScenes) {
   const sized = /^([\w-]+)@(\d+)x(\d+)$/.exec(sceneName);
   for (const [label, W, H] of [...sizes, ...checkSizes]) {
@@ -588,7 +592,7 @@ console.log(`Panel check: ${panelIssues} issue(s) across ${panelChecked} scenes`
     window.sceneChecks.forEach((c, ci) => data.scenes.forEach((s, si) => { if (c.match(s.name)) out.push([ci, si, s.name, c.name]); }));
     return out;
   });
-  for (const [ci, si, sceneName, checkName] of pairs) {
+  for (const [ci, si, sceneName, checkName] of pairs.filter(([, , n]) => only(n))) {
     const sized = /@(\d+)x(\d+)$/.exec(sceneName);
     for (const [label, W, H] of [...sizes, ...checkSizes]) {
       if (sized && (+sized[1] !== W || +sized[2] !== H)) continue;

@@ -189,7 +189,7 @@ LIMITED_AT=1793500000 lune run tools/preview/check -- build/preview.rbxl  # ...w
 node tools/relay/test.mjs                 # the Discord relay Worker against a fake KV + Discord
 lune run tools/preview/ui-export -- build/preview.rbxl build/ui.json  # UI preview: export scenes
 node tools/preview/ui-render.mjs build/ui.json build/ui-shots         # render + HUD/shop checks (optional 3rd arg: background png)
-ONLY=shop node tools/preview/ui-render.mjs build/ui.json build/ui-shots  # screenshot only scenes starting "shop" (checks still all run)
+ONLY=shop node tools/preview/ui-render.mjs build/ui.json build/ui-shots  # fix loops: screenshots + checks only for scenes starting "shop"; full run once at the end
 lune run tools/preview/export -- build/preview.rbxl build/scene.json && node tools/preview/render.mjs build/scene.json build/shots  # world shots
 (cd tools/preview && npm install)         # once (and after package.json changes): three.js + the Montserrat font for the renderers; Chromium + Playwright are preinstalled in cloud sessions
 rojo build default.project.json -o MutantFarm.rbxl                    # place file for Studio
@@ -199,6 +199,7 @@ rojo build default.project.json -o MutantFarm.rbxl                    # place fi
 - **World preview** runs the real `World.build()` + `MutantModel` in Lune and draws with three.js (SurfaceGui text on the right face; `SHOTS='[["name",[eye],[at],fov]]'` for cameras; 3rd arg `hatch` exports the hatch island). The **checker** reports intersecting parts, coplanar tops, floating/buried props, eggs off soil, mutants outside pens; allowed overlaps are listed in the script.
 - **Tuning:** change `src/shared/Config/*.lua` only, then `lune run tools/test` and `lune run tools/sim` (`--runs N --hours H --days D`, `--first` for only the time to Rebirth 1, `--pen keep` for a bot that keeps its 8 best mutants in the pen instead of selling everything, and try-without-editing `--lab-cost N`, `--first-cost N`, `--growth X`). The sim plays perfectly; real players take ~1.3-1.6x its minutes. Update the tables above.
 - Before a PR / handoff: check, test, stylua, both previews at 0 issues, then playtest in Studio (Rojo serve + Play). Nothing on the Roblox side runs headlessly; say so if it wasn't playtested.
+- **Working rules (owner, 2026-10-30), for every prompt:** one review pass by a single reviewer (no multi-agent fan-outs), and only for the launch build, not every HUD tweak. Fix loops render with `ONLY=<prefix>`; the full preview runs once, at the end. If a check fails three times on one item, commit the rest and report. Commit after each numbered item.
 
 ## Status by milestone (2026-10-29)
 
