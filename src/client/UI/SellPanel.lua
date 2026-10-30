@@ -107,9 +107,12 @@ local function itemRow(itemId: string, order: any)
 				OnClick = function()
 					local s = State.get()
 					local on = not pinned:get(false)
-					if on and s and not Pen.canPin(s.inventory, GameConfig.penDisplayCount) then
+					if on and s and not Pen.canPin(s.inventory, s.penCapacity or GameConfig.penDisplayCount) then
 						State.toast(
-							string.format("Your pen holds %d. Unpin one first!", GameConfig.penDisplayCount),
+							string.format(
+								"Your pen holds %d. Unpin one first!",
+								s and s.penCapacity or GameConfig.penDisplayCount
+							),
 							"info"
 						)
 						return

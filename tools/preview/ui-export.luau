@@ -319,6 +319,8 @@ local snapshot = {
 	paidRandomRestricted = false,
 	upgrades = { growthSpeed = 2, mutationOdds = 0 },
 	upgradeCosts = { growthSpeed = 18_000, mutationOdds = 2_000 },
+	gemUpgrades = { penSlots = 0, luck = 1, offline = 0 },
+	penCapacity = 8,
 	almanacRewards = 1,
 	inGroup = true,
 	almanacLuck = 0,

@@ -40,6 +40,7 @@ export type Profile = {
 	inventory: { [string]: Item }, -- keyed by item id
 	pen: { [string]: Item },
 	upgrades: { growthSpeed: number, mutationOdds: number },
+	gemUpgrades: { penSlots: number, luck: number, offline: number }, -- Gem upgrades, kept through rebirth
 	ownedPasses: { [string]: boolean },
 	processedPurchases: { [string]: number },
 	wateredUntil: number,
@@ -110,6 +111,8 @@ export type Snapshot = {
 	paidRandomRestricted: boolean, -- PolicyService: no paid odds boosts (Luck Potion) for this player
 	upgrades: { growthSpeed: number, mutationOdds: number },
 	upgradeCosts: { growthSpeed: number?, mutationOdds: number? }, -- nil = maxed
+	gemUpgrades: { penSlots: number, luck: number, offline: number },
+	penCapacity: number, -- mutants the pen holds (and the pin cap)
 	almanacRewards: number,
 	inGroup: boolean,
 	almanacLuck: number,

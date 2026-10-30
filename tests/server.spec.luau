@@ -304,6 +304,37 @@ return function(t)
 			t.eq(data.gems, 0)
 		end,
 
+		["Gem upgrades: Gems spent, Pen Slots once per rebirth level, all kept through rebirth"] = function()
+			local world = t.server()
+			local player, data = world:join(1, { gems = 5_000, cash = 800_000 })
+			local DataService = world.service.DataService
+			local cap = DataService.penCapacity(data)
+			world:send(player, "BuyGemUpgrade", "penSlots")
+			t.eq(data.gemUpgrades.penSlots, 1)
+			t.eq(DataService.penCapacity(data), cap + 4)
+			t.eq(data.gems, 5_000 - 150)
+			world:send(player, "BuyGemUpgrade", "penSlots") -- already bought at Rebirth 0
+			t.eq(data.gemUpgrades.penSlots, 1)
+			local luck = DataService.luck(data)
+			world:send(player, "BuyGemUpgrade", "luck")
+			t.near(DataService.luck(data), luck * 1.1, 1e-9, "+10% luck")
+			world:send(player, "BuyGemUpgrade", "offline")
+			world:send(player, "BuyGemUpgrade", "bogus")
+			t.eq(data.gems, 5_000 - 150 - 200 - 100)
+			world:send(player, "Rebirth")
+			t.eq(data.rebirths, 1)
+			t.eq(data.gemUpgrades.penSlots, 1, "kept through rebirth")
+			t.eq(data.gemUpgrades.luck, 1)
+			t.eq(data.gemUpgrades.offline, 1)
+			world:send(player, "BuyGemUpgrade", "penSlots") -- a new rebirth level: again
+			t.eq(data.gemUpgrades.penSlots, 2)
+			-- Not enough Gems: nothing happens.
+			local poor, poorData = world:join(2, { gems = 10 })
+			world:send(poor, "BuyGemUpgrade", "luck")
+			t.eq(poorData.gemUpgrades.luck, 0)
+			t.eq(poorData.gems, 10)
+		end,
+
 		["$/min: growing eggs count before the first harvest, in the snapshot and on the gate"] = function()
 			local world = t.server()
 			local player, data = world:join(1, { eggs = { Starter = 2 }, grantedStarterEggs = true })

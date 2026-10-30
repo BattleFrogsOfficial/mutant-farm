@@ -26,4 +26,16 @@ return {
 		firstCost = 2_000,
 		costGrowth = 3,
 	},
+
+	-- Gem upgrades (shared/GemUpgrades.lua): bought with Gems, kept through every rebirth, not
+	-- random and not policy-gated. Sink "GemUpgrade_<kind>".
+	gem = {
+		-- +4 mutants standing in the pen (and pinnable), once per rebirth level (level <= rebirths + 1).
+		penSlots = { slotsPerLevel = 4, cost = 150 },
+		-- +10% luck per level, added to the Almanac's permanent luck, under Game.maxLuck.
+		luck = { bonusPerLevel = 0.10, costs = { 200, 400, 800 } },
+		-- +2 h of offline mutation rolls per level (on top of Game.offlineMutationCap); MAX while
+		-- the Offline Mutations pass is owned (it already rolls the whole time away).
+		offline = { secondsPerLevel = 2 * 60 * 60, costs = { 100, 200, 400 } },
+	},
 }

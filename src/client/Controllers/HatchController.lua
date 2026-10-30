@@ -972,8 +972,11 @@ function HatchController.Init()
 			return
 		end
 		local on = not revealPinned
-		if on and not Pen.canPin(snap.inventory, GameConfig.penDisplayCount) then
-			State.toast(string.format("Your pen holds %d. Unpin one first!", GameConfig.penDisplayCount), "info")
+		if on and not Pen.canPin(snap.inventory, snap.penCapacity or GameConfig.penDisplayCount) then
+			State.toast(
+				string.format("Your pen holds %d. Unpin one first!", snap.penCapacity or GameConfig.penDisplayCount),
+				"info"
+			)
 			return
 		end
 		Remotes.get("Pin"):FireServer(item.id, on)

@@ -100,15 +100,15 @@ return {
 		width = 132,
 		height = 64,
 		gap = 8,
-		glyph = 28,
-		glyphInset = 10, -- the drop's left edge from the button's left edge
+		glyph = 24,
+		glyphInset = 8, -- the drop's left edge from the button's left edge
 		trayClearance = 11, -- frame edge to the tray's shadow: 8 px as drawn + WATER's 3 px outline
-		ringWidth = 5, -- the drain ring along the Water button's edge
-		-- WATER's two lines ("WATER" / "· 2x 30s"), right of the glyph: x = glyphInset + glyph + `textGap`.
-		textGap = 8,
+		-- WATER's two lines ("2x GROWTH" / "FOR 30s"; while watered "2x ACTIVE" / "0:18"), right of
+		-- the glyph: x = glyphInset + glyph + `textGap`.
+		textGap = 6,
 		textRight = 6,
-		line1 = { y = 9, height = 24, text = 20 },
-		line2 = { y = 33, height = 20, text = 15 },
+		line1 = { y = 10, height = 20, text = 14 },
+		line2 = { y = 32, height = 20, text = 16 },
 	},
 
 	-- Egg tray (plot, bottom center): owned eggs + one "next egg" tile, HATCH on the right.

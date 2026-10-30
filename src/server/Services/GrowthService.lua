@@ -18,6 +18,7 @@ local Mutants = require(Shared.Config.Mutants)
 local Daily = require(Shared.Config.Daily)
 local Products = require(Shared.Config.Products)
 local Costs = require(Shared.Costs)
+local GemUpgrades = require(Shared.GemUpgrades)
 local ShopRules = require(Shared.ShopRules)
 local Growth = require(Shared.Growth)
 local AutoHarvest = require(Shared.AutoHarvest)
@@ -466,6 +467,34 @@ local function onBuyUpgrade(player: Player, data: Types.Profile, kind: any)
 	DataService.changed(player)
 end
 
+-- Gem upgrades (shared/GemUpgrades): Pen Slots, Permanent Luck, Offline Mutations. Kept through
+-- rebirth; not random, so not policy-gated. EconomyService takes the Gems (sink GemUpgrade_<kind>).
+local function onBuyGemUpgrade(player: Player, data: Types.Profile, kind: any)
+	if not Validate.string(kind, 16) or not table.find(GemUpgrades.order, kind) then
+		return
+	end
+	local level = GemUpgrades.level(data.gemUpgrades, kind)
+	local cost = GemUpgrades.cost(kind, level, data.rebirths, data.ownedPasses.OfflineMutations == true)
+	if not cost then
+		return
+	end
+	-- Settle first: rolls already due use the old luck.
+	GrowthService.settleAndAnnounce(player, data)
+	if not EconomyService.spendGems(player, data, cost, "Shop", "GemUpgrade_" .. kind) then
+		return
+	end
+	data.gemUpgrades[kind] = level + 1
+	Net.notify(
+		player,
+		if kind == "penSlots"
+			then string.format("Your pen holds %d now!", DataService.penCapacity(data))
+			elseif kind == "luck" then "Permanent luck upgraded!"
+			else "Offline mutations last longer!",
+		"success"
+	)
+	DataService.changed(player)
+end
+
 local function onWater(player: Player, data: Types.Profile)
 	local now = DataService.now()
 	if now < data.wateredUntil then
@@ -497,7 +526,7 @@ local function catchUp(player: Player, data: Types.Profile)
 	end
 
 	local capAt = if data.lastSeen > 0 and not data.ownedPasses.OfflineMutations
-		then data.lastSeen + GameConfig.offlineMutationCap
+		then data.lastSeen + GemUpgrades.offlineCap(GemUpgrades.level(data.gemUpgrades, "offline"))
 		else math.huge
 	local events = {}
 	local function settleTo(at: number)
@@ -565,6 +594,7 @@ function GrowthService.Start()
 	Net.on("BuyPotion", onBuyPotion)
 	Net.on("SkipTimers", onSkipTimers)
 	Net.on("BuyUpgrade", onBuyUpgrade)
+	Net.on("BuyGemUpgrade", onBuyGemUpgrade)
 
 	while true do
 		task.wait(GameConfig.growthTickSeconds)

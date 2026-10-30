@@ -6,8 +6,8 @@
 //   right column rows in order weather, Instant Weather, bundle, bag, 8 px apart as drawn (and 8 px
 //   under the tiles' shadows); Instant Weather as wide as the bundle ribbon
 //   plot: SHOP the same size as WATER and right beside it (same row, WATER on the left; never
-//   stacked); WATER reads "WATER · 2x 30s" (two lines, "WATER" / "· 2x 30s"), dimmed
-//   (never pink) with its drain ring while watered
+//   stacked); WATER reads "2x GROWTH" / "FOR 30s", and while watered "2x ACTIVE" / the seconds
+//   left, dimmed (never pink), no drain ring
 //   hub: SHOP is the biggest button on screen
 //   no ImageLabel/ImageButton in the HUD; the tile/Cash/Gems/HATCH/bag/WATER icons are vector glyphs
 //   egg tray: owned eggs + at most one "next egg" tile (name, price, "AT THE" / "EGG SHOP"); in
@@ -140,21 +140,22 @@ registerCheck({
       }
     }
 
-    // Water: label from config; while watered, dimmed (locked grey, never pink) and the ring runs.
+    // Water: "2x GROWTH" / "FOR 30s" from config; while watered "2x ACTIVE" with the seconds left,
+    // dimmed (locked grey, never pink); no drain ring.
     if (plot && vis(water)) {
       const face = water.querySelector('[title="Face"]');
       const look = face ? getComputedStyle(face).backgroundImage : "";
       if (look.includes("255, 79, 163")) problems.push("Water is pink");
-      const ring = vis(water.querySelector('[title="Ring1"]'));
+      if (water.querySelector('[title^="Ring"]')) problems.push("Water still has a drain ring");
       const line1 = (water.querySelector('[title="Label"] span') || {}).textContent || "";
       const line2 = (water.querySelector('[title="Sub"] span') || {}).textContent || "";
-      // The two lines as rendered, read top to bottom (a line break reads as a space).
       const label = `${line1} ${line2}`;
-      if (ring) {
-        if (!look.includes("85, 91, 112")) problems.push("Water isn't dimmed while the ring runs");
-        if (!/^WATER · 2x \d+:\d\d$/.test(label)) problems.push(`watered Water label "${label}"`);
-      } else if (label !== "WATER · 2x 30s") problems.push(`Water label "${label}"`);
-      if (kind.startsWith("hud-plot-watered") && !ring) problems.push("drain ring not running in the watered scene");
+      const active = line1 === "2x ACTIVE";
+      if (active) {
+        if (!look.includes("85, 91, 112")) problems.push("Water isn't dimmed while active");
+        if (!/^2x ACTIVE \d+:\d\d$/.test(label)) problems.push(`watered Water label "${label}"`);
+      } else if (label !== "2x GROWTH FOR 30s") problems.push(`Water label "${label}"`);
+      if (kind.startsWith("hud-plot-watered") && !active) problems.push("the watered scene doesn't show 2x ACTIVE");
     }
 
     // No images for icons anywhere in the HUD (scene JSON: the Hud frame's subtree).

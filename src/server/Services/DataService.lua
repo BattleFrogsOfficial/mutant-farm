@@ -13,6 +13,7 @@ local Upgrades = require(Shared.Config.Upgrades)
 local Eggs = require(Shared.Config.Eggs)
 local Growth = require(Shared.Growth)
 local Expected = require(Shared.Expected)
+local GemUpgrades = require(Shared.GemUpgrades)
 local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
 local Pen = require(Shared.Pen)
@@ -47,6 +48,7 @@ local TEMPLATE: Types.Profile = {
 	inventory = {},
 	pen = {},
 	upgrades = { growthSpeed = 0, mutationOdds = 0 },
+	gemUpgrades = { penSlots = 0, luck = 0, offline = 0 }, -- kept through rebirth
 	ownedPasses = {},
 	processedPurchases = {},
 	wateredUntil = 0,
@@ -148,10 +150,16 @@ function DataService.nextSlotCost(data: Types.Profile): number?
 	return Costs.slot(data.slotCount + 1, data.rebirths)
 end
 
+-- How many mutants the pen holds (and how many can be pinned): penDisplayCount + the Pen Slots
+-- Gem upgrade (shared/GemUpgrades).
+function DataService.penCapacity(data: Types.Profile): number
+	return GemUpgrades.penCapacity(GemUpgrades.level(data.gemUpgrades, "penSlots"))
+end
+
 -- The mutants standing in the pen: pinned ones, then the owner's most valuable bag items, up to
--- penDisplayCount (shared/Pen.lua). Stable order so the pen doesn't reshuffle.
+-- penCapacity (shared/Pen.lua). Stable order so the pen doesn't reshuffle.
 function DataService.penItems(data: Types.Profile): { Types.Item }
-	return Pen.select(data.inventory, GameConfig.penDisplayCount) :: any
+	return Pen.select(data.inventory, DataService.penCapacity(data)) :: any
 end
 
 -- Cash the pen pays per minute (not rounded): online, or at the offline rate.
@@ -165,12 +173,13 @@ function DataService.penIncome(data: Types.Profile, offline: boolean?): number
 	return total
 end
 
--- 2x Luck pass x Luck Potion (while active) x the Almanac's permanent luck. Rolls.clampLuck caps
--- the total at Game.maxLuck.
+-- 2x Luck pass x Luck Potion (while active) x permanent luck (the Almanac's + the Permanent Luck
+-- Gem upgrade). Rolls.clampLuck caps the total at Game.maxLuck.
 function DataService.luck(data: Types.Profile): number
 	local pass = if data.ownedPasses.Luck2x then 2 else 1
 	local potion = if DataService.now() < data.potionUntil then Products.gems.LuckPotion.luck else 1
-	return pass * potion * (1 + data.almanacLuck)
+	local permanent = data.almanacLuck + GemUpgrades.luckBonus(GemUpgrades.level(data.gemUpgrades, "luck"))
+	return pass * potion * (1 + permanent)
 end
 
 -- Extra mutation chance from the Mutation Odds upgrade.
@@ -260,6 +269,8 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 			growthSpeed = Costs.upgrade("growthSpeed", data.upgrades.growthSpeed, data.rebirths),
 			mutationOdds = Costs.upgrade("mutationOdds", data.upgrades.mutationOdds, data.rebirths),
 		},
+		gemUpgrades = data.gemUpgrades,
+		penCapacity = DataService.penCapacity(data),
 		almanacRewards = data.almanacRewards,
 		inGroup = data.inGroup,
 		almanacLuck = data.almanacLuck,
@@ -365,7 +376,7 @@ function DataService.Start()
 			DataService.changed(player)
 		end
 	end)
-	-- Pin / unpin a bag mutant: pinned ones always stand in the pen (at most penDisplayCount),
+	-- Pin / unpin a bag mutant: pinned ones always stand in the pen (at most penCapacity),
 	-- are skipped by Sell All and stay through rebirth.
 	Net.on("Pin", function(player, data, itemId, on)
 		if not Validate.string(itemId, 16) or typeof(on) ~= "boolean" then
@@ -375,8 +386,12 @@ function DataService.Start()
 		if not item or (item.pinned == true) == on then
 			return
 		end
-		if on and not Pen.canPin(data.inventory, GameConfig.penDisplayCount) then
-			Net.notify(player, string.format("Your pen holds %d. Unpin one first!", GameConfig.penDisplayCount), "info")
+		if on and not Pen.canPin(data.inventory, DataService.penCapacity(data)) then
+			Net.notify(
+				player,
+				string.format("Your pen holds %d. Unpin one first!", DataService.penCapacity(data)),
+				"info"
+			)
 			return
 		end
 		item.pinned = if on then true else nil

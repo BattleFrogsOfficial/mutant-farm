@@ -73,7 +73,9 @@ local function ownValue(id: string): number
 		return 0
 	end
 	if id == "pens" then
-		return Leaderboards.penValue(Pen.select(snap.inventory :: any, GameConfig.penDisplayCount) :: any)
+		return Leaderboards.penValue(
+			Pen.select(snap.inventory :: any, snap.penCapacity or GameConfig.penDisplayCount) :: any
+		)
 	end
 	return snap.rebirths
 end

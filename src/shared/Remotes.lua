@@ -29,6 +29,7 @@ Remotes.ClientToServer = {
 	"SeenLimited", -- (eggId: string) the shop opened on this limited egg once (don't again)
 	"BuyInstantWeather", -- (eventId: string) a 120 s weather event on your own plot, for Gems
 	"RebirthNow", -- () rebirth at 50%+ of the cost, for Gems
+	"BuyGemUpgrade", -- (kind: "penSlots" | "luck" | "offline") Gem upgrade, kept through rebirth
 }
 
 -- server -> client

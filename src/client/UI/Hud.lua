@@ -1231,16 +1231,16 @@ local function eggTray()
 	})
 end
 
--- WATER: one tap waters the whole plot (GameConfig.waterMultiplier for waterDuration). A square
--- drain ring empties clockwise while it lasts and the button is dimmed meanwhile (navy, never pink:
--- it's free). The first tap in a session explains it in a toast. The label "WATER · 2x 30s" is on
--- two lines: "WATER" / "· 2x 30s" (the button is too narrow for one).
+-- WATER: one tap waters the whole plot (GameConfig.waterMultiplier for waterDuration). The drop
+-- glyph and "2x GROWTH" / "FOR 30s" (from config); while it runs "2x ACTIVE" with the seconds
+-- left, dimmed (navy, never pink: it's free). The first tap in a session explains it in a toast.
 -- 2 -> "2", 1.5 -> "1.5" (config values may be fractional; %d would throw on them).
 local function plainNumber(n: number): string
 	return if n == math.floor(n) then tostring(math.floor(n)) else tostring(n)
 end
 local WATER_BOOST = plainNumber(GameConfig.waterMultiplier) .. "x"
-local WATER_SUB = "· " .. WATER_BOOST .. " " .. plainNumber(GameConfig.waterDuration) .. "s"
+local WATER_LINE1 = WATER_BOOST .. " GROWTH"
+local WATER_LINE2 = "FOR " .. plainNumber(GameConfig.waterDuration) .. "s"
 local WATER_TOAST = "Watered! Eggs grow "
 	.. WATER_BOOST
 	.. " faster for "
@@ -1253,39 +1253,10 @@ local function waterButton()
 		local snap = State.snapshot:get()
 		return snap ~= nil and State.now:get() < snap.wateredUntil
 	end)
-	local left = Computed(function()
-		State.clock:get()
-		local snap = State.snapshot:get()
-		if not snap then
-			return 0
-		end
-		return math.clamp((snap.wateredUntil - workspace:GetServerTimeNow()) / GameConfig.waterDuration, 0, 1)
-	end)
 	local growing = Computed(function()
 		return State.nextReadyIn:get() ~= nil
 	end)
 	local TEXT_X = PLOT.glyphInset + PLOT.glyph + PLOT.textGap
-	-- One edge of the ring: its quarter of `left`, in order top, right, bottom, left.
-	local RING = PLOT.ringWidth
-	local ANCHORS = { Vector2.new(0, 0), Vector2.new(1, 0), Vector2.new(1, 1), Vector2.new(0, 1) }
-	local function edge(i: number)
-		local fill = Computed(function()
-			return math.clamp(left:get() * 4 - (i - 1), 0, 1)
-		end)
-		local horizontal = i % 2 == 1
-		return New("Frame")({
-			Name = "Ring" .. i,
-			BorderSizePixel = 0,
-			BackgroundColor3 = Theme.colors.water,
-			Visible = watering,
-			ZIndex = 6,
-			AnchorPoint = ANCHORS[i],
-			Position = UDim2.fromScale(ANCHORS[i].X, ANCHORS[i].Y),
-			Size = Computed(function()
-				return if horizontal then UDim2.new(fill:get(), 0, 0, RING) else UDim2.new(0, RING, fill:get(), 0)
-			end),
-		})
-	end
 	return New("Frame")({
 		Name = "Water",
 		-- Left of SHOP, the same size; bottom-right, or mid-right with SHOP (plotMidRight).
@@ -1331,35 +1302,34 @@ local function waterButton()
 					}),
 					C.label({
 						Name = "Label",
-						Text = "WATER",
+						Text = Computed(function()
+							return if watering:get() then WATER_BOOST .. " ACTIVE" else WATER_LINE1
+						end),
 						Position = UDim2.fromOffset(TEXT_X, PLOT.line1.y),
 						Size = UDim2.new(1, -(TEXT_X + PLOT.textRight), 0, PLOT.line1.height),
+						TextXAlignment = Enum.TextXAlignment.Left,
 						MaxTextSize = PLOT.line1.text,
 						ZIndex = 4,
 					}),
 					C.label({
 						Name = "Sub",
-						-- The label reads "WATER · 2x 30s" over two lines; while watered, the time
-						-- left: "· 2x 0:18".
+						-- While watered: the seconds left ("0:18").
 						Text = Computed(function()
 							local snap = State.snapshot:get()
 							if watering:get() and snap then
-								return "· " .. WATER_BOOST .. " " .. clock(snap.wateredUntil - State.now:get())
+								return clock(snap.wateredUntil - State.now:get())
 							end
-							return WATER_SUB
+							return WATER_LINE2
 						end),
 						Position = UDim2.fromOffset(TEXT_X, PLOT.line2.y),
 						Size = UDim2.new(1, -(TEXT_X + PLOT.textRight), 0, PLOT.line2.height),
+						TextXAlignment = Enum.TextXAlignment.Left,
 						MaxTextSize = PLOT.line2.text,
 						TextColor3 = Theme.colors.cream,
 						ZIndex = 4,
 					}),
 				},
 			}),
-			edge(1),
-			edge(2),
-			edge(3),
-			edge(4),
 		},
 	})
 end
