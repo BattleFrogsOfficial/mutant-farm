@@ -661,12 +661,12 @@ local function card(spec: { i: number?, limited: string? })
 					ZIndex = 14,
 				}),
 			}),
-			-- Limited: "🎃 ENDS IN 3d 4h", live, full width under the odds button (the egg art is
-			-- shorter on these cards to make room), so it stays readable on phones.
+			-- Limited: "🎃 ENDS IN 3d 4h", live, full width under the odds button and clear of its
+			-- shadow (the egg art is shorter on these cards to make room), so it stays readable on phones.
 			if limited
 				then New("Frame")({
 					Name = "Ends",
-					Position = UDim2.fromOffset(8, 50),
+					Position = UDim2.fromOffset(8, 53),
 					Size = UDim2.new(1, -16, 0, 36),
 					BackgroundColor3 = Color3.fromHex(tier.color),
 					BorderSizePixel = 0,

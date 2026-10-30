@@ -1,5 +1,5 @@
 -- HUD scenes (tools/preview/checks/hud.js checks them): the egg tray with 0 / 1 / 2 / 6 owned egg
--- types (the "next egg" tile and gated tiers), the 6-egg tray on a touch screen, the watered
+-- types (the "next egg" tile and gated tiers; two-egg trays with Gem / limited eggs), the 6-egg tray on a touch screen, the watered
 -- state (drain ring running, WATER dimmed), every red dot lit (hud-dots, hud-plot-dots), and the
 -- right column at its tallest over a touch layout's mid-right SHOP / WATER (phone and hybrid
 -- device). Every scene is captured at every preview size through captureHud, so it also runs
@@ -35,6 +35,14 @@ return function(api)
 	-- 2 owned, $26K earned: Lab is unlocked and not owned, so it's the next egg ($5K).
 	set(State.snapshot, snapWith({ Starter = 3, Swamp = 1, Lab = 0 }, 26_000))
 	api.captureHud("hud-plot-eggs2")
+	-- 2 owned with long names (they wrap onto two lines): still fits with the next egg tile.
+	set(State.snapshot, snapWith({ Starter = 2, StarterGem = 1 }, 0))
+	api.captureHud("hud-plot-eggs2-gem")
+	set(State.snapshot, snapWith({ Starter = 2, Pumpkin = 1 }, 0))
+	api.captureHud("hud-plot-eggs2-pumpkin")
+	-- Only Gem eggs: the next egg is Starter, the longest Cash egg name.
+	set(State.snapshot, snapWith({ StarterGem = 1, SwampGem = 1 }, 0))
+	api.captureHud("hud-plot-eggs2-gemsonly")
 	-- 6 owned: Starter, Swamp, Lab and three Gem/limited eggs; Toxic (Rebirth 1) never shows.
 	local six = { Starter = 3, Swamp = 2, Lab = 1, StarterGem = 2, SwampGem = 1, Pumpkin = 1 }
 	set(State.snapshot, snapWith(six, 26_000))

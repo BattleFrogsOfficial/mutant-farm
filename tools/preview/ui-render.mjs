@@ -25,11 +25,16 @@ const checkSizes = [
   ["wide", 1663, 726],
   ["win43", 960, 720],
   ["svga", 800, 600],
+  ["canvas900", 1000, 658],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
 const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "InstantWeather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
 
 const html = `<!doctype html><html><head><style>
+/* Roblox draws Enum.Font.GothamBlack / GothamBold with Montserrat Black / Bold (since Gotham's
+   removal in 2024); @fontsource/montserrat (package.json) serves the same fonts here. */
+@font-face { font-family: "Montserrat"; font-weight: 900; src: url(/fonts/montserrat-latin-900-normal.woff2) format("woff2"); }
+@font-face { font-family: "Montserrat"; font-weight: 700; src: url(/fonts/montserrat-latin-700-normal.woff2) format("woff2"); }
 * { box-sizing: border-box; }
 body { margin: 0; overflow: hidden; font-family: "Fredoka", "Arial Rounded MT Bold", "Nunito", Arial, sans-serif; }
 #screen { position: relative; overflow: hidden; background: #8fc96f center/cover no-repeat; }
@@ -134,7 +139,7 @@ function build(node, parentInner, parentLayout) {
     t.style.textAlign = xa.toLowerCase() === "center" ? "center" : xa.toLowerCase();
     t.style.alignItems = ya === "Top" ? "flex-start" : ya === "Bottom" ? "flex-end" : "center";
     t.style.color = rgba(p.TextColor3, p.TextTransparency ?? 0);
-    if (p.Font === "GothamBlack" || p.Font === "GothamBold") { t.style.fontFamily = "Inter, sans-serif"; t.style.fontWeight = p.Font === "GothamBlack" ? "900" : "700"; }
+    if (p.Font === "GothamBlack" || p.Font === "GothamBold") { t.style.fontFamily = "Montserrat, sans-serif"; t.style.fontWeight = p.Font === "GothamBlack" ? "900" : "700"; }
     else if (p.Font && p.Font !== "FredokaOne") t.style.fontFamily = "Arial, sans-serif";
     let text = p.Text || "";
     if (p.RichText) text = text.replace(/<font[^>]*color="([^"]+)"[^>]*>/g, '<span style="color:$1">').replace(/<\\/font>/g, "</span>");
@@ -263,7 +268,10 @@ function paintedRect(el) {
     if (painted) {
       // Clip by ancestors that clip (ClipsDescendants / ScrollingFrame), like Roblox draws it.
       let b = d.getBoundingClientRect();
-      b = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+      // A Border UIStroke is drawn as a box-shadow outside the box: it is painted too.
+      const stroke = /0px 0px 0px ([\\d.]+)px/.exec(cs.boxShadow);
+      const grow = stroke && d.offsetWidth > 0 ? parseFloat(stroke[1]) * (b.width / d.offsetWidth) : 0;
+      b = { left: b.left - grow, top: b.top - grow, right: b.right + grow, bottom: b.bottom + grow };
       for (let p = d.parentElement; p && p !== document.body; p = p.parentElement) {
         if (getComputedStyle(p).overflow === "hidden" && p.id !== "screen") {
           const c = p.getBoundingClientRect();
@@ -443,6 +451,7 @@ window.checkOverlaps = (W, H, touch) => {
 };
 </script></body></html>`;
 
+const fontsDir = path.join(path.dirname(new URL(import.meta.url).pathname), "node_modules/@fontsource/montserrat/files");
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on("pageerror", (e) => console.error("page error:", e.message));
@@ -450,9 +459,15 @@ page.on("pageerror", (e) => console.error("page error:", e.message));
 await page.route("http://preview.local/**", (route) => {
   const url = new URL(route.request().url());
   if (url.pathname === "/ui.json") return route.fulfill({ status: 200, contentType: "application/json", body: fs.readFileSync(uiPath) });
+  if (url.pathname.startsWith("/fonts/")) {
+    const file = path.join(fontsDir, path.basename(url.pathname));
+    return route.fulfill({ status: 200, contentType: "font/woff2", body: fs.readFileSync(file) });
+  }
   return route.fulfill({ status: 200, contentType: "text/html", body: html });
 });
 await page.goto("http://preview.local/", { timeout: 300_000 });
+// Text is measured (TextScaled fitting, checks), so the fonts must be in before the first render.
+await page.evaluate(() => Promise.all(["900 16px Montserrat", "700 16px Montserrat"].map((f) => document.fonts.load(f))));
 await page.evaluate(() => window.loadData());
 const checksDir = path.join(path.dirname(new URL(import.meta.url).pathname), "checks");
 for (const f of (fs.existsSync(checksDir) ? fs.readdirSync(checksDir) : []).filter((f) => f.endsWith(".js")).sort()) {

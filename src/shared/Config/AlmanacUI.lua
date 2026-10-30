@@ -11,10 +11,12 @@ return {
 
 	-- Milestone track, right under the title: a marker row (bar + markers), then a label row
 	-- (labels, or the tooltip of a tapped marker).
-	trackHeight = 54,
-	markerRowHeight = 28, -- the bar runs through the middle of this row
+	trackHeight = 60,
+	-- The bar runs through the middle of this row, tall enough for the big diamond with its
+	-- outline (18 px side, ~25 px across + ~4 px of outline at each tip).
+	markerRowHeight = 34,
 	barHeight = 10,
-	labelTop = 30, -- label row: from here to trackHeight
+	labelTop = 36, -- label row: from here to trackHeight
 	-- The current segment (last passed milestone .. next one) takes this fraction of the bar; the
 	-- later milestones are spread proportionally over the rest.
 	segmentFraction = 0.28,
@@ -64,12 +66,15 @@ return {
 	tooltipPad = 8, -- tooltip box: text + this on each side
 	tooltipOutline = 3,
 
-	-- Under the track: tier tabs, the 6x2 species grid, the pager.
-	tabsGap = 6, -- track -> tabs
+	-- Under the track: tier tabs, the 6x2 species grid, the pager, 8 px apart as frames, so the
+	-- outlines and shadows drawn outside them never touch (the picked tab's 4 px gold outline, the
+	-- cards' shadows, the pager buttons' outlines). 60 + 8 + 40 + 8 + (2 x 106 + 8) + 8 + 48 = 392,
+	-- the content height (480 - 72 - 16).
+	tabsGap = 8, -- track -> tabs
 	tabHeight = 40,
-	gridGap = 6, -- tabs -> grid
+	gridGap = 8, -- tabs -> grid
 	cellWidth = 110, -- 6 x 110 + 5 x 8 = 700 <= content width (728)
-	cellHeight = 112,
+	cellHeight = 106,
 	cellGap = 8,
 	pagerHeight = 48,
 }

@@ -113,47 +113,55 @@ return {
 	},
 
 	-- Egg tray (plot, bottom center): owned eggs + one "next egg" tile, HATCH on the right.
-	-- Tiles size to content: egg art, a name line, a count (or price) badge in the corner. A tile
-	-- is at least `tileWidth` (`nextTileWidth` for the next egg tile with its "AT THE EGG SHOP"
-	-- line) and grows with its text, estimated at `charWidth` em per GothamBlack capital and
-	-- `spaceWidth` em per space (a little generous, so text never has to shrink). `width` fits two
-	-- owned eggs plus the next egg tile (Starter, Swamp, "Lab / AT THE EGG SHOP") without scrolling;
-	-- more eggs scroll.
+	-- Tiles size to content: egg art, a name, a count (or price) badge in the corner. A tile is at
+	-- least `tileWidth` and grows with its text, estimated in em of GothamBlack capitals (Roblox
+	-- draws it with Montserrat Black): `charWidth` per character, `wideChars` for the wide ones,
+	-- `spaceWidth` per space, `emojiWidth` per emoji; a little generous, so text never has to
+	-- shrink. An owned egg's name may wrap at its spaces ("STARTER" / "GEM"), so only its longest
+	-- word sets the width; the next egg tile reads "SWAMP" / "AT THE" / "EGG SHOP". That keeps any
+	-- two owned eggs plus the next egg tile inside `width` without scrolling; more eggs scroll.
 	tray = {
-		width = 440,
-		height = 146,
+		width = 424,
+		height = 158,
 		bottom = 12,
 		tileWidth = 78,
-		nextTileWidth = 120,
-		charWidth = 0.72,
+		charWidth = 0.78,
+		wideChars = { W = 1.21, M = 0.95 },
 		spaceWidth = 0.3,
-		tileHeight = 104,
+		emojiWidth = 1.3,
+		tileHeight = 116,
 		tileGap = 8,
 		art = 64,
 		artY = 2,
 		lift = 8, -- the picked egg rises this much
-		badgeWidth = 32, -- "x3"
+		badgeWidth = 32, -- "x3" (at least; badges grow with their text)
 		nextBadgeWidth = 46, -- "$500"
 		badgeHeight = 20,
 		badgeInset = 3,
 		badgeText = 14,
-		labelInset = 4, -- name line: from the tile's sides and bottom
-		labelHeight = 18,
+		labelInset = 4, -- name: from the tile's sides and bottom
+		labelHeight = 34, -- two lines of `labelText`, bottom-aligned
 		labelText = 14,
-		-- Next egg tile: the name line sits above "AT THE EGG SHOP".
-		nextNameBottom = 20,
-		nextShopHeight = 14,
+		-- Next egg tile: one name line (`nextNameHeight`, its bottom `nextNameBottom` above the tile's
+		-- bottom) over the two "AT THE" / "EGG SHOP" lines (`nextShopHeight`, `labelInset` up).
+		nextNameBottom = 34,
+		nextNameHeight = 18,
+		nextShopHeight = 30,
 		nextShopText = 13, -- >= 7 px on the narrowest phone (scale ~0.56)
-		nextShopInset = 3, -- "AT THE EGG SHOP" needs nearly the whole tile width
+		nextShopInset = 3,
 		hatchWidth = 102,
 		hatchInset = 10, -- from the tray's right edge, lined up with the 2x Luck badge
 		hatchGlyph = 34,
-		hatchGlyphY = 8,
-		hatchLine1 = { y = 48, height = 20, text = 18 }, -- "HATCH 3"
-		hatchLine2 = { y = 70, height = 16, text = 14 }, -- "TAP!" / "GROWING"
+		hatchGlyphY = 14,
+		hatchLine1 = { y = 54, height = 20, text = 18 }, -- "HATCH 3"
+		hatchLine2 = { y = 76, height = 16, text = 14 }, -- "TAP!" / "GROWING"
 		chatWidth = 215, -- the chat window at its smallest (WidthScale 0.5), plus margin
 	},
-	nextUpBottom = 190, -- Next Up's bottom edge above the screen bottom
+	-- Next Up's bottom edge above the screen bottom (clear of the tray's tab). It slides left when
+	-- the mid-right buttons (a narrow window) would reach over it.
+	nextUpBottom = 202,
+	nextUpWidth = 400,
+	nextUpHeight = 32,
 
 	-- Vector glyphs (UI/Glyphs.lua): ink outline and the boxy hard shadow (Theme.shadow), in design
 	-- px. The shadow is faded as one layer (a CanvasGroup) like C.shadow, so overlapping shapes

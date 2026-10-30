@@ -493,6 +493,7 @@ local SCREENS = {
 	{ 1663, 726 },
 	{ 960, 720 },
 	{ 800, 600 },
+	{ 1000, 658 },
 }
 local TOPBAR = 58
 local function screenAt(w: number, h: number)

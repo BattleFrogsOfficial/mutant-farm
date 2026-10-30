@@ -23,8 +23,9 @@ HUD and Almanac fixes from the first Studio pass (10 items). No gameplay or bala
 | `6f8e055` | Preview: scene files start from the main UI mount; delayed callbacks run before each capture |
 | `ae39fcd` | Review fixes: canvas never under 900 wide, gaps measured as drawn, tray tiles fit their names, touch cap per device, stricter checks |
 | `473ee08` | CLAUDE.md UI section, DESIGN.md dated note |
-| `17f1867` | Verification fixes: tray fits two eggs + next, mid-right SHOP/WATER under the column, Cash clear of the top-left chat, 800x600 in the preview |
-| (this one) | This handoff |
+| `17f1867` | Verification fixes: mid-right SHOP/WATER under the column, Cash clear of the top-left chat, 800x600 in the preview |
+| `b03a05f` | First version of this handoff |
+| (this one) | Review fixes 2: owned names wrap and the next tile reads "SWAMP / AT THE / EGG SHOP" (any two eggs + next fit in 424), Next Up slides clear of mid-right buttons, preview in Montserrat with outlines counted, Almanac/shop spacing; this handoff |
 
 1. **Scaling** (`shared/HudScale.lua`, `Config/Hud.lua`): shorter screen edge (below the top bar) /
    540, capped at 1.25x with a mouse and 1.0x on touch devices (chosen once per device:
@@ -39,15 +40,19 @@ HUD and Almanac fixes from the first Studio pass (10 items). No gameplay or bala
    bundle's width), Starter Bundle, bag (plot).
 3. **SHOP size**: biggest in the hub (230x80); at the plot WATER's size (132x64), beside it.
    Mid-right on touch (and at the plot on narrow windows), centered on the canvas height but never
-   closer than 8 px under the right column at its tallest in that zone.
+   closer than 8 px under the right column at its tallest in that zone. Where they reach over Next
+   Up's row (a 900-1000-wide canvas), Next Up slides left to stay 8 px clear.
 4. **WATER**: "WATER" / "· 2x 30s" on two lines, a square drain ring for the 30 s, dimmed (navy) while
    it runs, "2x" chip on every growing egg's timer, a first-use-per-session toast.
 5. **Icons**: `UI/Glyphs.lua`, vector glyphs from frames (up arrow, gift, book, coin, gem, egg, bag,
    drop) with ink outline and a hard shadow faded as one CanvasGroup. No ImageLabels for HUD icons.
 6. **Egg tray**: owned eggs plus ONE next-egg tile (`ShopRules.nextTrayEgg`, the cheapest unlocked
-   Cash egg you have none of: price badge + "AT THE EGG SHOP"); gated tiers never appear. Tiles size to
-   their text (`tray.charWidth` / `spaceWidth`); the tray is 440 wide so Starter + Swamp + the Lab tile
-   fit without scrolling. Lab's $25K progress: shop carousel + Next Up (`shared/NextUp.labGoal`).
+   Cash egg you have none of: price badge, its name, "AT THE" / "EGG SHOP"); gated tiers never appear.
+   Long owned names wrap at their spaces ("STARTER" / "GEM", "🎃" / "PUMPKIN"), so tiles grow only
+   with their longest word (estimated in em of Montserrat Black, wide letters and emoji counted),
+   badges with their text; tiles are 116 tall for the next tile's three lines. Any two owned eggs
+   plus the next tile fit the 424-wide tray without scrolling. Lab's $25K progress: shop carousel +
+   Next Up (`shared/NextUp.labGoal`).
 7. **Gate sign** second line: `shared/GateSign.incomeText` ("$0/min · plant eggs to earn", then
    "$3.4K/min"); the name line stays.
 8. **Soil markers** (`UI/SoilMarker`, `Config/WorldUI`): navy "+" tile on each empty owned patch
@@ -57,16 +62,22 @@ HUD and Almanac fixes from the first Studio pass (10 items). No gameplay or bala
    current segment (last passed milestone to the next) fills 28% of the bar with a big diamond at its
    end, later milestones smaller and proportional, big ones labeled (🥚 Toxic 100, Void 200, Cosmic
    300, 🍀 +10% luck 400), labels collapse to icons when they'd collide; tap a marker: tooltip.
-10. **Preview**: scenes for the tray with 0 / 1 / 2 / 6 eggs, watered, every red dot lit, the glyph
-    sheet, the tallest right column over a touch layout (phone and hybrid device), soil / timer / gate
-    (world), Almanac at 5 / 24 / 26 / 399 and the tooltip. Hooks: `tools/preview/scenes/*.luau` +
-    `tools/preview/checks/*.js` (CLAUDE.md, "UI preview").
+   Track, tabs, grid and pager sit 8 px apart so no outline touches (cards 110x106).
+10. **Preview**: scenes for the tray with 0 / 1 / 2 / 6 eggs (and two-egg trays with a Gem egg, the
+    Pumpkin, only Gem eggs), watered, every red dot lit, the glyph sheet, the tallest right column
+    over a touch layout (phone and hybrid device), soil / timer / gate (world), Almanac at 5 / 24 /
+    26 / 399 and the tooltip. Hooks: `tools/preview/scenes/*.luau` + `tools/preview/checks/*.js`
+    (CLAUDE.md, "UI preview"). The preview now renders GothamBlack in **Montserrat Black** (what
+    Roblox draws it with since Gotham's removal; `@fontsource/montserrat` in
+    `tools/preview/package.json`, so run `npm install` there once), and every overlap check counts
+    UIStroke outlines. Sizes add 1000x658 (a 900x540 canvas).
 
-**Verified at the end** (17f1867 + this commit): `lune run tools/check` 124 files, 0 failed ·
+**Verified at the end** (this commit): `lune run tools/check` 124 files, 0 failed ·
 `lune run tools/test` 126 passed, 0 failed · `stylua --check src tools tests` clean ·
 `node tools/relay/test.mjs` passed · world checker 0 issues with the Halloween decor on (2027 parts;
-on by date now) and off (2011 parts, `LIMITED_AT=1800000000`) · UI preview: HUD overlap 0 issues across 198 state x size combinations, Shop 0 across 72
-scenes, Panel 0 across 27, extra checks (hud, world, almanac) 0 across 262 renders. `selene` not run
+on by date now) and off (2011 parts, `LIMITED_AT=1800000000`) · UI preview (Montserrat, outlines
+counted, 10 sizes): HUD overlap 0 issues across 250 state x size combinations, Shop 0 across 80
+scenes, Panel 0 across 30, extra checks (hud, world, almanac) 0 across 321 renders. `selene` not run
 (the Roblox std download fails here). **Nothing was played in Studio.**
 
 ### Calls made where the request left room
@@ -85,8 +96,16 @@ scenes, Panel 0 across 27, extra checks (hud, world, almanac) 0 across 262 rende
   to clear the jump button on an 800x360 phone; it is still the biggest button.
 - **Glyph shadows** are a CanvasGroup faded as one layer (no seams). If CanvasGroups look soft or cost
   too much on low-end phones, set `Config/Hud.glyph.shadowTransparency = 0` (solid shadow) first.
-- **Tray width 424 -> 440**: needed for two owned eggs + the next tile at a legible text size;
-  1280x720 still keeps WATER/SHOP bottom-right (by 1 px; 1280x800 was already mid-right).
+- **Tray: wrap instead of widen.** A wider tray (440, then ~500 for Gem names) would push WATER/SHOP
+  mid-right on 1280x720 and still clip Gem/Pumpkin pairs, so owned names wrap at their spaces and the
+  next tile's "AT THE EGG SHOP" is two lines under its name; tiles grew 104 -> 116 tall (tray 158,
+  Next Up 12 px higher) instead. The tray stays 424 wide.
+- **Next Up slides left** (only when the mid-right buttons reach over its row) rather than moving
+  the buttons back up into the right column's space.
+- **Preview font**: Inter was narrower than Montserrat Black and hid squeezed text; the estimate and
+  every text check now run against Montserrat. Counting outlines in every overlap check exposed
+  1-3 px touches in the Almanac (picked tab / grid / pager, the big diamond's tip) and the Pumpkin
+  card ("ENDS IN" ribbon under the % button); fixed by spacing, not by loosening the checks.
 
 ## Needs a Studio look
 
@@ -106,8 +125,9 @@ fades, 3D viewports and gradient text.
    toast on a live server; the "2x" chip on each growing egg's timer is not clipped.
 6. **Egg timer height**: if the bar sits lower than ~4.2 studs over the patch, the BillboardGui's
    `SizeOffset` direction is the other way: negate `SlotTimer.SIZE_OFFSET`.
-7. **Egg tray**: real GothamBlack widths in the tiles (names never shrink; "AT THE EGG SHOP" fits),
-   scrolling with 3+ eggs, the next tile opening the shop.
+7. **Egg tray**: Roblox's TextScaled wraps "STARTER GEM" / "🎃 PUMPKIN" onto two lines at 14 px
+   (rather than shrinking) in the 34 px name box; the "\n" in "AT THE" / "EGG SHOP"; scrolling with
+   3+ eggs; the next tile opening the shop.
 8. **Mid-right SHOP/WATER** on a phone with Instant Weather + the bundle showing (the first session),
    clear of the jump button; Next Up's Lab line (9.2 px on the smallest phone) legible.
 9. **Gate sign** income line on both lines of the board (see open decisions).
@@ -124,6 +144,9 @@ previous handoff: `git show 53b4844:docs/HANDOFF.md`.
 
 - **Gate sign wraps**: "$0/min · plant eggs to earn" breaks onto two lines on its 300x60 board ("earn"
   alone on the second line, ~20 canvas px). Shorter text ("$0/min · plant to earn") or a wider board?
+- **Almanac tier tabs** squeeze their text in the real font: "Starter 0/67" and "Swamp 0/67" draw
+  smaller than "Lab 0/67", and "Cosmic 26/66" wraps (7 tabs share 728 px). Shorter labels (the
+  count only on the picked tab?) or two rows of tabs? Not part of this pass.
 - **Almanac track** draws only the last passed milestone (gold, checked), not every earlier one; the
   segment starts there. Draw all passed markers in gold on the left?
 - **Cash and Gems** are 8 px apart frame to frame, so only ~1 px shows between Cash's shadow and the

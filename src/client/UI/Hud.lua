@@ -154,6 +154,31 @@ local function midRightTop(screen: { width: number, height: number, scale: numbe
 	return math.max((screen.height / screen.scale - height) / 2, columnBottom + ROW_STEP)
 end
 
+-- Next Up's horizontal shift: the tray's (clear of the chat), but where the mid-right buttons
+-- (WATER + SHOP at the plot, SHOP in the hub) reach down over its row (a narrow window), it slides
+-- left until it is COLUMN.gap clear of them as drawn (its 3 px outline, their outline).
+local function nextUpShift(
+	screen: { width: number, height: number, scale: number },
+	hub: boolean,
+	midRight: boolean
+): number
+	local shift = shiftFor(screen)
+	if not midRight then
+		return shift
+	end
+	local canvasW, canvasH = screen.width / screen.scale, screen.height / screen.scale
+	local buttonsW = if hub then L.shop.hubWidth else 2 * PLOT.width + PLOT.gap
+	local buttonsH = if hub then L.shop.hubHeight else PLOT.height
+	local buttonsBottom = midRightTop(screen, buttonsH, hub) + buttonsH + Theme.shadow
+	local nextUpTop = canvasH - L.nextUpBottom - L.nextUpHeight - L.faceOutline
+	if buttonsBottom + COLUMN.gap <= nextUpTop then
+		return shift
+	end
+	local buttonsLeft = canvasW - EDGE - buttonsW - L.faceOutline
+	local maxRight = buttonsLeft - COLUMN.gap - L.faceOutline
+	return math.min(shift, maxRight - canvasW / 2 - L.nextUpWidth / 2)
+end
+
 -- "4:12" / "1:02:09"
 local function clock(seconds: number): string
 	seconds = math.max(0, math.floor(seconds))
@@ -699,6 +724,7 @@ local function trayTile(props: {
 	BadgeWidth: number,
 	Label: string,
 	LabelBottom: number,
+	LabelHeight: number,
 	Sub: string?,
 	Selected: any,
 	OnClick: () -> (),
@@ -727,7 +753,8 @@ local function trayTile(props: {
 			Text = props.Label,
 			AnchorPoint = Vector2.new(0.5, 1),
 			Position = UDim2.new(0.5, 0, 1, -props.LabelBottom),
-			Size = UDim2.new(1, -2 * TRAY.labelInset, 0, TRAY.labelHeight),
+			Size = UDim2.new(1, -2 * TRAY.labelInset, 0, props.LabelHeight),
+			TextYAlignment = Enum.TextYAlignment.Bottom,
 			MaxTextSize = TRAY.labelText,
 			ZIndex = 4,
 		}),
@@ -792,18 +819,39 @@ local function shortName(eggId: string): string
 	return string.upper((Eggs.tiers[eggId].name:gsub(" Egg", "")))
 end
 
--- A tray tile's width: at least `minWidth`, and wide enough for each of its text lines at full size
--- ({ text, text size, side inset }), so names like "STARTER GEM" or "🎃 PUMPKIN" never shrink.
+-- Estimated width of `text` in em of GothamBlack capitals (Config/Hud.tray: a little generous).
+local function textEm(text: string): number
+	local em = 0
+	for _, code in utf8.codes(text) do
+		local char = utf8.char(code)
+		em += if char == " "
+			then TRAY.spaceWidth
+			elseif code >= 0x2000 then TRAY.emojiWidth
+			else TRAY.wideChars[char] or TRAY.charWidth
+	end
+	return em
+end
+
+-- A tray tile's width: at least `minWidth`, and wide enough for its text at full size. Each entry
+-- is { text, text size, side inset, wraps }: its lines are split at "\n", and a text that wraps
+-- (an owned egg's name: "STARTER" / "GEM", "🎃" / "PUMPKIN") needs only its longest word on a
+-- line, so long names take two lines instead of shrinking or widening the tray.
 local function tileWidthFor(minWidth: number, lines: { { any } }): number
 	local width = minWidth
 	for _, line in lines do
-		local text, size, inset = line[1] :: string, line[2] :: number, line[3] :: number
-		local spaces = select(2, string.gsub(text, " ", ""))
-		local chars = (utf8.len(text) or #text) - spaces
-		local em = chars * TRAY.charWidth + spaces * TRAY.spaceWidth
-		width = math.max(width, math.ceil(em * size) + 2 * inset)
+		local text, size, inset, wraps = line[1] :: string, line[2] :: number, line[3] :: number, line[4] == true
+		for _, row in string.split(text, "\n") do
+			for _, part in if wraps then string.split(row, " ") else { row } do
+				width = math.max(width, math.ceil(textEm(part) * size) + 2 * inset)
+			end
+		end
 	end
 	return width
+end
+
+-- A badge's width: at least `minWidth`, and wide enough for its text ("x12", "$500K").
+local function badgeWidthFor(minWidth: number, text: string): number
+	return math.max(minWidth, math.ceil(textEm(text) * TRAY.badgeText) + 4)
 end
 
 -- One owned egg: tap to pick it, then tap soil to plant.
@@ -818,11 +866,12 @@ local function eggCard(eggId: string, count: number)
 			then (table.find(Eggs.gemOrder, eggId) :: number) + 10
 			else nil) or ((table.find(Eggs.limitedOrder, eggId) or 0) + 20),
 		EggId = eggId,
-		Width = tileWidthFor(TRAY.tileWidth, { { label, TRAY.labelText, TRAY.labelInset } }),
+		Width = tileWidthFor(TRAY.tileWidth, { { label, TRAY.labelText, TRAY.labelInset, true } }),
 		Badge = "x" .. count,
-		BadgeWidth = TRAY.badgeWidth,
+		BadgeWidth = badgeWidthFor(TRAY.badgeWidth, "x" .. count),
 		Label = label,
 		LabelBottom = TRAY.labelInset,
+		LabelHeight = TRAY.labelHeight,
 		Selected = Computed(function()
 			return State.selectedEgg:get() == eggId
 		end),
@@ -832,25 +881,28 @@ local function eggCard(eggId: string, count: number)
 	})
 end
 
-local NEXT_EGG_SUB = "AT THE EGG SHOP"
+-- On two lines, so the next egg tile stays as narrow as an owned one.
+local NEXT_EGG_SUB = "AT THE\nEGG SHOP"
 
 -- The one "next egg" tile after the owned eggs: the cheapest unlocked Cash egg you have none of
--- (ShopRules.nextTrayEgg), with its name, its price and "AT THE EGG SHOP". Tap: Egg Shop. Gated
--- tiers never show here; Lab's $25K progress lives in the shop carousel and Next Up.
+-- (ShopRules.nextTrayEgg), with its name, its price and "AT THE" / "EGG SHOP". Tap: Egg Shop.
+-- Gated tiers never show here; Lab's $25K progress lives in the shop carousel and Next Up.
 local function nextEggCard(eggId: string)
+	local price = Format.cash(Eggs.tiers[eggId].cost)
 	return trayTile({
 		Name = "NextEgg",
 		LayoutOrder = 100,
 		EggId = eggId,
-		Width = tileWidthFor(TRAY.nextTileWidth, {
+		Width = tileWidthFor(TRAY.tileWidth, {
 			{ shortName(eggId), TRAY.labelText, TRAY.labelInset },
 			{ NEXT_EGG_SUB, TRAY.nextShopText, TRAY.nextShopInset },
 		}),
-		Badge = Format.cash(Eggs.tiers[eggId].cost),
+		Badge = price,
 		BadgeColor = Theme.colors.gold,
-		BadgeWidth = TRAY.nextBadgeWidth,
+		BadgeWidth = badgeWidthFor(TRAY.nextBadgeWidth, price),
 		Label = shortName(eggId),
 		LabelBottom = TRAY.nextNameBottom,
+		LabelHeight = TRAY.nextNameHeight,
 		Sub = NEXT_EGG_SUB,
 		OnClick = function()
 			openPanel("shop")
@@ -1281,9 +1333,13 @@ local function nextUp()
 		Name = "NextUp",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = Computed(function()
-			return UDim2.new(0.5, trayShift:get(), 1, -L.nextUpBottom)
+			-- Read every dependency up front (Fusion 0.2: no Computed first read mid-update).
+			local screen, hub, plotRight, shopRight =
+				State.screen:get(), inHub:get(), plotMidRight:get(), shopMidRight:get()
+			local shift = nextUpShift(screen, hub, if hub then shopRight else plotRight)
+			return UDim2.new(0.5, shift, 1, -L.nextUpBottom)
 		end),
-		Size = UDim2.fromOffset(400, 32),
+		Size = UDim2.fromOffset(L.nextUpWidth, L.nextUpHeight),
 		BackgroundColor3 = Theme.colors.panel,
 		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,

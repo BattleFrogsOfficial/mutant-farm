@@ -10,11 +10,13 @@
 //   (never pink) with its drain ring while watered
 //   hub: SHOP is the biggest button on screen
 //   no ImageLabel/ImageButton in the HUD; the tile/Cash/Gems/HATCH/bag/WATER icons are vector glyphs
-//   egg tray: owned eggs + at most one "next egg" tile (name, price, "at the Egg Shop"); in EVERY
-//   tray tile each text line fits on one line at nearly its full size (MIN_DESIGN_FONT, i.e. not
-//   squeezed by TextScaled because the tile is too narrow) and at least MIN_FONT px on screen;
-//   rebirth-gated tiers never appear as the next egg; the egg art is Config/Hud tray.art (64) px
-const MIN_DESIGN_FONT = 12 * 0.9;
+//   egg tray: owned eggs + at most one "next egg" tile (name, price, "AT THE" / "EGG SHOP"); in
+//   EVERY tray tile each text is at its full size (its MaxTextSize, i.e. not squeezed by
+//   TextScaled because the tile is too narrow), at least MIN_FONT px on screen, and only breaks
+//   between words (every word fits the label's width); rebirth-gated tiers never appear as the
+//   next egg; the egg art is Config/Hud tray.art (64) px; up to two owned eggs + the next egg
+//   fit in the tray without scrolling
+const FULL_SIZE = 0.98;
 const MIN_FONT = 7;
 const TRAY_ART = 64;
 registerCheck({
@@ -181,6 +183,9 @@ registerCheck({
         "hud-plot-eggs0": { owned: [], next: ["$50", "STARTER"] },
         "hud-plot-eggs1-new": { owned: ["Starter"], next: ["$500", "SWAMP"] },
         "hud-plot-eggs2": { owned: ["Starter", "Swamp"], next: ["$5K", "LAB"] },
+        "hud-plot-eggs2-gem": { owned: ["Starter", "StarterGem"], next: ["$500", "SWAMP"] },
+        "hud-plot-eggs2-pumpkin": { owned: ["Starter", "Pumpkin"], next: ["$500", "SWAMP"] },
+        "hud-plot-eggs2-gemsonly": { owned: ["StarterGem", "SwampGem"], next: ["$50", "STARTER"] },
         "hud-plot-eggs6": { owned: ["Starter", "Swamp", "Lab", "StarterGem", "SwampGem", "Pumpkin"], next: null },
         "hud-plot-eggs6-touch": { owned: ["Starter", "Swamp", "Lab", "StarterGem", "SwampGem", "Pumpkin"], next: null },
         "hud-plot-watered": { owned: ["Starter", "Swamp"], next: null },
@@ -200,7 +205,7 @@ registerCheck({
             const sub = (next.querySelector('[title="Sub"] span') || {}).textContent || "";
             if (price !== want.next[0]) problems.push(`next egg priced "${price}" (want ${want.next[0]})`);
             if (name !== want.next[1]) problems.push(`next egg named "${name}" (want ${want.next[1]})`);
-            if (!/^at the egg shop$/i.test(sub)) problems.push(`next egg tile says "${nextText}"`);
+            if (!/^at the\s+egg shop$/i.test(sub)) problems.push(`next egg tile says "${nextText}"`);
           }
         }
       }
@@ -230,10 +235,17 @@ registerCheck({
         for (const sp of tile.querySelectorAll("span")) {
           const host = sp.parentElement;
           if (!vis(host) || !sp.textContent.trim()) continue;
-          const design = parseFloat(getComputedStyle(host).fontSize), px = design * scaleOf(host);
-          if (design < MIN_DESIGN_FONT) problems.push(`${tileName} "${sp.textContent}" squeezed to ${design.toFixed(1)} design px (min ${MIN_DESIGN_FONT})`);
+          const cs = getComputedStyle(host);
+          const design = parseFloat(cs.fontSize), px = design * scaleOf(host), max = +host.dataset.max || design;
+          if (design < max * FULL_SIZE) problems.push(`${tileName} "${sp.textContent}" squeezed to ${design.toFixed(1)} design px (full size ${max})`);
           if (px < MIN_FONT) problems.push(`${tileName} "${sp.textContent}" at ${px.toFixed(1)} px on screen (min ${MIN_FONT})`);
-          if (sp.getClientRects().length > 1 || sp.getBoundingClientRect().height > px * 1.6) problems.push(`${tileName} "${sp.textContent}" wraps`);
+          // Line breaks only between words: every word fits the label's width on its own.
+          const ctx = (window.__measure ||= document.createElement("canvas").getContext("2d"));
+          ctx.font = `${cs.fontWeight} ${design}px ${cs.fontFamily}`;
+          for (const word of sp.textContent.split(/\s+/).filter(Boolean)) {
+            const w = ctx.measureText(word).width;
+            if (w > host.clientWidth + 0.5) problems.push(`${tileName}: "${word}" is wider than its label (${w.toFixed(1)} > ${host.clientWidth} design px)`);
+          }
         }
       }
     }
