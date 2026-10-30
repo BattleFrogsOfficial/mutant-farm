@@ -1,4 +1,4 @@
-# Handoff — 2026-10-28 (M5 build)
+# Handoff — 2026-10-30 (HUD and Almanac after the first Studio pass)
 
 Read `CLAUDE.md` first (rules, conventions, live numbers, commands) and `docs/DESIGN.md` (intent; dated
 rule changes at the top). This file is what a fresh session needs on top of them: what changed in the
@@ -7,132 +7,147 @@ last session, what has never run in Studio, what is still undecided, and what to
 Repo: https://github.com/BattleFrogsOfficial/mutant-farm (branch `main`). Tools: `bash tools/install-tools.sh`.
 Place file: `rojo build default.project.json -o MutantFarm.rbxl`.
 
+**The Pumpkin Egg window is open now** (2026-10-29 00:00 EDT to 11-05 23:59 EST). The M5 build it
+belongs to has still not been published or played in Studio; see "Next tasks".
+
 ## What was done this session
 
-| Commit | Item |
+HUD and Almanac fixes from the first Studio pass (10 items). No gameplay or balance change.
+
+| Commit | What |
 |---|---|
-| `7d60427` | A: rebirth tail x4.5, Gem badge on the focused card only, DESIGN.md as the intent doc |
-| `137ce71` | B: limited eggs (generic) + the Pumpkin Egg |
-| `394817d` | E: global weather schedule, announcements, Discord relay (+ Instant Weather server) |
-| `80e5f2f` | C + D: Instant Weather and Rebirth Now (client), Rebirth Now server |
-| (this one) | Docs: CLAUDE.md, DESIGN.md dated notes, this handoff |
+| `ffd00ac` | Item 1: scale by the shorter edge (1.25x mouse, 1.0x touch); panels fit the canvas; preview sizes + per-area scene/check hooks |
+| `a4e75e3` | Items 2-6: top-right tiles + right column, SHOP beside WATER at the plot, WATER label/ring/toast, vector glyphs, egg tray with one next-egg tile |
+| `47148bf` | Items 4, 6, 7, 8: "2x" chip on egg timers, live gate income, soil "+" markers, Lab progress in Next Up |
+| `9c085c8` | Item 9: Almanac milestone track (markers, labels, tooltips) |
+| `6f8e055` | Preview: scene files start from the main UI mount; delayed callbacks run before each capture |
+| `ae39fcd` | Review fixes: canvas never under 900 wide, gaps measured as drawn, tray tiles fit their names, touch cap per device, stricter checks |
+| `473ee08` | CLAUDE.md UI section, DESIGN.md dated note |
+| `17f1867` | Verification fixes: tray fits two eggs + next, mid-right SHOP/WATER under the column, Cash clear of the top-left chat, 800x600 in the preview |
+| (this one) | This handoff |
 
-- **A1 Rebirth tail** `Config/Rebirths.lua` costGrowth 4.5 (700K, 3.15M, 14.2M, 63.8M, ...). Sim, 60
-  runs, 1.5 active h/day: Rebirth 1 at **25 sim-min** (unchanged); free Rebirth 4 **day 3**, Rebirth 10
-  **day 23**; paying Rebirth 4 day 2, Rebirth 10 **day 11**. The open decision is closed.
-- **A2** the "2x RARITY ODDS" badge only on the focused card in Gem mode (side cards: egg and name).
-  The UI preview checks it.
-- **A3** CLAUDE.md's header points at DESIGN.md; every rule change goes into both, dated in DESIGN.md.
-- **B Limited eggs** `Config/LimitedEggs.lua` → tiers generated in `Eggs.lua` (outside `Eggs.order`),
-  `ShopRules.activeLimited/isLimitedActive/shownLimited`, BuyEgg refuses outside the window ("ended") or
-  when restricted, sink `LimitedEgg_<id>`, funnel `FirstLimitedEgg`. **Pumpkin Egg**: 600 Gems (x5
-  3,000), 30 min, Lab values and size, Lab's Uncommon+ x2 renormalized, design `jack` (ridges, carved
-  face, stem; no Neon), 10 Halloween species (bucket `Pumpkin`, 2 per rarity; new accessories
-  `witchHat`, `stem`; also in `tools/gen-mutants.luau`), window unix 1793246400..1793941140 (Oct 29
-  00:00 EDT .. Nov 5 23:59 EST, across the Nov 1 DST change). Shop: left-most slots in both modes,
-  Gem-priced, live "🎃 ENDS IN 3d 4h" ribbon, first open focuses it (`SeenLimited`,
-  `profile.seenLimited`) with NEW + flash, gone on the next open after `endsAt`. Tray/bag icon,
-  Almanac tab + "LIMITED · Halloween 2026". World (at server start, inside the window): banner on the
-  Egg Shop roof sign, three carved pumpkins around the fountain (`World.build(now)`; `LIMITED_AT` in
-  the preview tools forces it).
-- **C Instant Weather** 400 Gems: `BuyInstantWeather(eventId)` → a 120 s event on the buyer's plot only
-  (WeatherService, same rolls as global weather, independent of it, never two at once), policy-gated
-  like the potion, sink `InstantWeather_<id>`, player attributes `PlotWeatherId/EndsAt`. Pink HUD
-  button (no global event running or within 5 min, none of yours, not restricted) → picker panel; Shop
-  Gems section card; rain (+ static for Glitch Storm) over that island under a small cloud others see,
-  tint for the owner on their plot.
-- **D Rebirth Now** 100 Gems: `RebirthNow` from 50% of the cost: the exact rebirth flow, then the Gems
-  (checked first); sink `RebirthNow`; not policy-gated. Pink button beside the bar in the Rebirth panel
-  (two taps; short on Gems → Gem shop) and on the Rebirth Altar sign (now drawn per player by
-  `UI/AltarSign` in a PlayerGui SurfaceGui so it can be tapped; it opens the panel).
-- **E Weather** `shared/Weather.lua` `scheduleAt(t)`: 1500 s buckets counted from the unix epoch, event
-  at +300 s for 120 s, type = seeded hash of the bucket index, 45/40/15. Every server runs the same
-  events at the same time; the "first event 6 min after start" rule is gone. Announcements to the
-  server: toast at T-5:00 (+ chat system line), T-1:00 and the start. Discord (Glitch Storm, T-5:00):
-  MemoryStore claim (`WeatherAnnounce`, key = startsAt, UpdateAsync, 3600 s) → POST to `Game.relayUrl`
-  with `WEATHER_RELAY_KEY` in `X-Relay-Key`. `tools/relay/` has the Worker, its README (setup) and a
-  node test.
-- **Tooling**: the server harness fakes MemoryStore, HttpService (GetSecret, RequestAsync), Analytics
-  events (`world.economy`, `world.funnels`) and per-player policy (`world.restricted`). The UI preview
-  got shop-limited (Cash/Gems/restricted), hud-instant-weather (hub/plot/restricted), instantWeather,
-  rebirth-now (panel + altar) and a panel overlap check; ui-render waits up to 5 min for the (now
-  ~60 MB) scene file.
+1. **Scaling** (`shared/HudScale.lua`, `Config/Hud.lua`): shorter screen edge (below the top bar) /
+   540, capped at 1.25x with a mouse and 1.0x on touch devices (chosen once per device:
+   `TouchEnabled and not MouseEnabled`). Two guards on top: the canvas never gets narrower than 900
+   (4:3 and docked windows scale by width), and Cash never reaches into Roblox's default top-left
+   chat window (only windows under ~900 px wide scale down for it). Panels are content-sized and shrink
+   to fit (`Components.panel`). Preview sizes now: 1280x720, 844x390 (screenshots), 667x375, 800x360,
+   1024x768, 1920x1080, 1663x726, 960x720, 800x600 (checks).
+2. **Top right**: Upgrades / Daily / Almanac tiles 8 px apart *as drawn* (shadow to ink outline; frames
+   are spaced gap + 3 px outline + 4 px shadow), red dots inside the tiles. Right column under them,
+   8 px apart as drawn: weather chip (always a chip now, quiet navy in the hub), Instant Weather (the
+   bundle's width), Starter Bundle, bag (plot).
+3. **SHOP size**: biggest in the hub (230x80); at the plot WATER's size (132x64), beside it.
+   Mid-right on touch (and at the plot on narrow windows), centered on the canvas height but never
+   closer than 8 px under the right column at its tallest in that zone.
+4. **WATER**: "WATER" / "· 2x 30s" on two lines, a square drain ring for the 30 s, dimmed (navy) while
+   it runs, "2x" chip on every growing egg's timer, a first-use-per-session toast.
+5. **Icons**: `UI/Glyphs.lua`, vector glyphs from frames (up arrow, gift, book, coin, gem, egg, bag,
+   drop) with ink outline and a hard shadow faded as one CanvasGroup. No ImageLabels for HUD icons.
+6. **Egg tray**: owned eggs plus ONE next-egg tile (`ShopRules.nextTrayEgg`, the cheapest unlocked
+   Cash egg you have none of: price badge + "AT THE EGG SHOP"); gated tiers never appear. Tiles size to
+   their text (`tray.charWidth` / `spaceWidth`); the tray is 440 wide so Starter + Swamp + the Lab tile
+   fit without scrolling. Lab's $25K progress: shop carousel + Next Up (`shared/NextUp.labGoal`).
+7. **Gate sign** second line: `shared/GateSign.incomeText` ("$0/min · plant eggs to earn", then
+   "$3.4K/min"); the name line stays.
+8. **Soil markers** (`UI/SoilMarker`, `Config/WorldUI`): navy "+" tile on each empty owned patch
+   (pulses during the tutorial's plant steps), the next patch's price on the same tile; the old
+   server-side price sign is gone.
+9. **Almanac track** (`shared/AlmanacTrack`, `Config/AlmanacUI`): title "📖 Almanac N / 410"; the
+   current segment (last passed milestone to the next) fills 28% of the bar with a big diamond at its
+   end, later milestones smaller and proportional, big ones labeled (🥚 Toxic 100, Void 200, Cosmic
+   300, 🍀 +10% luck 400), labels collapse to icons when they'd collide; tap a marker: tooltip.
+10. **Preview**: scenes for the tray with 0 / 1 / 2 / 6 eggs, watered, every red dot lit, the glyph
+    sheet, the tallest right column over a touch layout (phone and hybrid device), soil / timer / gate
+    (world), Almanac at 5 / 24 / 26 / 399 and the tooltip. Hooks: `tools/preview/scenes/*.luau` +
+    `tools/preview/checks/*.js` (CLAUDE.md, "UI preview").
 
-**Verified at the end:** `lune run tools/check` 107 files, 0 failed · `lune run tools/test` 106 passed,
-0 failed · `stylua --check src tools tests` clean · `node tools/relay/test.mjs` passed · world checker
-0 issues with the Halloween decor off (2011 parts) and on (2027 parts, `LIMITED_AT=1793500000`) · UI
-preview: HUD 0 issues across 42 state x size combinations, shop 0 across 48 scenes, panels 0 across 18
-· sim as above. `selene` not run (the Roblox std download fails in this environment).
+**Verified at the end** (17f1867 + this commit): `lune run tools/check` 124 files, 0 failed ·
+`lune run tools/test` 126 passed, 0 failed · `stylua --check src tools tests` clean ·
+`node tools/relay/test.mjs` passed · world checker 0 issues with the Halloween decor on (2027 parts;
+on by date now) and off (2011 parts, `LIMITED_AT=1800000000`) · UI preview: HUD overlap 0 issues across 198 state x size combinations, Shop 0 across 72
+scenes, Panel 0 across 27, extra checks (hud, world, almanac) 0 across 262 renders. `selene` not run
+(the Roblox std download fails here). **Nothing was played in Studio.**
 
 ### Calls made where the request left room
 
-- **"1500 s buckets aligned to the hour"**: 3600 isn't a multiple of 1500, so buckets are counted from
-  the unix epoch (itself on an hour): every bucket is exactly 25 min, the grid meets the hour every
-  5 h, and every server agrees. Resetting at each hour would make a 10-min last bucket.
-- **Relay key**: Roblox `Secret` values can only go into headers or the URL, so the game sends the key
-  in `X-Relay-Key`; the Worker accepts the header or a JSON `key`.
-- **Altar Rebirth Now button** opens the Rebirth panel (where both buttons confirm with a second tap)
-  instead of rebirthing straight from the sign.
-- **Instant Weather** that's running when its buyer leaves just ends (no refund); global events can't
-  be bought off.
+- **Scaling guards**: the shorter-edge rule alone squeezed the 900-wide layout on 4:3 windows
+  (overlaps at 960x720 and 800x600), so the scale is also capped at width / 900, and on windows under
+  ~900 px wide low enough that Cash clears the top-left chat footprint (230 px or 30%). Phones and
+  normal desktops are unaffected.
+- **Touch cap per device**, not per last input: a touch laptop would otherwise rescale the whole HUD
+  between 1.0x and 1.25x on every switch.
+- **Weather row is always a chip** (navy in the hub, event color from T-5:00): a plain text row can't
+  keep the 8 px drawn spacing.
+- **WATER label on two lines** ("WATER" / "· 2x 30s"): one line doesn't fit the 132 px button.
+- **Mid-right SHOP/WATER sit under the column's tallest state**, not its current one, so they never
+  move when Instant Weather or the bundle appears or goes. That pushed the hub SHOP from 88 to 80 tall
+  to clear the jump button on an 800x360 phone; it is still the biggest button.
+- **Glyph shadows** are a CanvasGroup faded as one layer (no seams). If CanvasGroups look soft or cost
+  too much on low-end phones, set `Config/Hud.glyph.shadowTransparency = 0` (solid shadow) first.
+- **Tray width 424 -> 440**: needed for two owned eggs + the next tile at a legible text size;
+  1280x720 still keeps WATER/SHOP bottom-right (by 1 px; 1280x800 was already mid-right).
 
-## Untested in Studio
+## Needs a Studio look
 
-Nothing on the Roblox side runs headlessly. New this session:
+Nothing on the Roblox side runs headlessly; the preview approximates GothamBlack with Inter, CanvasGroup
+fades, 3D viewports and gradient text.
 
-1. **Discord relay**: deploy the Worker (tools/relay/README.md), add the `WEATHER_RELAY_KEY` secret,
-   turn on Allow HTTP Requests, set `relayUrl`/`gameLink`; one message per Glitch Storm with two or
-   more live servers. Check the secret works in the header (`HttpService:GetSecret` → `RequestAsync`).
-2. **MemoryStore claim** across real servers (only one posts); and that Studio without API access
-   just logs "relay skipped" once.
-3. **Global schedule** on two live servers: same event, same second (the HUD chip matches).
-4. **Announcements**: the three toasts and the T-5:00 chat line (TextChatService).
-5. **Instant Weather**: picker feel; rain/static only over that island; the cloud visible from another
-   client; the owner's tint only on their plot; the button hiding near global events and while yours
-   runs; restricted account: no button, no Shop card.
-6. **Rebirth Now**: panel button (two taps), the Altar sign button is tappable (PlayerGui SurfaceGui)
-   and its text/bar update; short on Gems opens the Gem shop.
-7. **Pumpkin Egg**: the shop opens on it once; ribbon countdown; buy x1/x5; the `jack` egg and the 10
-   species look right (witch hat, stem); hatching; the Almanac tab; rebirth keeps the eggs; after Nov 5
-   23:59 EST the card is gone on the next open. World banner + pumpkins on a server started inside the
-   window. Restricted account: no card.
+1. **Icon legibility**: the eight glyphs at 1.0x on a real phone and at 1.25x on a monitor; the glyph
+   shadow's CanvasGroup fade (not rendered by the preview) and its resolution on a low-end device.
+2. **Soil tile on a phone**: the "+" and the price legible from the default camera; the tile reads the
+   right way up from the gate side (`WorldUI.soil.rotation = 180`); the pulse during the tutorial's
+   plant step, static after.
+3. **Almanac track at 399** (and 5 / 24 / 26): marker and label legibility, real GothamBlack label
+   widths (collapse to icons), phone tap targets at 667x375, the tooltip and how it dismisses.
+4. **Scaling** at a real 1080p / 1440p monitor, a 1663x726 window, a 4:3 window and a phone; the touch
+   cap on a touch laptop (one scale, no rescaling when switching input).
+5. **WATER**: the two-line label at 1.0x on a phone, the drain ring, the dimmed state, the first-use
+   toast on a live server; the "2x" chip on each growing egg's timer is not clipped.
+6. **Egg timer height**: if the bar sits lower than ~4.2 studs over the patch, the BillboardGui's
+   `SizeOffset` direction is the other way: negate `SlotTimer.SIZE_OFFSET`.
+7. **Egg tray**: real GothamBlack widths in the tiles (names never shrink; "AT THE EGG SHOP" fits),
+   scrolling with 3+ eggs, the next tile opening the shop.
+8. **Mid-right SHOP/WATER** on a phone with Instant Weather + the bundle showing (the first session),
+   clear of the jump button; Next Up's Lab line (9.2 px on the smallest phone) legible.
+9. **Gate sign** income line on both lines of the board (see open decisions).
 
-Still open from the previous sessions (unchanged): the reconciliation list (VIP chat tag, purchase
-sparkle seen from a second client, both boards with 3 players, group offer + PromptJoinAsync, Altar
-pad, pins on Sell rows/hatch reveal, weather chip on a phone, offline Auto-Harvest on a real rejoin) and
-the Egg Shop/economy list (shop doesn't close on clicks, drag feel, wheel direction, Left/Right camera
-sink, edge-hover auto-scroll, backdrop edges, Gem eggs end to end, real first-rebirth time, mid-session
-Lab unlock).
+Still open from earlier sessions (unchanged): the M5 list (Discord relay go-live, MemoryStore claim
+across servers, global schedule on two servers, announcements, Instant Weather, Rebirth Now and the
+Altar sign, the Pumpkin Egg end to end), the reconciliation list (VIP chat tag, purchase sparkle from
+a second client, both boards with 3 players, group offer + PromptJoinAsync, Altar pad, pins, offline
+Auto-Harvest on a real rejoin) and the Egg Shop/economy list (drag feel, wheel direction, edge-hover
+auto-scroll, Gem eggs end to end, real first-rebirth time, mid-session Lab unlock). Details in the
+previous handoff: `git show 53b4844:docs/HANDOFF.md`.
 
 ## Open decisions
 
-- **Paying player Rebirth 4** lands day 2; the stated target is day 1. Paying Rebirth 10 is now day 11
-  (target ~1 week); free day 23 (target ~3 weeks).
-- **Skip Timer pricing** is a soft-launch tuning flag (`Config/Products.lua` comment).
-- **Pen income is small by design** (33 h payback); check pinning still feels worth it.
-- **Own rank outside the top 100** shows `#100+` (no cheap rank lookup in OrderedDataStore).
-- **Still different from DESIGN.md (not in this build):** the daily streak pays eggs and Cash (doc:
-  Gems on days 1-6, Toxic egg day 7); the Starter Bundle grants 550 Gems (doc: 500 Gems + 2 Luck
-  Potions).
-- All pass/product ids and `Game.groupId` are 0 until created in Creator Hub (Studio warns at start).
-- `Game.gameLink` is a placeholder (place id 0) until the game is published.
+- **Gate sign wraps**: "$0/min · plant eggs to earn" breaks onto two lines on its 300x60 board ("earn"
+  alone on the second line, ~20 canvas px). Shorter text ("$0/min · plant to earn") or a wider board?
+- **Almanac track** draws only the last passed milestone (gold, checked), not every earlier one; the
+  segment starts there. Draw all passed markers in gold on the left?
+- **Cash and Gems** are 8 px apart frame to frame, so only ~1 px shows between Cash's shadow and the
+  Gems outline. The tiles and column now use the as-drawn rule; extend it to the top row?
+- **Top-left chat**: the chat is configured bottom-left; the preview still keeps the HUD out of
+  Roblox's default top-left chat as a hedge (and the scale bound above follows it). Drop the hedge
+  once Studio shows the chat never opens top-left.
+- From before (unchanged): paying Rebirth 4 on day 2 vs the day-1 target; Skip Timer pricing (a
+  soft-launch flag); pen income small by design; `#100+` outside the top 100; daily streak and
+  Starter Bundle vs DESIGN.md; all pass/product ids, `Game.groupId` and `Game.gameLink` still unset.
 
 ## Next tasks, in order
 
-1. **Before Oct 29 00:00 EDT**: publish with the Pumpkin Egg and do item 7 above in Studio. To test
-   before the window opens, temporarily set the Pumpkin's `startsAt` in a local copy of
-   `Config/LimitedEggs.lua` to a past time (don't commit it).
-2. **Relay go-live**: tools/relay/README.md steps 1-4, then item 1-2 above.
-3. **Studio pass** on items 3-6, then the older lists.
+1. **Publish the M5 build now** (the Pumpkin window runs until Nov 5 23:59 EST) after a Studio pass of
+   the Pumpkin Egg (previous handoff, item 7) and the HUD list above; fix what the phone shows.
+2. **Relay go-live**: `tools/relay/README.md` steps 1-4, then the relay and MemoryStore checks.
+3. **Studio pass** on the rest of the lists above.
 4. **Creator Hub setup**: passes, Gem packs, Starter Bundle, the group; fill the ids
-   (`Config/Passes.lua`, `Config/Products.lua`, `Config/Game.lua` groupId) until the Studio warning is
-   gone; real `gameLink`.
-5. **Next limited egg** (Winter): one `Config/LimitedEggs.lua` entry + 10 species in
-   `tools/gen-mutants.luau` `LIMITED` (re-run it: it writes `Config/Mutants.lua`). That's all if it
-   reuses an existing egg pattern and has no `decor` (the banner is plain config); a new look needs a
-   pattern in `MutantModel.buildEgg`, new hub props a `decor` builder in `World.lua`. The generic
-   checks in `tests/limited.spec.luau` cover any entry.
-6. **M5 remaining**: VIP egg, first-session phone check, icon/thumbnail A/B; daily streak and Starter
+   (`Config/Passes.lua`, `Config/Products.lua`, `Config/Game.lua` groupId) and the real `gameLink`.
+5. **Decide the open UI questions** above (gate sign text, passed Almanac markers, Cash/Gems gap).
+6. **Next limited egg** (Winter): one `Config/LimitedEggs.lua` entry + 10 species in
+   `tools/gen-mutants.luau` `LIMITED` (re-run it); a new egg look needs a pattern in
+   `MutantModel.buildEgg`, new hub props a `decor` builder in `World.lua`.
+7. **M5 remaining**: VIP egg, first-session phone check, icon/thumbnail A/B; daily streak and Starter
    Bundle vs DESIGN.md (decide, then align).
 
 Keep the rules in CLAUDE.md: server-authoritative intents, numbers only in Config, pink only for
