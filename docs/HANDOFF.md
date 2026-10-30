@@ -25,16 +25,22 @@ HUD and Almanac fixes from the first Studio pass (10 items). No gameplay or bala
 | `473ee08` | CLAUDE.md UI section, DESIGN.md dated note |
 | `17f1867` | Verification fixes: mid-right SHOP/WATER under the column, Cash clear of the top-left chat, 800x600 in the preview |
 | `b03a05f` | First version of this handoff |
-| (this one) | Review fixes 2: owned names wrap and the next tile reads "SWAMP / AT THE / EGG SHOP" (any two eggs + next fit in 424), Next Up slides clear of mid-right buttons, preview in Montserrat with outlines counted, Almanac/shop spacing; this handoff |
+| `feb6a26` | Review fixes 2: owned names wrap and the next tile reads "SWAMP / AT THE / EGG SHOP" (any two eggs + next fit in 424), Next Up slides clear of mid-right buttons, preview in Montserrat with outlines counted, Almanac/shop spacing |
+| `7988ef1` | `ONLY=<prefix>` limits the preview's checks too; the owner's working rules in CLAUDE.md |
+| `7c7fe67` | Decision 1: gate sign "$3.4K/min" alone after the first harvest; before it "$0/min" / "plant eggs to earn" on two lines |
+| `a4f00eb` | Decision 2: Almanac tabs show the tier name, the count on a smaller second line |
+| `8201ace` | Decision 3: every passed Almanac milestone gold with a check |
+| `69799dd` | Decision 4: Cash and Gems 8 px apart as drawn |
+| `0ea03b6` | Decision 5: top-left chat guard dropped (chat is pinned bottom-left) |
+| (this one) | This handoff |
 
 1. **Scaling** (`shared/HudScale.lua`, `Config/Hud.lua`): shorter screen edge (below the top bar) /
    540, capped at 1.25x with a mouse and 1.0x on touch devices (chosen once per device:
-   `TouchEnabled and not MouseEnabled`). Two guards on top: the canvas never gets narrower than 900
-   (4:3 and docked windows scale by width), and Cash never reaches into Roblox's default top-left
-   chat window (only windows under ~900 px wide scale down for it). Panels are content-sized and shrink
-   to fit (`Components.panel`). Preview sizes now: 1280x720, 844x390 (screenshots), 667x375, 800x360,
-   1024x768, 1920x1080, 1663x726, 960x720, 800x600 (checks).
-2. **Top right**: Upgrades / Daily / Almanac tiles 8 px apart *as drawn* (shadow to ink outline; frames
+   `TouchEnabled and not MouseEnabled`), and never a canvas narrower than 900 (4:3 and docked windows
+   scale by width). Panels are content-sized and shrink to fit (`Components.panel`). Preview sizes:
+   1280x720, 844x390 (screenshots), 667x375, 800x360, 1024x768, 1920x1080, 1663x726, 960x720,
+   800x600, 1000x658 (checks).
+2. **Top right**: Cash -> Gems and the Upgrades / Daily / Almanac tiles 8 px apart *as drawn* (shadow to ink outline; frames
    are spaced gap + 3 px outline + 4 px shadow), red dots inside the tiles. Right column under them,
    8 px apart as drawn: weather chip (always a chip now, quiet navy in the hub), Instant Weather (the
    bundle's width), Starter Bundle, bag (plot).
@@ -53,8 +59,9 @@ HUD and Almanac fixes from the first Studio pass (10 items). No gameplay or bala
    badges with their text; tiles are 116 tall for the next tile's three lines. Any two owned eggs
    plus the next tile fit the 424-wide tray without scrolling. Lab's $25K progress: shop carousel +
    Next Up (`shared/NextUp.labGoal`).
-7. **Gate sign** second line: `shared/GateSign.incomeText` ("$0/min · plant eggs to earn", then
-   "$3.4K/min"); the name line stays.
+7. **Gate sign** second line: `shared/GateSign.incomeText`: "$3.4K/min" alone after the first
+   harvest; before it "$0/min" / "plant eggs to earn" on two deliberate lines (never broken
+   mid-phrase); the name line stays.
 8. **Soil markers** (`UI/SoilMarker`, `Config/WorldUI`): navy "+" tile on each empty owned patch
    (pulses during the tutorial's plant steps), the next patch's price on the same tile; the old
    server-side price sign is gone.
@@ -62,6 +69,8 @@ HUD and Almanac fixes from the first Studio pass (10 items). No gameplay or bala
    current segment (last passed milestone to the next) fills 28% of the bar with a big diamond at its
    end, later milestones smaller and proportional, big ones labeled (🥚 Toxic 100, Void 200, Cosmic
    300, 🍀 +10% luck 400), labels collapse to icons when they'd collide; tap a marker: tooltip.
+   Every passed milestone is gold with a check, spaced on a gold stretch at the left end (only the
+   last passed one is labeled). Tabs show the tier name with the count on a smaller second line.
    Track, tabs, grid and pager sit 8 px apart so no outline touches (cards 110x106).
 10. **Preview**: scenes for the tray with 0 / 1 / 2 / 6 eggs (and two-egg trays with a Gem egg, the
     Pumpkin, only Gem eggs), watered, every red dot lit, the glyph sheet, the tallest right column
@@ -73,7 +82,7 @@ HUD and Almanac fixes from the first Studio pass (10 items). No gameplay or bala
     UIStroke outlines. Sizes add 1000x658 (a 900x540 canvas).
 
 **Verified at the end** (this commit): `lune run tools/check` 124 files, 0 failed ·
-`lune run tools/test` 126 passed, 0 failed · `stylua --check src tools tests` clean ·
+`lune run tools/test` 125 passed, 0 failed · `stylua --check src tools tests` clean ·
 `node tools/relay/test.mjs` passed · world checker 0 issues with the Halloween decor on (2027 parts;
 on by date now) and off (2011 parts, `LIMITED_AT=1800000000`) · UI preview (Montserrat, outlines
 counted, 10 sizes): HUD overlap 0 issues across 250 state x size combinations, Shop 0 across 80
@@ -82,10 +91,14 @@ scenes, Panel 0 across 30, extra checks (hud, world, almanac) 0 across 321 rende
 
 ### Calls made where the request left room
 
-- **Scaling guards**: the shorter-edge rule alone squeezed the 900-wide layout on 4:3 windows
-  (overlaps at 960x720 and 800x600), so the scale is also capped at width / 900, and on windows under
-  ~900 px wide low enough that Cash clears the top-left chat footprint (230 px or 30%). Phones and
-  normal desktops are unaffected.
+- **Scaling guard**: the shorter-edge rule alone squeezed the 900-wide layout on 4:3 windows
+  (overlaps at 960x720 and 800x600), so the scale is also capped at width / 900. Phones and normal
+  desktops are unaffected.
+- **Gate sign before the first harvest**: the line after it was already "$3.4K/min" alone; the
+  wrap was the pre-harvest hint, so it now breaks at the "·" ("$0/min" / "plant eggs to earn")
+  instead of leaving "earn" alone on a line.
+- **Preview `ONLY=<prefix>`** now limits the checks as well as the screenshots, so a fix loop takes
+  seconds; the full run is for the end.
 - **Touch cap per device**, not per last input: a touch laptop would otherwise rescale the whole HUD
   between 1.0x and 1.25x on every switch.
 - **Weather row is always a chip** (navy in the hub, event color from T-5:00): a plain text row can't
@@ -130,7 +143,8 @@ fades, 3D viewports and gradient text.
    3+ eggs; the next tile opening the shop.
 8. **Mid-right SHOP/WATER** on a phone with Instant Weather + the bundle showing (the first session),
    clear of the jump button; Next Up's Lab line (9.2 px on the smallest phone) legible.
-9. **Gate sign** income line on both lines of the board (see open decisions).
+9. **Gate sign**: "$0/min" / "plant eggs to earn" on two lines before the first harvest, then
+   "$3.4K/min" alone, readable from the path.
 
 Still open from earlier sessions (unchanged): the M5 list (Discord relay go-live, MemoryStore claim
 across servers, global schedule on two servers, announcements, Instant Weather, Rebirth Now and the
@@ -142,36 +156,28 @@ previous handoff: `git show 53b4844:docs/HANDOFF.md`.
 
 ## Open decisions
 
-- **Gate sign wraps**: "$0/min · plant eggs to earn" breaks onto two lines on its 300x60 board ("earn"
-  alone on the second line, ~20 canvas px). Shorter text ("$0/min · plant to earn") or a wider board?
-- **Almanac tier tabs** squeeze their text in the real font: "Starter 0/67" and "Swamp 0/67" draw
-  smaller than "Lab 0/67", and "Cosmic 26/66" wraps (7 tabs share 728 px). Shorter labels (the
-  count only on the picked tab?) or two rows of tabs? Not part of this pass.
-- **Almanac track** draws only the last passed milestone (gold, checked), not every earlier one; the
-  segment starts there. Draw all passed markers in gold on the left?
-- **Cash and Gems** are 8 px apart frame to frame, so only ~1 px shows between Cash's shadow and the
-  Gems outline. The tiles and column now use the as-drawn rule; extend it to the top row?
-- **Top-left chat**: the chat is configured bottom-left; the preview still keeps the HUD out of
-  Roblox's default top-left chat as a hedge (and the scale bound above follows it). Drop the hedge
-  once Studio shows the chat never opens top-left.
+The five UI questions from the first version of this handoff are decided and done (commits above).
+
 - From before (unchanged): paying Rebirth 4 on day 2 vs the day-1 target; Skip Timer pricing (a
   soft-launch flag); pen income small by design; `#100+` outside the top 100; daily streak and
   Starter Bundle vs DESIGN.md; all pass/product ids, `Game.groupId` and `Game.gameLink` still unset.
 
 ## Next tasks, in order
 
-1. **Publish the M5 build now** (the Pumpkin window runs until Nov 5 23:59 EST) after a Studio pass of
-   the Pumpkin Egg (previous handoff, item 7) and the HUD list above; fix what the phone shows.
+1. **Studio today, Pumpkin first** (the window runs until Nov 5 23:59 EST): the Pumpkin Egg end to
+   end (previous handoff, item 7: `git show 53b4844:docs/HANDOFF.md`), then the HUD list above on a
+   phone; fix what it shows; publish.
 2. **Relay go-live**: `tools/relay/README.md` steps 1-4, then the relay and MemoryStore checks.
 3. **Studio pass** on the rest of the lists above.
 4. **Creator Hub setup**: passes, Gem packs, Starter Bundle, the group; fill the ids
    (`Config/Passes.lua`, `Config/Products.lua`, `Config/Game.lua` groupId) and the real `gameLink`.
-5. **Decide the open UI questions** above (gate sign text, passed Almanac markers, Cash/Gems gap).
-6. **Next limited egg** (Winter): one `Config/LimitedEggs.lua` entry + 10 species in
+5. **Next limited egg** (Winter): one `Config/LimitedEggs.lua` entry + 10 species in
    `tools/gen-mutants.luau` `LIMITED` (re-run it); a new egg look needs a pattern in
    `MutantModel.buildEgg`, new hub props a `decor` builder in `World.lua`.
-7. **M5 remaining**: VIP egg, first-session phone check, icon/thumbnail A/B; daily streak and Starter
+6. **M5 remaining**: VIP egg, first-session phone check, icon/thumbnail A/B; daily streak and Starter
    Bundle vs DESIGN.md (decide, then align).
 
 Keep the rules in CLAUDE.md: server-authoritative intents, numbers only in Config, pink only for
-spending, HUD below the GuiService inset, previews and checker at 0 issues.
+spending, HUD below the GuiService inset, previews and checker at 0 issues, and the owner's working
+rules (one single-reviewer pass for the launch build only, `ONLY=` in fix loops, three strikes then
+commit and report, a commit per numbered item).
