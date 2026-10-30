@@ -711,13 +711,28 @@ local function columnLine(line: { y: number, height: number, text: number }, tex
 	})
 end
 
--- The only promo on screen, gone when its timer ends.
+-- The only promo on screen, gone when its timer ends. Gold (the one gold button: everything else
+-- that spends is pink) with ink text, a gift glyph and the countdown under the name, beating
+-- slowly (COLUMN.bundlePulse s).
 local function bundleRibbon()
 	local left = Computed(function()
 		local snap = State.snapshot:get()
 		local endsAt = if snap then snap.bundleOfferEndsAt or 0 else 0
 		return endsAt - State.now:get()
 	end)
+	local textX = COLUMN.lineInset + COLUMN.bundleGlyph + 6
+	local function line(spec: { y: number, height: number, text: number }, text: any)
+		return C.label({
+			Text = text,
+			Position = UDim2.fromOffset(textX, spec.y),
+			Size = UDim2.new(1, -(textX + COLUMN.lineInset), 0, spec.height),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = Theme.colors.ink,
+			StrokeThickness = 0,
+			MaxTextSize = spec.text,
+			ZIndex = 4,
+		})
+	end
 	return New("Frame")({
 		Name = "Bundle",
 		LayoutOrder = 3,
@@ -729,14 +744,21 @@ local function bundleRibbon()
 		end),
 		[Children] = C.button({
 			Size = UDim2.fromScale(1, 1),
-			Color = SPEND,
+			Color = Theme.colors.gold,
 			Text = "",
+			Pulse = true,
+			PulsePeriod = COLUMN.bundlePulse,
 			OnClick = function()
 				openPanel("store")
 			end,
 			Children = {
-				columnLine(COLUMN.line1, "STARTER BUNDLE", "gift"),
-				columnLine(
+				C.icon("gift", COLUMN.bundleGlyph, nil, {
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.new(0, COLUMN.lineInset, 0.5, -2),
+					ZIndex = 4,
+				}),
+				line(COLUMN.line1, "STARTER BUNDLE"),
+				line(
 					COLUMN.line2,
 					Computed(function()
 						return "ENDS IN " .. clock(left:get())

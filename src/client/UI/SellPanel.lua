@@ -121,7 +121,7 @@ local function itemRow(itemId: string, order: any)
 				AnchorPoint = Vector2.new(1, 0.5),
 				Position = UDim2.new(1, -8, 0.5, 0),
 				Size = UDim2.fromOffset(136, 52),
-				Color = Theme.colors.gold,
+				Color = Theme.colors.navy,
 				Icon = "coin",
 				Text = Format.cash(value),
 				MaxTextSize = 20,
@@ -197,7 +197,7 @@ return function()
 			C.button({
 				Name = "SellAll",
 				Size = UDim2.new(1, 0, 0, 62),
-				Color = Theme.colors.gold,
+				Color = Theme.colors.navy,
 				Icon = "bag",
 				MaxTextSize = 24,
 				Text = Computed(function()

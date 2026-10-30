@@ -77,7 +77,9 @@ return {
 		-- Two-line buttons (Instant Weather, Starter Bundle): { y, height, text size }, inset `lineInset`.
 		lineInset = 6,
 		line1 = { y = 4, height = 18, text = 15 },
-		line2 = { y = 24, height = 15, text = 13 },
+		line2 = { y = 24, height = 21, text = 18 }, -- prices and the countdown: 18 px
+		bundlePulse = 2, -- the Starter Bundle ribbon beats once every 2 s
+		bundleGlyph = 28,
 	},
 
 	-- SHOP: the biggest button in the hub. At the plot it is the WATER button's size, beside it.

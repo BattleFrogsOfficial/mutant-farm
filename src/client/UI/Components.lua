@@ -79,15 +79,17 @@ function Components.bevel(z: number?, transparency: number?)
 	})
 end
 
--- UIScale that gently pulses while `active` is true (attention without being annoying).
-function Components.pulse(active: any, amount: number?)
+-- UIScale that gently pulses while `active` is true (attention without being annoying), one beat
+-- every `period` seconds (default ~1).
+function Components.pulse(active: any, amount: number?, period: number?)
 	local a = amount or 0.06
+	local speed = if period then math.pi / period else 3.2
 	return New("UIScale")({
 		Scale = Computed(function()
 			if not read(active) then
 				return 1
 			end
-			return 1 + a * math.abs(math.sin(State.clock:get() * 3.2))
+			return 1 + a * math.abs(math.sin(State.clock:get() * speed))
 		end),
 	})
 end
@@ -277,7 +279,8 @@ end
 -- Chunky simulator-style button: a darker lip underneath and a face that presses down into it.
 -- props: Text, Icon (a UI/Icons glyph name or state; IconAfter: one after the text, e.g. the gem
 --        after a price; IconSize, IconColor), TextColor3, Color, Size, Position, AnchorPoint, LayoutOrder, Name, ZIndex, Visible,
---        OnClick, Disabled (state), Selected (state: gold outline), Pulse (state), MaxTextSize, Children, Silent,
+--        OnClick, Disabled (state), Selected (state: gold outline), Pulse (state; PulsePeriod: seconds per
+--        beat, default ~1), MaxTextSize, Children, Silent,
 --        Studs (true: stud texture; only for the big primary buttons, the rest stay flat),
 --        OnHover (fn(bool): pointer over / pressing the button, false when it leaves)
 function Components.button(props: { [string]: any })
@@ -326,8 +329,9 @@ function Components.button(props: { [string]: any })
 		[Children] = {
 			New("UIScale")({
 				Scale = Computed(function()
+					local speed = if props.PulsePeriod then math.pi / props.PulsePeriod else 3.2
 					local pulse = if props.Pulse and read(props.Pulse)
-						then 1 + 0.05 * math.abs(math.sin(State.clock:get() * 3.2))
+						then 1 + 0.05 * math.abs(math.sin(State.clock:get() * speed))
 						else 1
 					return hover:get() * pulse
 				end),

@@ -300,7 +300,7 @@ return function()
 				AnchorPoint = Vector2.new(0.5, 1),
 				Position = UDim2.new(0.5, 0, 1, 0),
 				Size = UDim2.fromOffset(280, 58),
-				Color = Theme.colors.gold,
+				Color = Theme.colors.navy,
 				Studs = true,
 				MaxTextSize = 26,
 				ZIndex = 3,

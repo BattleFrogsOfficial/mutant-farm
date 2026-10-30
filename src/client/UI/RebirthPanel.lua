@@ -233,7 +233,7 @@ return function()
 				Size = UDim2.fromOffset(300, 60),
 				Studs = true,
 				Color = Computed(function()
-					return if confirming:get() then Theme.colors.gold else Theme.colors.purple
+					return if confirming:get() then Theme.colors.navy else Theme.colors.purple
 				end),
 				Disabled = Computed(function()
 					return progress:get() < 1
