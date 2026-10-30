@@ -97,10 +97,14 @@ registerCheck({
       if (!board) { problems.push(`${name} missing`); continue; }
       const text = q(board, "Text");
       const content = text ? text.textContent.trim() : "";
-      const want = name === "GateNew" ? /^\$0\/min · plant eggs to earn$/ : /^\$[\d.]+[KMBT]?\/min$/;
+      const want = name === "GateNew" ? /^\$0\/min\nplant eggs to earn$/ : /^\$[\d.]+[KMBT]?\/min$/;
       if (!want.test(content)) problems.push(`${name}: text "${content}"`);
       const f = font(text);
       if (f < 16) problems.push(`${name}: text only ${f.toFixed(1)} canvas px (< 16, 0.4 stud)`);
+      // Never broken mid-phrase: as many lines as the text has (1, or 2 before the first harvest).
+      const span = text && text.querySelector("span");
+      const lines = span ? Math.round(span.getBoundingClientRect().height / (f * 1.05)) : 0;
+      if (lines > content.split("\n").length) problems.push(`${name}: wraps onto ${lines} lines`);
     }
     return problems;
   },

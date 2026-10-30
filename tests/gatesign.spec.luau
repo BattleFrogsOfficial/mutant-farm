@@ -4,7 +4,7 @@ return function(t)
 	local Eggs = t.require("src/shared/Config/Eggs")
 	return {
 		["gate sign: plant hint before the first harvest, then the live income"] = function()
-			t.eq(GateSign.incomeText(0, 0), "$0/min · plant eggs to earn")
+			t.eq(GateSign.incomeText(0, 0), "$0/min\nplant eggs to earn")
 			t.eq(GateSign.incomeText(3_400, 1), "$3.4K/min")
 			t.eq(GateSign.incomeText(0, 5), "$0/min") -- empty pen after selling: still shown
 			t.eq(GateSign.incomeText(12, 2), "$12/min")
