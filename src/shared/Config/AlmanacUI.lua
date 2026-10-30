@@ -11,12 +11,12 @@ return {
 
 	-- Milestone track, right under the title: a marker row (bar + markers), then a label row
 	-- (labels, or the tooltip of a tapped marker).
-	trackHeight = 60,
+	trackHeight = 76,
 	-- The bar runs through the middle of this row, tall enough for the big diamond with its
 	-- outline (18 px side, ~25 px across + ~4 px of outline at each tip).
 	markerRowHeight = 34,
 	barHeight = 10,
-	labelTop = 36, -- label row: from here to trackHeight
+	labelTop = 36, -- label row (two lines): from here to trackHeight
 	-- The current segment (last passed milestone .. next one) takes this fraction of the bar; the
 	-- later milestones are spread proportionally over the rest.
 	segmentFraction = 0.28,
@@ -49,37 +49,43 @@ return {
 	hitWidth = 40,
 	minTapScreenPx = 44,
 
-	-- Labels: GothamBlack at labelSize, raised so they never draw below minScreenPx on screen
-	-- (small phones), up to maxLabelSize. The later big labels are packed left/right (each still
-	-- spans its marker by labelInset) so they fit in full ("100 🥚Toxic"); if they can't, all drop
-	-- to the number + icon ("100🥚"), then icons ("🥚"), then any icon that still collides hides
-	-- (the tooltip still tells). Widths are estimated per character (em; GothamBlack averages
-	-- about 0.62, this leaves a little slack for Roblox's metrics).
+	-- Labels: two lines under each labeled marker, the species needed on top ("100") and the
+	-- reward under it ("Toxic Egg", at rewardScale of the font), GothamBlack (drawn as Montserrat
+	-- Black) at labelSize, raised so they never draw below minScreenPx on screen (small phones), up
+	-- to maxLabelSize (two lines fit the label row: trackHeight - labelTop). The later big labels
+	-- are packed left/right (each still spanning its marker by labelInset) so they fit in full; if
+	-- they can't, all drop to the number alone, then any that still collides hides (the tooltip
+	-- still tells). Widths are estimated per character in em of Montserrat Black (measured:
+	-- lowercase and digits ~0.63, capitals ~0.75); the preview's Almanac check measures the drawn
+	-- labels.
 	labelSize = 13,
 	minScreenPx = 11,
-	maxLabelSize = 21,
-	charEm = 0.66,
+	maxLabelSize = 20,
+	rewardScale = 0.85,
+	charEm = 0.64,
+	capEm = 0.76,
+	charEms = { ["·"] = 0.36, ["%"] = 0.93, M = 0.96, W = 1.2, m = 0.96, w = 0.9 },
 	spaceEm = 0.3,
 	emojiEm = 1.25,
 	labelGap = 8, -- min space between two labels (and a label and the tooltip)
-	labelInset = 10, -- a label always reaches this far past its marker's center on both sides
+	labelInset = 6, -- a label always reaches this far past its marker's center on both sides
 	tooltipPad = 8, -- tooltip box: text + this on each side
 	tooltipOutline = 3,
 
 	-- Under the track: tier tabs, the 6x2 species grid, the pager, 8 px apart as frames, so the
 	-- outlines and shadows drawn outside them never touch (the picked tab's 4 px gold outline, the
-	-- cards' shadows, the pager buttons' outlines). 60 + 8 + 40 + 8 + (2 x 106 + 8) + 8 + 48 = 392,
+	-- cards' shadows, the pager buttons' outlines). 76 + 8 + 36 + 8 + (2 x 100 + 8) + 8 + 48 = 392,
 	-- the content height (480 - 72 - 16).
 	tabsGap = 8, -- track -> tabs
-	tabHeight = 40,
+	tabHeight = 36,
 	-- A tab: the tier name on top, its found / total count on a smaller line under it, each at its
 	-- full size (a 7th tab makes them 98 wide; text never shrinks to fit).
 	tabTextInset = 7,
-	tabName = { y = 3, height = 20, text = 17 },
-	tabCount = { y = 23, height = 13, text = 12 },
+	tabName = { y = 2, height = 19, text = 17 },
+	tabCount = { y = 20, height = 14, text = 12 },
 	gridGap = 8, -- tabs -> grid
 	cellWidth = 110, -- 6 x 110 + 5 x 8 = 700 <= content width (728)
-	cellHeight = 106,
+	cellHeight = 100,
 	cellGap = 8,
 	pagerHeight = 48,
 }

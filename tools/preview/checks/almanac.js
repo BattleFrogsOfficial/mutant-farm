@@ -1,5 +1,5 @@
 // Almanac milestone track (scenes from tools/preview/scenes/almanac.luau: almanac-<found>@WxH and
-// almanac-tip-26@WxH): the track exists; the title is only "📖 Almanac <n> / <total>"; markers and
+// almanac-tip-26@WxH): the track exists; the title is only "Almanac <n> / <total>" with a book glyph; markers and
 // labels don't overlap each other and stay inside the track and the panel; labels draw at >= 11 px
 // on screen or are collapsed to their icon; the fill matches its fraction of the current segment;
 // passed markers are gold with a check (and as many as expected); nothing of the track overlaps the
@@ -24,8 +24,9 @@ registerCheck({
     // Title: found / total, nothing else.
     const titleSpan = panel.querySelector('[title="Header"] [title="TextLabel"] span');
     const title = titleSpan ? titleSpan.textContent : "";
-    const m = /^📖 Almanac (\d+) \/ (\d+)$/.exec(title);
-    if (!m) problems.push(`title "${title}" isn't "📖 Almanac <n> / <total>"`);
+    const m = /^Almanac (\d+) \/ (\d+)$/.exec(title);
+    if (!m) problems.push(`title "${title}" isn't "Almanac <n> / <total>"`);
+    if (!panel.querySelector('[title="Header"] [title="Glyph"]')) problems.push("title has no book glyph");
     else if (+m[1] !== n) problems.push(`title shows ${m[1]} found, want ${n}`);
 
     const inner = [...track.children].find((c) => c.classList.contains("inner"));
@@ -55,7 +56,7 @@ registerCheck({
       if (over > 0.5) problems.push(`tap targets ${hits[i - 1].name} and ${hits[i].name} overlap by ${over.toFixed(1)}px`);
     }
     // Each label spans its own marker (packing may shift it sideways, never off its marker), and
-    // on desktop sizes the big later ones keep their numbers ("100 🥚Toxic", never just "🥚").
+    // on desktop sizes the big later ones keep their numbers ("100 · [egg] Toxic", never just the glyph).
     const desktop = W >= 1024 && H >= 540;
     for (const el of labels) {
       const at = el.title.slice("Label".length);
@@ -68,7 +69,7 @@ registerCheck({
     }
     // On-screen font: the label's px times every scale above it (HUD scale, panel fit).
     const fontOf = (el) => {
-      const span = el.querySelector("span");
+      const span = [...el.querySelectorAll("span")].find((x) => x.textContent.trim() !== "");
       return span ? parseFloat(getComputedStyle(span.parentElement).fontSize) * (el.getBoundingClientRect().width / el.offsetWidth) : 0;
     };
     for (const el of labels) {

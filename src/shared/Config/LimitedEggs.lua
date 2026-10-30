@@ -22,7 +22,8 @@ return {
 		id = "Pumpkin",
 		name = "Pumpkin Egg",
 		tagline = "Only until Nov 5",
-		icon = "🎃",
+		icon = "🎃", -- chat lines and world signs
+		glyph = "pumpkin", -- UI/Icons, in the HUD and panels
 		event = "Halloween 2026",
 		color = "#FF8A1F",
 		design = { pattern = "jack", shell = "#FF8A1F", accent = "#3A1A06" },

@@ -36,13 +36,7 @@ local function option(eventId: string, order: number)
 		ZIndex = 3,
 		[Children] = {
 			C.stroke(color, 3),
-			C.label({
-				Text = event.icon,
-				Position = UDim2.fromOffset(10, 10),
-				Size = UDim2.fromOffset(64, 64),
-				MaxTextSize = 48,
-				ZIndex = 4,
-			}),
+			C.icon(event.glyph, 52, nil, { Position = UDim2.fromOffset(14, 14), ZIndex = 4 }),
 			C.label({
 				Text = string.upper(event.name),
 				Position = UDim2.fromOffset(84, 10),
@@ -81,7 +75,10 @@ local function option(eventId: string, order: number)
 						local left = math.max(0, mine.endsAt - State.now:get())
 						return string.format("RUNNING %d:%02d", left // 60, left % 60)
 					end
-					return string.format("%d 💎", COST)
+					return tostring(COST)
+				end),
+				IconAfter = Computed(function()
+					return if State.plotWeather:get().id == "" then "gem" else nil
 				end),
 				OnClick = function()
 					if State.gems:get(false) < COST then
@@ -104,7 +101,8 @@ return function()
 		table.insert(options, option(id, i))
 	end
 	return C.panel({
-		Title = "⛈ Instant Weather",
+		Title = "Instant Weather",
+		Icon = "bolt",
 		Accent = Theme.colors.spend,
 		Size = UDim2.fromOffset(600, 420),
 		IsOpen = Computed(function()

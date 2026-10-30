@@ -21,7 +21,27 @@ local C = require(script.Parent.Components)
 local New, Children, Computed, Value, Observer =
 	Fusion.New, Fusion.Children, Fusion.Computed, Fusion.Value, Fusion.Observer
 
-local function line(order: number, text: string, color: Color3)
+local function line(order: number, text: any, color: Color3, icon: string?)
+	if icon then
+		-- The glyph, then the text fitted to the rest of the line.
+		return New("Frame")({
+			LayoutOrder = order,
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, 0, 0, 18),
+			[Children] = {
+				C.icon(icon, 16, nil, { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0) }),
+				C.label({
+					Text = text,
+					Position = UDim2.fromOffset(22, 0),
+					Size = UDim2.new(1, -22, 1, 0),
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextColor3 = color,
+					StrokeThickness = 0,
+					MaxTextSize = 14,
+				}),
+			},
+		})
+	end
 	return C.label({
 		LayoutOrder = order,
 		Text = text,
@@ -90,8 +110,9 @@ return function()
 	end)
 	return C.panel({
 		Title = Computed(function()
-			return "♻ Rebirth " .. (rebirths:get() + 1)
+			return "Rebirth " .. (rebirths:get() + 1)
 		end),
+		Icon = "rebirth",
 		Accent = Theme.colors.purple,
 		Size = UDim2.fromOffset(560, 400),
 		IsOpen = Computed(function()
@@ -154,11 +175,13 @@ return function()
 				Color = Theme.colors.spend,
 				Visible = offerNow,
 				MaxTextSize = 17,
+				IconAfter = "gem",
+				IconSize = 20,
 				ZIndex = 4,
 				Text = Computed(function()
 					return if nowConfirming:get()
-						then string.format("TAP AGAIN · %d 💎", Products.gems.RebirthNow.cost)
-						else string.format("REBIRTH NOW · %d 💎", Products.gems.RebirthNow.cost)
+						then string.format("TAP AGAIN · %d", Products.gems.RebirthNow.cost)
+						else string.format("REBIRTH NOW · %d", Products.gems.RebirthNow.cost)
 				end),
 				OnClick = function()
 					if State.gems:get(false) < Products.gems.RebirthNow.cost then
@@ -175,33 +198,29 @@ return function()
 				end,
 			}),
 			column(UDim2.fromOffset(0, 80), "YOU GET", Theme.colors.toxic, {
-				C.label({
-					LayoutOrder = 1,
-					Text = Computed(function()
+				line(
+					1,
+					Computed(function()
 						-- From the server's multiplier, so VIP's 1.5x is included.
 						local snap = State.snapshot:get()
 						local now = if snap then snap.cashMultiplier else 1
 						local base = 1 + Rebirths.cashBonusPerRebirth * rebirths:get()
 						local nextMult = now * (base + Rebirths.cashBonusPerRebirth) / base
-						return string.format("💰 Cash x%s = x%s forever", tostring(now), tostring(nextMult))
+						return string.format("Cash x%s = x%s forever", tostring(now), tostring(nextMult))
 					end),
-					Size = UDim2.new(1, 0, 0, 18),
-					TextXAlignment = Enum.TextXAlignment.Left,
-					StrokeThickness = 0,
-					MaxTextSize = 14,
-				}),
-				C.label({
-					LayoutOrder = 2,
-					Text = Computed(function()
+					Theme.colors.white,
+					"coin"
+				),
+				line(
+					2,
+					Computed(function()
 						local name = unlock:get()
-						return if name then "🥚 " .. name .. " unlocked" else "🥚 Bigger egg prices, bigger value"
+						return if name then name .. " unlocked" else "Bigger egg prices, bigger value"
 					end),
-					Size = UDim2.new(1, 0, 0, 18),
-					TextXAlignment = Enum.TextXAlignment.Left,
-					StrokeThickness = 0,
-					MaxTextSize = 14,
-				}),
-				line(3, "✅ Keep pen, passes, Gems, Almanac", Theme.colors.white),
+					Theme.colors.white,
+					"egg"
+				),
+				line(3, "Keep pen, passes, Gems, Almanac", Theme.colors.white, "check"),
 			}),
 			column(UDim2.new(0.5, 8, 0, 80), "RESETS", Theme.colors.danger, {
 				line(1, "Cash, eggs and growing plants", Theme.colors.cream),
@@ -228,7 +247,7 @@ return function()
 					if progress:get() < 1 then
 						return "NEED " .. Format.cash(math.max(0, cost:get() - State.cash:get())) .. " MORE"
 					end
-					return if confirming:get() then "TAP AGAIN TO CONFIRM" else "♻ REBIRTH NOW"
+					return if confirming:get() then "TAP AGAIN TO CONFIRM" else "REBIRTH NOW"
 				end),
 				OnClick = function()
 					if not confirming:get(false) then

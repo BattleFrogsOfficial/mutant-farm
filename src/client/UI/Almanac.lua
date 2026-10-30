@@ -425,24 +425,46 @@ end
 
 -- A label is tappable too: it opens its own marker's tooltip (labels may sit a little to the side
 -- of their marker, over a neighbour's tap target).
+-- A label: the species needed on top ("100"), the reward under it ("Toxic Egg", smaller), centered
+-- under its marker. Tapping it opens its marker's tooltip.
 local function trackLabel(mk: AlmanacTrack.Marker, font: number)
 	local l = mk.label :: AlmanacTrack.Label
 	local at = mk.milestone.at
+	local small = AlmanacTrack.rewardFont(font)
+	local function line(order: number, text: string, size: number, color: Color3)
+		return New("TextLabel")({
+			Name = if order == 1 then "Need" else "Reward",
+			LayoutOrder = order,
+			BackgroundTransparency = 1,
+			Size = UDim2.new(1, 0, 0, math.ceil(size * 1.05)),
+			Font = Theme.font,
+			TextSize = size,
+			TextColor3 = color,
+			Text = text,
+			ZIndex = 15,
+			[Children] = C.textStroke(1.5),
+		})
+	end
 	return New("TextButton")({
 		Name = "Label" .. at,
 		AutoButtonColor = false,
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(l.x, AlmanacUI.labelTop),
 		Size = UDim2.fromOffset(l.w, LABEL_H),
-		Font = Theme.font,
-		TextSize = font,
-		TextColor3 = labelColor(mk),
-		Text = l.text,
+		Text = "",
 		ZIndex = 15,
 		[OnEvent("Activated")] = function()
 			toggleTip(at)
 		end,
-		[Children] = C.textStroke(1.5),
+		[Children] = {
+			New("UIListLayout")({
+				FillDirection = Enum.FillDirection.Vertical,
+				HorizontalAlignment = Enum.HorizontalAlignment.Center,
+				SortOrder = Enum.SortOrder.LayoutOrder,
+			}),
+			line(1, l.pre, font, labelColor(mk)),
+			if l.post ~= "" then line(2, l.post, small, Theme.colors.cream) else nil,
+		},
 	})
 end
 
@@ -661,8 +683,9 @@ local function build()
 	return C.panel({
 		-- Found / total only: the rewards are on the milestone track.
 		Title = Computed(function()
-			return string.format("📖 Almanac %d / %d", foundCount:get(), TOTAL)
+			return string.format("Almanac %d / %d", foundCount:get(), TOTAL)
 		end),
+		Icon = "book",
 		Accent = Theme.colors.purple,
 		Size = UDim2.fromOffset(AlmanacUI.panelWidth, AlmanacUI.panelHeight),
 		IsOpen = isOpen,

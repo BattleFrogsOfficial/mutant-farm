@@ -165,7 +165,7 @@ registerCheck({
     if (hudNode) walk(hudNode, (n) => { if (n.class === "ImageLabel" || n.class === "ImageButton") problems.push(`${n.class} "${n.name}" in the HUD`); });
 
     // Icons are vector glyphs, not emoji text.
-    const OLD = /💰|💎|🥚|🎒|💧|⬆|📖/;
+    const OLD = /[\u2190-\u2BFF\u3000-\uFFFF]|[\uD800-\uDBFF]/; // any emoji
     const iconHosts = ["Upgrades", "Daily", "Almanac", "Cash", "Gems"].concat(plot ? ["Hatch", "BagChip", "Water"] : []);
     for (const n of iconHosts) {
       const host = el(n);

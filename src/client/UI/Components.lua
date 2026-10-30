@@ -11,9 +11,11 @@ local Theme = require(script.Parent.Theme)
 local State = require(script.Parent.Parent.State)
 local Sfx = require(script.Parent.Parent.Sfx)
 local HudConfig = require(ReplicatedStorage.Shared.Config.Hud)
+local Icons = require(script.Parent.Icons)
 
 local New, Children, OnEvent, Value, Computed, Spring =
 	Fusion.New, Fusion.Children, Fusion.OnEvent, Fusion.Value, Fusion.Computed, Fusion.Spring
+local cleanup = Fusion.cleanup
 
 local Components = {}
 
@@ -113,6 +115,108 @@ function Components.label(props: { [any]: any })
 	return New("TextLabel")(base)
 end
 
+-- A glyph from UI/Icons.lua: the only icons in the UI (no emoji, no images). `name` and `color`
+-- may be states. props: Position, AnchorPoint, ZIndex, LayoutOrder, Visible, Name.
+function Components.icon(name: any, size: number, color: any?, props: { [string]: any }?): any
+	local p = props or {}
+	local function build(n: string?, c: Color3?)
+		if not n then
+			return nil
+		end
+		return Icons.new(n, {
+			Size = size,
+			Color = c,
+			Position = p.Position,
+			AnchorPoint = p.AnchorPoint,
+			ZIndex = p.ZIndex,
+			LayoutOrder = p.LayoutOrder,
+			Visible = p.Visible,
+		})
+	end
+	if typeof(name) ~= "table" and typeof(color) ~= "table" then
+		return build(name, color)
+	end
+	-- A state: a holder whose glyph is rebuilt when the name or color changes.
+	return New("Frame")({
+		Name = p.Name or "Icon",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromOffset(size, size),
+		Position = p.Position,
+		AnchorPoint = p.AnchorPoint,
+		LayoutOrder = p.LayoutOrder,
+		Visible = p.Visible,
+		ZIndex = p.ZIndex,
+		[Children] = Computed(function()
+			local n, c = read(name), read(color)
+			if not n then
+				return {}
+			end
+			return Icons.new(n, { Size = size, Color = c, ZIndex = p.ZIndex })
+		end, cleanup),
+	})
+end
+
+-- A glyph and one line of text side by side, as a group aligned in the box (Align "Center" by
+-- default, or "Left" / "Right"). The text keeps its size (TextSize; it never shrinks to fit), so
+-- size the box for it. props: Icon (name or state; nil = text only), IconAfter (a glyph after the
+-- text: "400 [gem]"), IconSize, IconColor, Text,
+-- TextSize, TextColor3, Gap, Align, StrokeThickness, Name, Size, Position, AnchorPoint, ZIndex,
+-- LayoutOrder, Visible, Font.
+function Components.iconText(props: { [string]: any })
+	local textSize = props.TextSize or 18 -- a number or a state
+	local baseSize = read(textSize) :: number
+	local iconSize = props.IconSize or math.floor(baseSize * 1.25)
+	local z = props.ZIndex or 4
+	local align = props.Align or "Center"
+	return New("Frame")({
+		Name = props.Name or "IconText",
+		BackgroundTransparency = 1,
+		Size = props.Size or UDim2.new(1, 0, 0, baseSize + 6),
+		Position = props.Position,
+		AnchorPoint = props.AnchorPoint,
+		LayoutOrder = props.LayoutOrder,
+		Visible = props.Visible,
+		ZIndex = z,
+		[Children] = {
+			New("UIListLayout")({
+				FillDirection = Enum.FillDirection.Horizontal,
+				HorizontalAlignment = Enum.HorizontalAlignment[align],
+				VerticalAlignment = Enum.VerticalAlignment.Center,
+				SortOrder = Enum.SortOrder.LayoutOrder,
+				Padding = UDim.new(0, props.Gap or 6),
+			}),
+			if props.IconAfter
+				then Components.icon(props.IconAfter, iconSize, nil, {
+					LayoutOrder = 3,
+					ZIndex = z,
+				})
+				else nil,
+			if props.Icon
+				then Components.icon(props.Icon, iconSize, props.IconColor, {
+					LayoutOrder = 1,
+					ZIndex = z,
+				})
+				else nil,
+			Components.label({
+				Name = "Text",
+				Text = props.Text,
+				TextScaled = false,
+				TextSize = textSize,
+				MaxTextSize = textSize,
+				Font = props.Font,
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = Computed(function()
+					return UDim2.new(0, 0, 0, math.ceil((read(textSize) :: number) * 1.2))
+				end),
+				TextColor3 = props.TextColor3,
+				StrokeThickness = props.StrokeThickness,
+				LayoutOrder = 2,
+				ZIndex = z,
+			}),
+		},
+	})
+end
+
 -- Hard drop shadow: put it first in a transparent container, behind the real face.
 function Components.shadow(_radius: number?, offset: number?)
 	local o = offset or Theme.shadow
@@ -171,7 +275,8 @@ local function studs(size: any)
 end
 
 -- Chunky simulator-style button: a darker lip underneath and a face that presses down into it.
--- props: Text, Icon (emoji), Color, Size, Position, AnchorPoint, LayoutOrder, Name, ZIndex, Visible,
+-- props: Text, Icon (a UI/Icons glyph name or state; IconAfter: one after the text, e.g. the gem
+--        after a price; IconSize, IconColor), TextColor3, Color, Size, Position, AnchorPoint, LayoutOrder, Name, ZIndex, Visible,
 --        OnClick, Disabled (state), Selected (state: gold outline), Pulse (state), MaxTextSize, Children, Silent,
 --        Studs (true: stud texture; only for the big primary buttons, the rest stay flat),
 --        OnHover (fn(bool): pointer over / pressing the button, false when it leaves)
@@ -205,6 +310,9 @@ function Components.button(props: { [string]: any })
 	)
 	local text = props.Text
 	local icon = props.Icon
+	local iconSize = props.IconSize or math.min(28, (read(props.MaxTextSize) or 26) + 4)
+	local leftPad = if icon then iconSize + 6 else 0
+	local rightPad = if props.IconAfter then iconSize + 6 else 0
 
 	return New("Frame")({
 		Name = props.Name or "Button",
@@ -300,16 +408,29 @@ function Components.button(props: { [string]: any })
 					}),
 					if props.Studs then studs(props.Size) else nil,
 					Components.bevel(3, 0.55),
+					-- Glyphs (Icon before the text, IconAfter after it; names or states) sit at the face's
+					-- edges and the text fits the space between them.
+					if icon
+						then Components.icon(icon, iconSize, props.IconColor, {
+							AnchorPoint = Vector2.new(0, 0.5),
+							Position = UDim2.new(0, 9, 0.5, -1),
+							ZIndex = 3,
+						})
+						else nil,
+					if props.IconAfter
+						then Components.icon(props.IconAfter, iconSize, nil, {
+							AnchorPoint = Vector2.new(1, 0.5),
+							Position = UDim2.new(1, -11, 0.5, -1),
+							ZIndex = 3,
+						})
+						else nil,
 					Components.label({
 						Name = "Text",
-						Text = Computed(function()
-							local t = read(text) or ""
-							local i = read(icon)
-							return if i and i ~= "" then i .. " " .. t else t
-						end),
-						Size = UDim2.new(1, -14, 1, -10),
-						Position = UDim2.fromOffset(7, 5),
+						Text = text,
+						Size = UDim2.new(1, -(14 + leftPad + rightPad), 1, -10),
+						Position = UDim2.fromOffset(7 + leftPad, 5),
 						MaxTextSize = props.MaxTextSize or 26,
+						TextColor3 = props.TextColor3,
 						StrokeThickness = 2.5,
 						ZIndex = 3,
 					}),
@@ -320,7 +441,7 @@ function Components.button(props: { [string]: any })
 	})
 end
 
--- Square menu tile. props: Icon, Label, Color, OnClick, Badge (state text),
+-- Square menu tile. props: Icon (glyph name), Label, Color, OnClick, Badge (state text),
 -- Alert (state: red marker + pulse), Selected (state), LayoutOrder, Name, Size
 function Components.tile(props: { [string]: any })
 	return Components.button({
@@ -333,11 +454,9 @@ function Components.tile(props: { [string]: any })
 		Selected = props.Selected,
 		Pulse = props.Alert,
 		Children = {
-			Components.label({
-				Text = props.Icon,
-				Position = UDim2.fromOffset(0, 5),
-				Size = UDim2.new(1, 0, 0.52, 0),
-				MaxTextSize = 34,
+			Components.icon(props.Icon, 32, nil, {
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.new(0.5, -2, 0, 8),
 				ZIndex = 4,
 			}),
 			Components.label({
@@ -436,6 +555,7 @@ function Components.panel(
 		Size: UDim2?,
 		Content: any,
 		Accent: Color3?,
+		Icon: string?, -- a UI/Icons glyph left of the title
 		Header: any?, -- extra controls in the title row (they sit right of the title)
 		TitleWidth: number?, -- title label width when Header is used
 		ContentTop: number?, -- y of the content area (default 72)
@@ -517,12 +637,18 @@ function Components.panel(
 						ZIndex = 3,
 					}),
 					props.Header,
+					if props.Icon
+						then Components.icon(props.Icon, 32, nil, {
+							Position = UDim2.fromOffset(18, 11),
+							ZIndex = 4,
+						})
+						else nil,
 					Components.label({
 						Text = props.Title,
 						Size = if props.TitleWidth
 							then UDim2.fromOffset(props.TitleWidth, 36)
-							else UDim2.new(1, -110, 0, 36),
-						Position = UDim2.fromOffset(20, 9),
+							else UDim2.new(1, if props.Icon then -156 else -110, 0, 36),
+						Position = UDim2.fromOffset(if props.Icon then 64 else 20, 9),
 						TextXAlignment = Enum.TextXAlignment.Left,
 						MaxTextSize = 30,
 						StrokeThickness = 3,

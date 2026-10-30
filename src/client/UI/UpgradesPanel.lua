@@ -16,8 +16,8 @@ local C = require(script.Parent.Components)
 local New, Children, Computed = Fusion.New, Fusion.Children, Fusion.Computed
 
 local INFO = {
-	growthSpeed = { icon = "⚡", title = "GROWTH SPEED", what = "Eggs grow faster" },
-	mutationOdds = { icon = "✨", title = "MUTATION ODDS", what = "More mutations while growing" },
+	growthSpeed = { icon = "bolt", title = "GROWTH SPEED", what = "Eggs grow faster" },
+	mutationOdds = { icon = "sparkle", title = "MUTATION ODDS", what = "More mutations while growing" },
 }
 
 local function row(kind: string, order: number)
@@ -58,13 +58,7 @@ local function row(kind: string, order: number)
 		ZIndex = 3,
 		[Children] = {
 			C.stroke(Theme.colors.ink, 3),
-			C.label({
-				Text = info.icon,
-				Position = UDim2.fromOffset(12, 18),
-				Size = UDim2.fromOffset(60, 60),
-				MaxTextSize = 48,
-				ZIndex = 4,
-			}),
+			C.icon(info.icon, 52, nil, { Position = UDim2.fromOffset(16, 20), ZIndex = 4 }),
 			C.label({
 				Text = info.title,
 				Position = UDim2.fromOffset(84, 14),
@@ -122,7 +116,8 @@ end
 
 return function()
 	return C.panel({
-		Title = "⬆️ Upgrades",
+		Title = "Upgrades",
+		Icon = "arrowUp",
 		Accent = Theme.colors.toxicDark,
 		Size = UDim2.fromOffset(600, 360),
 		IsOpen = Computed(function()

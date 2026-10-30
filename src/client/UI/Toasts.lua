@@ -8,6 +8,7 @@ local Fusion = require(ReplicatedStorage.Packages.Fusion)
 local State = require(script.Parent.Parent.State)
 local Theme = require(script.Parent.Theme)
 local C = require(script.Parent.Components)
+local Format = require(game:GetService("ReplicatedStorage").Shared.Format)
 
 local New, Children, Computed, ForPairs = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.ForPairs
 
@@ -51,12 +52,21 @@ return function()
 									BackgroundColor3 = if good then Theme.colors.gold else Theme.colors.slateLight,
 									ZIndex = 2,
 								}),
+								-- Good news gets a sparkle glyph; any emoji in the text (server messages
+								-- also go to chat, where emoji are fine) is dropped here.
+								if good
+									then C.icon("sparkle", 20, nil, {
+										AnchorPoint = Vector2.new(0, 0.5),
+										Position = UDim2.new(0, 16, 0.5, 0),
+										ZIndex = 3,
+									})
+									else nil,
 								C.label({
-									Size = UDim2.new(1, -30, 1, -12),
-									Position = UDim2.fromOffset(18, 6),
+									Size = UDim2.new(1, if good then -54 else -30, 1, -12),
+									Position = UDim2.fromOffset(if good then 42 else 18, 6),
 									MaxTextSize = 18,
 									TextColor3 = if good then Theme.colors.white else Theme.colors.cream,
-									Text = (if good then "✨ " else "") .. (text or ""),
+									Text = Format.stripEmoji(text or ""),
 									ZIndex = 2,
 								}),
 							},

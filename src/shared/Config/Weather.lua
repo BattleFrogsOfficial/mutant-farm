@@ -23,7 +23,8 @@ return {
 	events = {
 		AcidRain = {
 			name = "Acid Rain",
-			icon = "☢",
+			icon = "☢", -- chat lines and the server toasts' text
+			glyph = "radiation", -- UI/Icons, in the HUD and panels
 			color = "#7CFF4A",
 			mutation = "Radioactive",
 			chancePerRoll = 0.25, -- ~68% of eggs growing through the whole event
@@ -36,6 +37,7 @@ return {
 		SolarFlare = {
 			name = "Solar Flare",
 			icon = "☀",
+			glyph = "sun",
 			color = "#FFD24A",
 			mutation = "Golden",
 			chancePerRoll = 0.3, -- ~76%
@@ -47,6 +49,7 @@ return {
 		GlitchStorm = {
 			name = "Glitch Storm",
 			icon = "⚡",
+			glyph = "bolt",
 			color = "#FF3CF0",
 			mutation = "Glitched",
 			chancePerRoll = 0.1, -- ~34%

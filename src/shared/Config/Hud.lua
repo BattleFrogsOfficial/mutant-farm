@@ -158,12 +158,13 @@ return {
 	nextUpWidth = 400,
 	nextUpHeight = 32,
 
-	-- Vector glyphs (UI/Glyphs.lua): ink outline and the boxy hard shadow (Theme.shadow), in design
+	-- Vector glyphs (UI/Icons.lua): ink outline and the boxy hard shadow (Theme.shadow), in design
 	-- px. The shadow is faded as one layer (a CanvasGroup) like C.shadow, so overlapping shapes
 	-- never show seams.
 	glyph = {
 		stroke = 3,
 		shadow = 4,
 		shadowTransparency = 0.2,
+		fullSize = 24, -- glyphs this big and up get the full outline and shadow; smaller ones scale
 	},
 }

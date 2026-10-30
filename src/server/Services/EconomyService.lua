@@ -49,7 +49,7 @@ function EconomyService.addCash(
 	data.stats.totalCashEarned += amount
 	-- An earnings-gated tier (Lab) unlocking right now.
 	if lockedBefore and ShopRules.isUnlocked(lockedBefore, data.rebirths, data.stats.totalCashEarned) then
-		Net.notify(player, "🥚 " .. Eggs.tiers[lockedBefore].name .. " unlocked at the Egg Shop!", "success")
+		Net.notify(player, Eggs.tiers[lockedBefore].name .. " unlocked at the Egg Shop!", "success")
 	end
 	Analytics.economy(player, "Source", "Cash", amount, data.cash, transactionType, sku)
 	DataService.changed(player)

@@ -32,7 +32,10 @@ export type Milestone = {
 }
 
 export type Label = {
-	text: string,
+	text: string, -- plain words ("100 · Toxic Egg")
+	pre: string, -- top line: the species needed
+	glyph: string?, -- (unused: labels are words only)
+	post: string, -- second line: the reward ("" when collapsed to the number)
 	x: number, -- left edge (track px)
 	w: number,
 	short: boolean, -- collapsed to its icon
@@ -100,27 +103,40 @@ local function percent(luck: number): string
 	return string.format("+%d%%", math.floor(luck * 100 + 0.5))
 end
 
-function AlmanacTrack.icon(m: Milestone): string
-	return if m.kind == "luck" then "🍀" elseif m.kind == "egg" then "🥚" else "💎"
+export type Form = "full" | "short"
+export type Parts = { pre: string, glyph: string?, post: string }
+
+-- The reward, in words: "25 Gems", "Toxic Egg", "+10% luck".
+function AlmanacTrack.reward(m: Milestone): string
+	return if m.kind == "luck"
+		then percent(m.luck :: number) .. " luck"
+		elseif m.kind == "egg" then (m.egg :: string) .. " Egg"
+		else string.format("%d Gems", m.gems :: number)
 end
 
-export type Form = "full" | "short" | "icon"
-
--- The marker's label: "full" = "25 💎25", "100 🥚Toxic", "400 🍀+10% luck"; "short" is the number
--- and the icon ("100🥚"); "icon" is just the icon ("🥚").
-function AlmanacTrack.label(m: Milestone, form: Form?): string
-	local icon = AlmanacTrack.icon(m)
-	if form == "icon" then
-		return icon
-	end
-	local reward = if m.kind == "luck"
-		then percent(m.luck :: number) .. " luck"
-		elseif m.kind == "egg" then m.egg :: string
-		else tostring(m.gems)
+-- The marker's label, two lines stacked: the requirement on top ("100", species found) and the
+-- reward under it ("Toxic Egg", at rewardScale of the font). "short" is the number alone.
+function AlmanacTrack.parts(m: Milestone, form: Form?): Parts
 	if form == "short" then
-		return tostring(m.at) .. icon
+		return { pre = tostring(m.at), post = "" }
 	end
-	return string.format("%d %s%s", m.at, icon, reward)
+	return { pre = tostring(m.at), post = AlmanacTrack.reward(m) }
+end
+
+-- The label in plain words: "100 · Toxic Egg", or "100".
+function AlmanacTrack.label(m: Milestone, form: Form?): string
+	local p = AlmanacTrack.parts(m, form)
+	return if p.post ~= "" then p.pre .. " · " .. p.post else p.pre
+end
+
+-- The reward line's font for a label `font`.
+function AlmanacTrack.rewardFont(font: number): number
+	return math.floor(font * UIConfig.rewardScale + 0.5)
+end
+
+-- Estimated drawn width of a label: its wider line.
+function AlmanacTrack.partsWidth(p: Parts, font: number): number
+	return math.max(AlmanacTrack.textWidth(p.pre, font), AlmanacTrack.textWidth(p.post, AlmanacTrack.rewardFont(font)))
 end
 
 -- The tooltip shown when a marker is tapped.
@@ -140,6 +156,10 @@ function AlmanacTrack.textWidth(text: string, font: number): number
 			w += UIConfig.emojiEm * font
 		elseif cp == 32 then
 			w += UIConfig.spaceEm * font
+		elseif UIConfig.charEms[utf8.char(cp)] then
+			w += UIConfig.charEms[utf8.char(cp)] * font
+		elseif cp >= 65 and cp <= 90 then -- capitals
+			w += UIConfig.capEm * font
 		else
 			w += UIConfig.charEm * font
 		end
@@ -275,9 +295,19 @@ function AlmanacTrack.layout(
 	-- at the segment's start; earlier passed ones stay unlabeled), then the big later ones in one form for all: in full if they pack, else
 	-- "100🥚", else icons (centered; any icon that still collides hides).
 	local placed: { Label } = {}
-	local function make(text: string, center: number, short: boolean): Label
-		local w = AlmanacTrack.textWidth(text, font)
-		return { text = text, x = boxAt(center, w, width), w = w, short = short, covered = false }
+	local function make(p: Parts, center: number, short: boolean): Label
+		local w = AlmanacTrack.partsWidth(p, font)
+		local text = if p.post ~= "" then p.pre .. " · " .. p.post else p.pre
+		return {
+			text = text,
+			pre = p.pre,
+			glyph = p.glyph,
+			post = p.post,
+			x = boxAt(center, w, width),
+			w = w,
+			short = short,
+			covered = false,
+		}
 	end
 	local function fits(l: Label, others: { Label }): boolean
 		for _, p in others do
@@ -290,7 +320,7 @@ function AlmanacTrack.layout(
 	local rest: { Marker } = {}
 	for _, mk in markers do
 		if mk.role == "next" then
-			mk.label = make(AlmanacTrack.label(mk.milestone), mk.x, false)
+			mk.label = make(AlmanacTrack.parts(mk.milestone), mk.x, false)
 			table.insert(placed, mk.label :: Label)
 		end
 	end
@@ -299,7 +329,7 @@ function AlmanacTrack.layout(
 			if mk.milestone ~= last then
 				continue
 			end
-			local l = make(tostring(mk.milestone.at), mk.x, false)
+			local l = make({ pre = tostring(mk.milestone.at), post = "" }, mk.x, false)
 			if fits(l, placed) then
 				mk.label = l
 				table.insert(placed, l)
@@ -320,13 +350,23 @@ function AlmanacTrack.layout(
 	for _, form: Form in { "full", "short" } do
 		local items = {}
 		for _, mk in rest do
-			local text = AlmanacTrack.label(mk.milestone, form)
-			table.insert(items, { text = text, w = AlmanacTrack.textWidth(text, font), center = mk.x })
+			local p = AlmanacTrack.parts(mk.milestone, form)
+			table.insert(items, { p = p, w = AlmanacTrack.partsWidth(p, font), center = mk.x })
 		end
 		local xs = pack(items, wall, width)
 		if xs then
 			for i, mk in rest do
-				local l: Label = { text = items[i].text, x = xs[i], w = items[i].w, short = false, covered = false }
+				local p = items[i].p
+				local l: Label = {
+					text = if p.post ~= "" then p.pre .. " · " .. p.post else p.pre,
+					pre = p.pre,
+					glyph = p.glyph,
+					post = p.post,
+					x = xs[i],
+					w = items[i].w,
+					short = false,
+					covered = false,
+				}
 				mk.label = l
 				table.insert(placed, l)
 			end
@@ -336,7 +376,7 @@ function AlmanacTrack.layout(
 	end
 	if not done then
 		for _, mk in rest do
-			local l = make(AlmanacTrack.label(mk.milestone, "icon"), mk.x, true)
+			local l = make(AlmanacTrack.parts(mk.milestone, "short"), mk.x, true)
 			if fits(l, placed) then
 				mk.label = l
 				table.insert(placed, l)

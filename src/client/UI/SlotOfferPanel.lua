@@ -57,7 +57,8 @@ return function()
 			)
 	end)
 	return C.panel({
-		Title = "🌱 New Soil Patch",
+		Title = "New Soil Patch",
+		Icon = "sprout",
 		Accent = Theme.colors.toxicDark,
 		Size = UDim2.fromOffset(560, 330),
 		IsOpen = Computed(function()
@@ -180,13 +181,15 @@ return function()
 						MaxTextSize = 20,
 						ZIndex = 2,
 					}),
-					C.label({
-						Text = "🌱 +10 PATCHES",
+					C.iconText({
+						Icon = "sprout",
+						IconSize = 32,
+						Text = "+10 PATCHES",
+						Align = "Left",
 						Position = UDim2.fromOffset(14, 42),
 						Size = UDim2.new(1, -28, 0, 40),
-						TextXAlignment = Enum.TextXAlignment.Left,
 						TextColor3 = Theme.colors.gold,
-						MaxTextSize = 30,
+						TextSize = 28,
 						ZIndex = 2,
 					}),
 					C.label({

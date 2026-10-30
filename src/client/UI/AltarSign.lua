@@ -2,7 +2,7 @@
 -- The Rebirth Altar's sign face, drawn per player (ZoneController mounts it in a SurfaceGui in
 -- PlayerGui adorned to the sign's board, so the button can be tapped): "REBIRTH 1 · $700K" over
 -- "unlocks Toxic Egg" (or "Cash x2"), a Cash / cost bar, and from 50% of the cost a pink
--- REBIRTH NOW · 100 💎 beside the bar (it opens the Rebirth panel, where it's confirmed).
+-- REBIRTH NOW · 100 [gem] beside the bar (it opens the Rebirth panel, where it's confirmed).
 -- Design size SIZE (the board at 40 px per stud).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -57,7 +57,7 @@ function AltarSign.new(): Frame
 				StrokeThickness = 4,
 				Text = Computed(function()
 					local snap = State.snapshot:get()
-					return if snap then AltarSign.text(snap.rebirths, snap.rebirthCost or 0) else "🔁 REBIRTH ALTAR"
+					return if snap then AltarSign.text(snap.rebirths, snap.rebirthCost or 0) else "REBIRTH ALTAR"
 				end),
 			}),
 			New("Frame")({
@@ -97,7 +97,8 @@ function AltarSign.new(): Frame
 				Size = UDim2.fromOffset(214, 62),
 				Color = Theme.colors.spend,
 				Visible = offerNow,
-				Text = string.format("REBIRTH NOW · %d 💎", Products.gems.RebirthNow.cost),
+				Text = string.format("REBIRTH NOW · %d", Products.gems.RebirthNow.cost),
+				IconAfter = "gem",
 				MaxTextSize = 22,
 				OnClick = function()
 					-- The panel holds the confirm (and sends short-on-Gems players to the packs).

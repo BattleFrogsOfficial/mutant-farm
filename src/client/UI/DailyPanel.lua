@@ -93,11 +93,9 @@ local function tile(day: number)
 							Position = UDim2.new(0, 8, 0, 28),
 							ZIndex = 2,
 						})
-						else C.label({
-							Text = "💰",
-							Size = UDim2.new(1, -16, 0.42, 0),
-							Position = UDim2.new(0, 8, 0, 30),
-							MaxTextSize = 48,
+						else C.icon("coin", 40, nil, {
+							AnchorPoint = Vector2.new(0.5, 0),
+							Position = UDim2.new(0.5, 0, 0, 36),
 							ZIndex = 2,
 						}),
 					C.label({
@@ -109,14 +107,10 @@ local function tile(day: number)
 						MaxTextSize = 15,
 						ZIndex = 2,
 					}),
-					C.label({
-						Text = "✅",
+					C.icon("check", 48, nil, {
 						AnchorPoint = Vector2.new(0.5, 0.5),
 						Position = UDim2.fromScale(0.5, 0.48),
-						Size = UDim2.fromOffset(60, 60),
-						MaxTextSize = 56,
-						TextColor3 = Theme.colors.toxic,
-						StrokeThickness = 4,
+						ZIndex = 4,
 						Visible = Computed(function()
 							return state:get() == "claimed"
 						end),
@@ -141,7 +135,8 @@ return function()
 		table.insert(tiles, tile(day))
 	end
 	return C.panel({
-		Title = "🎁 Daily Rewards",
+		Title = "Daily Rewards",
+		Icon = "gift",
 		Accent = Theme.colors.danger,
 		Size = UDim2.fromOffset(560, 480),
 		IsOpen = Computed(function()
@@ -151,11 +146,18 @@ return function()
 			State.panel:set("none")
 		end,
 		Content = {
+			C.icon("flame", 22, nil, {
+				Position = UDim2.fromOffset(0, 2),
+				ZIndex = 3,
+				Visible = Computed(function()
+					return status().streak > 0
+				end),
+			}),
 			C.label({
 				Text = Computed(function()
 					local s = status()
 					return if s.streak > 0
-						then string.format("🔥 %d day streak! Claim the next one to keep it going.", s.streak)
+						then string.format("%d day streak! Claim the next one to keep it going.", s.streak)
 						else "Log in every day for bigger rewards. Missing a day resets your streak!"
 				end),
 				Size = UDim2.new(1, 0, 0, 26),
@@ -196,6 +198,11 @@ return function()
 						ZIndex = 2,
 						[Children] = {
 							C.stroke(Theme.colors.ink, 2.5),
+							C.icon("group", 20, nil, {
+								AnchorPoint = Vector2.new(0, 0.5),
+								Position = UDim2.new(0, 10, 0.5, 0),
+								ZIndex = 3,
+							}),
 							C.label({
 								Text = (function()
 									local parts = {
@@ -207,10 +214,10 @@ return function()
 									for eggId, count in GameConfig.groupReward.eggs or {} do
 										table.insert(parts, count .. " " .. string.upper(eggId) .. " EGGS")
 									end
-									return "👥 JOIN OUR GROUP: " .. table.concat(parts, " + ")
+									return "JOIN OUR GROUP: " .. table.concat(parts, " + ")
 								end)(),
-								Position = UDim2.fromOffset(10, 8),
-								Size = UDim2.new(1, -150, 1, -16),
+								Position = UDim2.fromOffset(38, 8),
+								Size = UDim2.new(1, -178, 1, -16),
 								TextXAlignment = Enum.TextXAlignment.Left,
 								MaxTextSize = 15,
 								ZIndex = 3,
@@ -243,10 +250,15 @@ return function()
 						ZIndex = 2,
 						[Children] = {
 							C.stroke(Theme.colors.gold, 2.5),
+							C.icon("crown", 20, nil, {
+								AnchorPoint = Vector2.new(0, 0.5),
+								Position = UDim2.new(0, 10, 0.5, 0),
+								ZIndex = 3,
+							}),
 							C.label({
-								Text = string.format("👑 VIP: %d GEMS EVERY DAY", Passes.VIP.dailyGems),
-								Position = UDim2.fromOffset(10, 7),
-								Size = UDim2.new(1, -150, 1, -14),
+								Text = string.format("VIP: %d GEMS EVERY DAY", Passes.VIP.dailyGems),
+								Position = UDim2.fromOffset(38, 7),
+								Size = UDim2.new(1, -178, 1, -14),
 								TextXAlignment = Enum.TextXAlignment.Left,
 								TextColor3 = Theme.colors.gold,
 								MaxTextSize = 15,
@@ -269,7 +281,11 @@ return function()
 								end),
 								Text = Computed(function()
 									local snap = State.snapshot:get()
-									return if snap ~= nil and snap.vipGemsReady == true then "CLAIM 💎" else "CLAIMED"
+									return if snap ~= nil and snap.vipGemsReady == true then "CLAIM" else "CLAIMED"
+								end),
+								Icon = Computed(function()
+									local snap = State.snapshot:get()
+									return if snap ~= nil and snap.vipGemsReady == true then "gem" else nil
 								end),
 								OnClick = function()
 									Remotes.get("ClaimVipGems"):FireServer()
@@ -296,7 +312,7 @@ return function()
 				end),
 				Text = Computed(function()
 					if status().canClaim then
-						return "🎁 CLAIM DAY " .. status().day
+						return "CLAIM DAY " .. status().day
 					end
 					-- Rewards roll over at UTC midnight (DataService.dailyStatus): count down to it.
 					local left = 86400 - (State.now:get() % 86400)

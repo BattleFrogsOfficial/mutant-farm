@@ -23,11 +23,9 @@ local function stat(order: number, icon: string, value: any, label: any, color: 
 		ZIndex = 2,
 		[Children] = {
 			C.stroke(color, 3),
-			C.label({
-				Text = icon,
-				Size = UDim2.new(1, 0, 0, 40),
-				Position = UDim2.fromOffset(0, 8),
-				MaxTextSize = 34,
+			C.icon(icon, 34, nil, {
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.new(0.5, -2, 0, 10),
 				ZIndex = 3,
 			}),
 			C.label({
@@ -56,7 +54,8 @@ return function()
 		return info:get() or { away = 0, ready = 0, mutations = 0, capped = false, earned = 0 }
 	end
 	return C.panel({
-		Title = "👋 Welcome back!",
+		Title = "Welcome back!",
+		Icon = "star",
 		Accent = Theme.colors.toxicDark,
 		Size = UDim2.fromOffset(600, 400),
 		IsOpen = Computed(function()
@@ -89,7 +88,7 @@ return function()
 					}),
 					stat(
 						0,
-						"🐾",
+						"paw",
 						Computed(function()
 							return Format.cash(get().earned or 0)
 						end),
@@ -98,7 +97,7 @@ return function()
 					),
 					stat(
 						1,
-						"🥚",
+						"egg",
 						Computed(function()
 							local auto = get().autoHarvested or 0
 							return tostring(if auto > 0 then auto else get().ready)
@@ -110,7 +109,7 @@ return function()
 					),
 					stat(
 						2,
-						"✨",
+						"sparkle",
 						Computed(function()
 							return tostring(get().mutations)
 						end),
@@ -142,7 +141,10 @@ return function()
 					return get().ready > 0
 				end),
 				Text = Computed(function()
-					return if get().ready > 0 then string.format("🥚 HATCH %d NOW", get().ready) else "Let's go!"
+					return if get().ready > 0 then string.format("HATCH %d NOW", get().ready) else "Let's go!"
+				end),
+				Icon = Computed(function()
+					return if get().ready > 0 then "egg" else nil
 				end),
 				OnClick = function()
 					State.panel:set("none")

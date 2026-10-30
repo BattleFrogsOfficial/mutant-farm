@@ -112,7 +112,7 @@ local function onClaim(player: Player, data: Types.Profile)
 	end
 	Net.notify(
 		player,
-		string.format("👥 Thanks for joining! +%d%% Cash forever", math.floor(GameConfig.groupCashBonus * 100 + 0.5))
+		string.format("Thanks for joining! +%d%% Cash forever", math.floor(GameConfig.groupCashBonus * 100 + 0.5))
 			.. eggs,
 		"success"
 	)

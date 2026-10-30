@@ -222,9 +222,9 @@ local function almanacMilestone(player: Player, data: Types.Profile)
 				data.almanacLuck += big.luck
 				table.insert(parts, string.format("+%d%% luck forever", math.floor(big.luck * 100 + 0.5)))
 			end
-			Net.notify(player, string.format("📖 %d species! %s", at, table.concat(parts, " + ")), "success")
+			Net.notify(player, string.format("%d species! %s", at, table.concat(parts, " + ")), "success")
 		elseif EconomyService.addGems(player, data, cfg.gems, "Gameplay", "Almanac_" .. at) then
-			Net.notify(player, string.format("📖 %d species discovered! +%d Gems", at, cfg.gems), "success")
+			Net.notify(player, string.format("%d species discovered! +%d Gems", at, cfg.gems), "success")
 		end
 	end
 end
@@ -397,7 +397,7 @@ local function onBuyPotion(player: Player, data: Types.Profile)
 	end
 	local now = DataService.now()
 	data.potionUntil = math.max(now, data.potionUntil) + potion.durationSeconds
-	Net.notify(player, string.format("🍀 Luck Potion! %dx luck for 30 min", potion.luck), "success")
+	Net.notify(player, string.format("Luck Potion! %dx luck for 30 min", potion.luck), "success")
 	DataService.changed(player)
 end
 
@@ -445,7 +445,7 @@ local function onSkipTimers(player: Player, data: Types.Profile)
 		end
 	end
 	announce(player, data, events)
-	Net.notify(player, "⏩ Done! Your eggs are ready to hatch", "success")
+	Net.notify(player, "Done! Your eggs are ready to hatch", "success")
 	DataService.changed(player)
 end
 
@@ -464,11 +464,7 @@ local function onBuyUpgrade(player: Player, data: Types.Profile, kind: any)
 		return
 	end
 	data.upgrades[kind] += 1
-	Net.notify(
-		player,
-		if kind == "growthSpeed" then "⚡ Growth speed upgraded!" else "✨ Mutation odds upgraded!",
-		"success"
-	)
+	Net.notify(player, if kind == "growthSpeed" then "Growth speed upgraded!" else "Mutation odds upgraded!", "success")
 	DataService.changed(player)
 end
 

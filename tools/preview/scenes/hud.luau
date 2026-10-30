@@ -72,9 +72,9 @@ return function(api)
 	api.captureHud("hud-plot-watered-touch")
 	set(State.touch, false)
 
-	-- Glyph sheet (not a "hud" scene): every vector icon large and at its HUD size, on navy.
+	-- Icon sheet (not a "hud" scene): every UI/Icons glyph large and at a HUD size, on navy, 10 per row.
 	do
-		local Glyphs = api.requireModule(api.UI.Glyphs)
+		local Icons = api.requireModule(api.UI.Icons)
 		local Theme = api.requireModule(api.UI.Theme)
 		local UDim2 = api.roblox.UDim2
 		local holder = api.Instance.new("Frame")
@@ -84,14 +84,19 @@ return function(api)
 		local sheet = api.Instance.new("Frame")
 		sheet.Name = "GlyphSheet"
 		sheet.BackgroundColor3 = Theme.colors.navy
-		sheet.Position = UDim2.fromOffset(20, 20)
-		sheet.Size = UDim2.fromOffset(860, 300)
+		sheet.Position = UDim2.fromOffset(10, 10)
+		sheet.Size = UDim2.fromOffset(880, 500)
 		sheet.Parent = holder
-		local names = { "arrowUp", "gift", "book", "coin", "gem", "egg", "bag", "drop" }
+		local names = {}
+		for name in Icons.shapes do
+			table.insert(names, name)
+		end
+		table.sort(names)
 		for i, name in names do
-			local big = Glyphs.new(name, { Size = 80, Position = UDim2.fromOffset(20 + (i - 1) * 105, 30) })
+			local col, row = (i - 1) % 10, (i - 1) // 10
+			local big = Icons.new(name, { Size = 56, Position = UDim2.fromOffset(16 + col * 86, 16 + row * 120) })
 			big.Parent = sheet
-			local small = Glyphs.new(name, { Size = 24, Position = UDim2.fromOffset(48 + (i - 1) * 105, 170) })
+			local small = Icons.new(name, { Size = 22, Position = UDim2.fromOffset(32 + col * 86, 84 + row * 120) })
 			small.Parent = sheet
 		end
 		api.setRoot(holder)

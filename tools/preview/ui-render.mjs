@@ -69,6 +69,7 @@ function build(node, parentInner, parentLayout) {
   const el = document.createElement("div");
   el.className = "g";
   el.title = node.name;
+  el.dataset.cls = node.class;
   if (p.Visible === false) el.style.display = "none";
   const [sx, ox, sy, oy] = p.Size || [0,100,0,100];
   const [px, pox, py, poy] = p.Position || [0,0,0,0];
@@ -391,6 +392,20 @@ window.checkPanel = (W, H) => {
   return { problems, rebirthNow: vis(host.querySelector('[title="RebirthNow"]')) };
 };
 
+// Every scene once: no emoji drawn as text (icons are UI/Icons glyphs) and no image elements.
+const EMOJI = /[\\u2190-\\u2BFF\\u3000-\\uFFFF\\u200D]|[\\uD800-\\uDBFF]/;
+window.checkText = () => {
+  const problems = [];
+  for (const sp of document.querySelectorAll(".gui span")) {
+    if (sp.offsetParent === null || !sp.textContent.trim()) continue;
+    if (EMOJI.test(sp.textContent.replace(/[·]/g, ""))) problems.push(\`emoji in text "\${sp.textContent.trim()}"\`);
+  }
+  for (const el of document.querySelectorAll('.gui [data-cls="ImageLabel"], .gui [data-cls="ImageButton"]')) {
+    if (el.offsetParent !== null) problems.push(\`image element \${el.title}\`);
+  }
+  return problems;
+};
+
 window.checkOverlaps = (W, H, touch) => {
   const problems = [];
   const rects = [];
@@ -491,6 +506,22 @@ for (let i = 0; i < count; i++) {
     await page.screenshot({ path: file });
     console.log("wrote", file);
   }
+}
+// Text check: every scene once (at its own size, else the smallest phone).
+{
+  let textIssues = 0, textChecked = 0;
+  for (let i = 0; i < count; i++) {
+    if (!only(sceneNames[i])) continue;
+    const sized = /@(\d+)x(\d+)$/.exec(sceneNames[i]);
+    const [W, H] = sized ? [+sized[1], +sized[2]] : [800, 360];
+    await page.setViewportSize({ width: W, height: H });
+    await page.evaluate(([i, W, H]) => window.render(i, W, H), [i, W, H]);
+    const problems = await page.evaluate(() => window.checkText());
+    textChecked++;
+    for (const p of [...new Set(problems)]) console.log(`[text] ${sceneNames[i]} ${W}x${H}: ${p}`);
+    textIssues += new Set(problems).size;
+  }
+  console.log(`Text check: ${textIssues} issue(s) across ${textChecked} scenes`);
 }
 // Overlap check on every HUD state (hub, plot) at every screen size.
 let issues = 0, checked = 0;

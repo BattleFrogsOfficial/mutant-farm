@@ -436,7 +436,7 @@ end
 local function setFastLabel(on: boolean)
 	local label = screen.fast:FindFirstChild("Label") :: TextLabel?
 	if label then
-		label.Text = if on then "⚡ FAST: ON" else "⚡ FAST: OFF"
+		label.Text = if on then "FAST: ON" else "FAST: OFF"
 	end
 end
 
@@ -449,7 +449,7 @@ local function potionOffer(visible: boolean)
 	screen.potion.Visible = visible and snap ~= nil and snap.paidRandomRestricted == false and not active
 	local label = screen.potion:FindFirstChild("Label") :: TextLabel?
 	if label then
-		label.Text = string.format("🍀 LUCK x%d · %d 💎", potion.luck, potion.cost)
+		label.Text = string.format("LUCK x%d · %d", potion.luck, potion.cost)
 	end
 end
 
@@ -458,7 +458,7 @@ local function pinOffer(visible: boolean)
 	screen.pin.Visible = visible and revealItem ~= nil
 	local label = screen.pin:FindFirstChild("Label") :: TextLabel?
 	if label then
-		label.Text = if revealPinned then "📌 PINNED" else "📌 PIN TO PEN"
+		label.Text = if revealPinned then "PINNED" else "PIN TO PEN"
 	end
 end
 
@@ -786,7 +786,7 @@ local function onHarvested(item: any, value: number, slotIndex: number?, isNew: 
 		-- The slot was replanted in the same step, so its egg isn't hidden.
 		State.toast(
 			string.format(
-				"🤖 %s%s %s · %s",
+				"%s%s %s · %s",
 				if isNew then "NEW! " else "",
 				item.rarity,
 				MutantModel.species(item).name,
@@ -909,7 +909,7 @@ end
 
 local function onRebirthed(rebirths: number)
 	Sfx.play("hatchLegendary", 0.8, 0.9)
-	State.toast(string.format("♻ Welcome to Rebirth %d!", rebirths), "success")
+	State.toast(string.format("Welcome to Rebirth %d!", rebirths), "success")
 end
 
 function HatchController.Init()

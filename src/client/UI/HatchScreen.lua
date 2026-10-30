@@ -7,6 +7,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Theme = require(script.Parent.Theme)
+local Icons = require(script.Parent.Icons)
 
 local HatchScreen = {}
 
@@ -71,7 +72,8 @@ local function text(props: { [string]: any }): TextLabel
 	return t
 end
 
-local function button(name: string, label: string, props: { [string]: any }): TextButton
+-- `icon` / `after`: UI/Icons glyphs before / after the label (never emoji).
+local function button(name: string, label: string, props: { [string]: any }, icon: string?, after: string?): TextButton
 	-- The button's own Text stays empty: children draw above their parent, so the bevel and lip
 	-- would cover it. The label is a child on top of them instead.
 	local b = Instance.new("TextButton")
@@ -103,11 +105,33 @@ local function button(name: string, label: string, props: { [string]: any }): Te
 		ZIndex = b.ZIndex,
 		Parent = b,
 	})
+	local glyph = 22
+	local left, right = 8, 8
+	if icon then
+		Icons.new(icon, {
+			Size = glyph,
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, 10, 0.5, -3),
+			ZIndex = b.ZIndex + 1,
+		}).Parent =
+			b
+		left = 10 + glyph + 4
+	end
+	if after then
+		Icons.new(after, {
+			Size = glyph,
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -12, 0.5, -3),
+			ZIndex = b.ZIndex + 1,
+		}).Parent =
+			b
+		right = 12 + glyph + 4
+	end
 	text({
 		Name = "Label",
 		Text = label,
-		Position = UDim2.fromOffset(8, 7),
-		Size = UDim2.new(1, -16, 1, -18),
+		Position = UDim2.fromOffset(left, 7),
+		Size = UDim2.new(1, -(left + right), 1, -18),
 		Max = 26,
 		Stroke = 2,
 		ZIndex = b.ZIndex + 1,
@@ -253,15 +277,15 @@ function HatchScreen.new(): Screen
 	tap.Parent = root
 
 	-- Skip controls sit at the right edge beside the stage, clear of the title and the name.
-	local skip = button("Skip", "Skip ⏭", {
+	local skip = button("Skip", "Skip", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -16, 0.5, -30),
 		Size = UDim2.fromOffset(130, 48),
 		ZIndex = 10,
 		Parent = root,
-	})
+	}, nil, "skip")
 	-- Veterans (20+ hatches) can turn on Fast Hatch: short cutscene for everything below Epic.
-	local fast = button("Fast", "⚡ FAST: OFF", {
+	local fast = button("Fast", "FAST: OFF", {
 		-- In the Skip column (the top-left corner belongs to Roblox's buttons).
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -16, 0.5, 90),
@@ -269,27 +293,27 @@ function HatchScreen.new(): Screen
 		ZIndex = 10,
 		Visible = false,
 		Parent = root,
-	})
+	}, "bolt")
 	-- Luck Potion offer during the reveal, on the left (Skip is on the right). Pink: it spends.
-	local potion = button("Potion", "🍀 LUCK x3 · 25 💎", {
+	local potion = button("Potion", "LUCK x3 · 25", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 16, 0.5, 0),
-		Size = UDim2.fromOffset(190, 52),
+		Size = UDim2.fromOffset(210, 52),
 		BackgroundColor3 = Theme.colors.spend,
 		ZIndex = 10,
 		Visible = false,
 		Parent = root,
-	})
+	}, "clover", "gem")
 	-- Pin the new mutant to the pen, under the potion offer. Navy: it doesn't spend.
-	local pin = button("Pin", "📌 PIN TO PEN", {
+	local pin = button("Pin", "PIN TO PEN", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 16, 0.5, 64),
-		Size = UDim2.fromOffset(190, 52),
+		Size = UDim2.fromOffset(210, 52),
 		BackgroundColor3 = Theme.colors.navy,
 		ZIndex = 10,
 		Visible = false,
 		Parent = root,
-	})
+	}, "pin")
 	local skipAll = button("SkipAll", "Skip all", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -16, 0.5, 30),

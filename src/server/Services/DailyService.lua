@@ -48,7 +48,7 @@ local function onClaimVipGems(player: Player, data: Types.Profile)
 	local gems = Passes.VIP.dailyGems
 	if EconomyService.addGems(player, data, gems, "TimedReward", "VipDaily") then
 		data.vipGemsDay = today()
-		Net.notify(player, string.format("👑 VIP: +%d Gems! Come back tomorrow for more", gems), "success")
+		Net.notify(player, string.format("VIP: +%d Gems! Come back tomorrow for more", gems), "success")
 	end
 end
 

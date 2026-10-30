@@ -40,10 +40,6 @@ local function itemRow(itemId: string, order: any)
 	local value = valueOf(item)
 	local rarityColor = Color3.fromHex(Rarities.info[item.rarity].color)
 	local details = { item.rarity, string.format("x%.2f size", item.size) }
-	local tierInfo = Eggs.tiers[item.tier]
-	if tierInfo and tierInfo.icon then
-		table.insert(details, 1, tierInfo.icon) -- limited egg: "🎃 · Rare · ..."
-	end
 	for _, mutation in MutantModel.sortedMutations(item.mutations) do
 		table.insert(details, mutation:upper())
 	end
@@ -92,7 +88,7 @@ local function itemRow(itemId: string, order: any)
 				MaxTextSize = 16,
 				Text = Computed(function()
 					local text = table.concat(details, " · ")
-					return if pinned:get() then "📌 IN PEN · " .. text else text
+					return if pinned:get() then "IN PEN · " .. text else text
 				end),
 				ZIndex = 11,
 			}),
@@ -103,7 +99,9 @@ local function itemRow(itemId: string, order: any)
 				Position = UDim2.new(1, -152, 0.5, 0),
 				Size = UDim2.fromOffset(52, 52),
 				Color = Theme.colors.navy,
-				Text = "📌",
+				Text = "",
+				Icon = "pin",
+				IconSize = 26,
 				MaxTextSize = 22,
 				Selected = pinned,
 				OnClick = function()
@@ -124,7 +122,7 @@ local function itemRow(itemId: string, order: any)
 				Position = UDim2.new(1, -8, 0.5, 0),
 				Size = UDim2.fromOffset(136, 52),
 				Color = Theme.colors.gold,
-				Icon = "💰",
+				Icon = "coin",
 				Text = Format.cash(value),
 				MaxTextSize = 20,
 				Silent = true,
@@ -187,7 +185,8 @@ return function()
 	end)
 
 	return C.panel({
-		Title = "💰 Sell Pad",
+		Title = "Sell Pad",
+		Icon = "bag",
 		Accent = Theme.colors.goldDark,
 		Size = UDim2.fromOffset(600, 470),
 		IsOpen = isOpen,
@@ -199,13 +198,13 @@ return function()
 				Name = "SellAll",
 				Size = UDim2.new(1, 0, 0, 62),
 				Color = Theme.colors.gold,
-				Icon = "💰",
-				MaxTextSize = 28,
+				Icon = "bag",
+				MaxTextSize = 24,
 				Text = Computed(function()
 					local s = summary:get()
 					if s.count > 0 then
 						return string.format("Sell all %d for %s", s.count, Format.cash(s.sum))
-							.. (if s.pinned > 0 then string.format(" (📌 %d stay)", s.pinned) else "")
+							.. (if s.pinned > 0 then string.format(" (%d pinned stay)", s.pinned) else "")
 					end
 					return if s.pinned > 0 then "Only pinned mutants left" else "Your bag is empty"
 				end),

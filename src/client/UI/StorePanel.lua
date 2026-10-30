@@ -23,12 +23,12 @@ local PINK = Theme.colors.spend
 
 local PASS_ORDER = { "Luck2x", "AutoHarvest", "GrowthSpeed2x", "PlotSlots10", "OfflineMutations", "VIP" }
 local PASS_ICON = {
-	Luck2x = "🍀",
-	AutoHarvest = "🤖",
-	GrowthSpeed2x = "⚡",
-	PlotSlots10 = "🌱",
-	OfflineMutations = "🌙",
-	VIP = "👑",
+	Luck2x = "clover",
+	AutoHarvest = "robot",
+	GrowthSpeed2x = "bolt",
+	PlotSlots10 = "sprout",
+	OfflineMutations = "moon",
+	VIP = "crown",
 }
 -- +10 Plot Slots is only sold while it would give all ten (bought slots <= max - 10).
 local function slotsPassUseful(): boolean
@@ -38,14 +38,16 @@ end
 
 local GEM_ORDER = { "Gems100", "Gems550", "Gems1500", "Gems4000" }
 
-local function sectionTitle(order: number, text: string, visible: any?)
-	return C.label({
+local function sectionTitle(order: number, text: string, icon: string, visible: any?)
+	return C.iconText({
 		LayoutOrder = order,
 		Visible = visible,
+		Icon = icon,
+		IconSize = 20,
 		Text = text,
-		Size = UDim2.new(1, 0, 0, 22),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		MaxTextSize = 17,
+		Align = "Left",
+		Size = UDim2.new(1, 0, 0, 24),
+		TextSize = 17,
 		TextColor3 = Theme.colors.cream,
 	})
 end
@@ -89,13 +91,7 @@ local function bundleBanner()
 			return left:get() > 0
 		end),
 		Children = {
-			C.label({
-				Text = "🎁",
-				Position = UDim2.fromOffset(10, 10),
-				Size = UDim2.fromOffset(70, 70),
-				MaxTextSize = 56,
-				ZIndex = 2,
-			}),
+			C.icon("gift", 56, nil, { Position = UDim2.fromOffset(16, 16), ZIndex = 2 }),
 			C.label({
 				Text = "STARTER BUNDLE",
 				Position = UDim2.fromOffset(90, 8),
@@ -106,7 +102,7 @@ local function bundleBanner()
 				ZIndex = 2,
 			}),
 			C.label({
-				Text = string.format("2x LUCK + AUTO-HARVEST + %d 💎", offer.grants.gems),
+				Text = string.format("2x LUCK + AUTO-HARVEST + %d GEMS", offer.grants.gems),
 				Position = UDim2.fromOffset(90, 38),
 				Size = UDim2.new(1, -300, 0, 20),
 				TextXAlignment = Enum.TextXAlignment.Left,
@@ -169,11 +165,9 @@ local function gemCard(productId: string, order: number)
 					}),
 				},
 			}) or nil,
-			C.label({
-				Text = "💎",
-				Position = UDim2.fromOffset(0, 10),
-				Size = UDim2.new(1, 0, 0, 34),
-				MaxTextSize = 32,
+			C.icon("gem", 30, nil, {
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.new(0.5, -2, 0, 10),
 				ZIndex = 2,
 			}),
 			C.label({
@@ -216,13 +210,7 @@ local function passCard(passId: string, order: number)
 			end)
 			else nil,
 		Children = {
-			C.label({
-				Text = PASS_ICON[passId] or "⭐",
-				Position = UDim2.fromOffset(8, 8),
-				Size = UDim2.fromOffset(36, 36),
-				MaxTextSize = 30,
-				ZIndex = 2,
-			}),
+			C.icon(PASS_ICON[passId] or "star", 30, nil, { Position = UDim2.fromOffset(10, 10), ZIndex = 2 }),
 			C.label({
 				Text = string.upper(pass.name),
 				Position = UDim2.fromOffset(50, 8),
@@ -251,7 +239,10 @@ local function passCard(passId: string, order: number)
 					return if owned:get() then Theme.colors.navy else PINK
 				end),
 				Text = Computed(function()
-					return if owned:get() then "✅ OWNED" else "R$ " .. pass.price
+					return if owned:get() then "OWNED" else "R$ " .. pass.price
+				end),
+				Icon = Computed(function()
+					return if owned:get() then "check" else nil
 				end),
 				MaxTextSize = 18,
 				ZIndex = 3,
@@ -282,13 +273,7 @@ local function potionCard()
 			return snap ~= nil and snap.paidRandomRestricted == false
 		end),
 		Children = {
-			C.label({
-				Text = "🍀",
-				Position = UDim2.fromOffset(10, 10),
-				Size = UDim2.fromOffset(64, 64),
-				MaxTextSize = 50,
-				ZIndex = 2,
-			}),
+			C.icon("clover", 52, nil, { Position = UDim2.fromOffset(14, 14), ZIndex = 2 }),
 			C.label({
 				Text = string.format("LUCK POTION · %dx LUCK FOR 30 MIN", potion.luck),
 				Position = UDim2.fromOffset(84, 12),
@@ -320,7 +305,8 @@ local function potionCard()
 				Position = UDim2.new(1, -14, 0.5, 0),
 				Size = UDim2.fromOffset(180, 54),
 				Color = PINK,
-				Text = string.format("%d 💎", potion.cost),
+				Text = tostring(potion.cost),
+				IconAfter = "gem",
 				MaxTextSize = 22,
 				ZIndex = 3,
 				OnClick = function()
@@ -348,13 +334,7 @@ local function instantWeatherCard()
 			return snap ~= nil and snap.paidRandomRestricted == false
 		end),
 		Children = {
-			C.label({
-				Text = "⛈",
-				Position = UDim2.fromOffset(10, 10),
-				Size = UDim2.fromOffset(64, 64),
-				MaxTextSize = 50,
-				ZIndex = 2,
-			}),
+			C.icon("bolt", 52, nil, { Position = UDim2.fromOffset(14, 14), ZIndex = 2 }),
 			C.label({
 				Text = "INSTANT WEATHER · ON YOUR FARM",
 				Position = UDim2.fromOffset(84, 12),
@@ -380,7 +360,8 @@ local function instantWeatherCard()
 				Position = UDim2.new(1, -14, 0.5, 0),
 				Size = UDim2.fromOffset(180, 54),
 				Color = PINK,
-				Text = string.format("%d 💎", cost),
+				Text = tostring(cost),
+				IconAfter = "gem",
 				MaxTextSize = 22,
 				ZIndex = 3,
 				OnClick = function()
@@ -419,7 +400,8 @@ return function()
 		table.insert(passes, passCard(id, i))
 	end
 	return C.panel({
-		Title = "🛒 Shop",
+		Title = "Shop",
+		Icon = "cart",
 		Accent = PINK,
 		Size = UDim2.fromOffset(620, 470),
 		IsOpen = Computed(function()
@@ -441,13 +423,14 @@ return function()
 				New("UIPadding")({ PaddingTop = UDim.new(0, 6), PaddingLeft = UDim.new(0, 4) }),
 				New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 12) }),
 				bundleBanner(),
-				sectionTitle(2, "💎 GEMS"),
+				sectionTitle(2, "GEMS", "gem"),
 				row(3, 128, gems),
-				sectionTitle(4, "⭐ GAME PASSES · FOREVER"),
+				sectionTitle(4, "GAME PASSES · FOREVER", "star"),
 				row(5, 2 * 112 + 12 + 4, passes),
 				sectionTitle(
 					6,
-					"🍀 SPEND GEMS",
+					"SPEND GEMS",
+					"clover",
 					Computed(function()
 						local snap = State.snapshot:get()
 						return snap ~= nil and snap.paidRandomRestricted == false

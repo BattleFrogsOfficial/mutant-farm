@@ -54,7 +54,8 @@ end
 
 return function()
 	return C.panel({
-		Title = "👥 Join the group!",
+		Title = "Join the group!",
+		Icon = "group",
 		Accent = Theme.colors.toxicDark,
 		Size = UDim2.fromOffset(560, 270),
 		IsOpen = Computed(function()
@@ -86,7 +87,7 @@ return function()
 				Position = UDim2.new(0, 0, 1, 0),
 				Size = UDim2.new(0.62, -6, 0, 58),
 				Color = Theme.colors.navy,
-				Icon = "👥",
+				Icon = "group",
 				Text = "JOIN GROUP",
 				MaxTextSize = 24,
 				ZIndex = 3,

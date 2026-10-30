@@ -402,7 +402,7 @@ local function card(spec: { i: number?, limited: string? })
 	end
 	local function priceText(m: string, quantity: number): string
 		local currency, amount = ShopRules.price(eggOf(m), quantity)
-		return if currency == "Gems" then Format.number(amount) .. " 💎" else Format.cash(amount)
+		return if currency == "Gems" then Format.number(amount) else Format.cash(amount)
 	end
 	local function buy(quantity: number)
 		local m = mode:get(false)
@@ -438,6 +438,11 @@ local function card(spec: { i: number?, limited: string? })
 					Text = Computed(function()
 						return if quantity == 1 then priceText(mode:get(), 1) else "x5"
 					end),
+					-- A Gem price carries the gem glyph after it ("600 [gem]").
+					IconAfter = Computed(function()
+						return if quantity == 1 and currencyOf(mode:get()) == "Gems" then "gem" else nil
+					end),
+					IconSize = 24,
 					-- Gems: pink, and short on Gems opens the Gem shop. Cash: green, grey when short.
 					Color = Computed(function()
 						return if currencyOf(mode:get()) == "Gems" then PINK else Theme.colors.toxic
@@ -446,7 +451,7 @@ local function card(spec: { i: number?, limited: string? })
 						local m, sn = mode:get(), State.snapshot:get()
 						return currencyOf(m) == "Cash" and short(sn, m, quantity) > 0
 					end),
-					MaxTextSize = 30,
+					MaxTextSize = 24,
 					ZIndex = 12,
 					OnHover = if quantity == 5
 						then function(on: boolean)
@@ -535,11 +540,23 @@ local function card(spec: { i: number?, limited: string? })
 				end),
 				ZIndex = 12,
 			}),
-			-- Under the name: the shortfall / grow info (near + buyable), or the unlock condition.
+			-- Under the name: the shortfall / grow info (near + buyable), or the unlock condition with
+			-- a lock glyph before it.
+			C.icon("lock", 18, nil, {
+				Position = UDim2.fromOffset(10, 215),
+				ZIndex = 12,
+				Visible = Computed(function()
+					return kind:get() == "further"
+				end),
+			}),
 			C.label({
 				Name = "Line",
-				Position = UDim2.fromOffset(8, 214),
-				Size = UDim2.new(1, -16, 0, 20),
+				Position = Computed(function()
+					return UDim2.fromOffset(if kind:get() == "further" then 34 else 8, 214)
+				end),
+				Size = Computed(function()
+					return UDim2.new(1, if kind:get() == "further" then -42 else -16, 0, 20)
+				end),
 				MaxTextSize = 17,
 				StrokeThickness = 1.5,
 				ZIndex = 12,
@@ -558,7 +575,7 @@ local function card(spec: { i: number?, limited: string? })
 				Text = Computed(function()
 					local k, m, sn, hover = kind:get(), mode:get(), State.snapshot:get(), x5Hover:get()
 					if k == "further" then
-						return "🔒 " .. conditionText(base)
+						return conditionText(base)
 					end
 					local quantity = if hover and short(sn, m, 5) > 0 then 5 else 1
 					local s = short(sn, m, quantity)
@@ -644,7 +661,7 @@ local function card(spec: { i: number?, limited: string? })
 			New("Frame")({
 				Name = "GemBadge",
 				Position = UDim2.fromOffset(8, 8),
-				Size = UDim2.fromOffset(132, 24),
+				Size = UDim2.fromOffset(172, 26),
 				BackgroundColor3 = PINK,
 				BorderSizePixel = 0,
 				Visible = Computed(function()
@@ -652,16 +669,18 @@ local function card(spec: { i: number?, limited: string? })
 					return m == "Gems" and n and k == "buyable" and not limited
 				end),
 				ZIndex = 13,
-				[Children] = C.label({
-					Text = "💎 2x RARITY ODDS",
-					Size = UDim2.new(1, -8, 1, -6),
-					Position = UDim2.fromOffset(4, 3),
-					MaxTextSize = 15,
+				[Children] = C.iconText({
+					Icon = "gem",
+					IconSize = 16,
+					Text = "2x RARITY ODDS",
+					Size = UDim2.fromScale(1, 1),
+					TextSize = 14,
 					StrokeThickness = 1.5,
+					Gap = 4,
 					ZIndex = 14,
 				}),
 			}),
-			-- Limited: "🎃 ENDS IN 3d 4h", live, full width under the odds button and clear of its
+			-- Limited: "[pumpkin] ENDS IN 3d 4h", live, full width under the odds button and clear of its
 			-- shadow (the egg art is shorter on these cards to make room), so it stays readable on phones.
 			if limited
 				then New("Frame")({
@@ -673,14 +692,16 @@ local function card(spec: { i: number?, limited: string? })
 					ZIndex = 13,
 					[Children] = {
 						C.stroke(Theme.colors.ink, 2.5),
-						C.label({
-							Name = "Text",
+						C.iconText({
+							Name = "EndsText",
+							Icon = tier.glyph,
+							IconSize = 20,
+							Gap = 4,
 							Text = Computed(function()
-								return (tier.icon or "") .. " " .. endsIn(tier.endsAt, State.now:get())
+								return endsIn(tier.endsAt, State.now:get())
 							end),
-							Size = UDim2.new(1, -8, 1, -6),
-							Position = UDim2.fromOffset(4, 3),
-							MaxTextSize = 26,
+							Size = UDim2.fromScale(1, 1),
+							TextSize = 22,
 							StrokeThickness = 2,
 							ZIndex = 14,
 						}),
@@ -792,7 +813,7 @@ end
 
 -- Cash | Gems switch for the title row (not rendered where paid random items are restricted).
 local function modeSwitch()
-	local function segment(name: string, label: string, x: number)
+	local function segment(name: string, label: string, icon: string, x: number)
 		local on = Computed(function()
 			return mode:get() == name
 		end)
@@ -815,11 +836,13 @@ local function modeSwitch()
 				end
 			end,
 			[Children] = {
-				C.label({
+				C.iconText({
+					Icon = icon,
+					IconSize = 16,
+					Gap = 4,
 					Text = label,
-					Size = UDim2.new(1, -8, 1, -8),
-					Position = UDim2.fromOffset(4, 4),
-					MaxTextSize = 15,
+					Size = UDim2.fromScale(1, 1),
+					TextSize = 15,
 					TextColor3 = Computed(function()
 						return if on:get() then Theme.colors.white else Theme.colors.muted
 					end),
@@ -849,8 +872,8 @@ local function modeSwitch()
 		ZIndex = 4,
 		[Children] = {
 			C.stroke(Theme.colors.ink, 3),
-			segment("Cash", "💰 CASH", 0),
-			segment("Gems", "💎 GEMS", 0.5),
+			segment("Cash", "CASH", "coin", 0),
+			segment("Gems", "GEMS", "gem", 0.5),
 		},
 	})
 end
@@ -863,8 +886,11 @@ local function potionButton()
 		Position = UDim2.new(1, -60, 0.5, -2),
 		Size = UDim2.fromOffset(150, 40),
 		Color = PINK,
-		Text = string.format("🍀 LUCK · %d 💎", potion.cost),
-		MaxTextSize = 15,
+		Icon = "clover",
+		IconAfter = "gem",
+		IconSize = 16,
+		Text = string.format("LUCK · %d", potion.cost),
+		MaxTextSize = 14,
 		ZIndex = 4,
 		Visible = gemsAllowed,
 		OnClick = function()
@@ -1148,7 +1174,8 @@ return function()
 	end
 
 	return C.panel({
-		Title = "🥚 Egg Shop",
+		Title = "Egg Shop",
+		Icon = "egg",
 		TitleWidth = 230,
 		Accent = Theme.colors.purple,
 		Size = UDim2.fromOffset(UI.panelWidth, UI.panelHeight),

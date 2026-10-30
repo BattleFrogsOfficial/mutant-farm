@@ -119,11 +119,12 @@ registerCheck({
   run: (W, H, s) => {
     const nu = document.querySelector('.gui [title="NextUp"]');
     if (!nu || nu.offsetParent === null) return [`${s}: Next Up not shown`];
-    const span = [...nu.querySelectorAll("span")].find((x) => x.textContent.includes("⭐"));
+    const span = [...nu.querySelectorAll("span")].find((x) => /EARNED|SOIL|EGG/.test(x.textContent));
+    if (!nu.querySelector('[title="Glyph"]')) return [`${s}: Next Up has no star glyph`];
     if (!span) return [`${s}: Next Up has no goal text`];
     const problems = [];
     const text = span.textContent.trim();
-    if (!/^⭐ LAB EGG: \$[\d.]+[KMBT]? \/ \$[\d.]+[KMBT]? EARNED$/.test(text)) problems.push(`${s}: Next Up reads "${text}"`);
+    if (!/^LAB EGG: \$[\d.]+[KMBT]? \/ \$[\d.]+[KMBT]? EARNED$/.test(text)) problems.push(`${s}: Next Up reads "${text}"`);
     const el = span.closest(".g");
     const designPx = parseFloat(getComputedStyle(span.parentElement).fontSize);
     if (designPx < 14) problems.push(`${s}: Lab goal shrunk to ${designPx.toFixed(1)} design px (< 14)`);

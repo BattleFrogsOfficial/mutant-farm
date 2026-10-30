@@ -15,7 +15,7 @@
 --   hub           SHOP grows to the biggest button; weather countdown as plain text; bag worth is
 --                 written on the Sell stall's sign (ZoneController).
 --
--- Icons are vector glyphs built from frames (UI/Glyphs.lua), never images. Every layout number is
+-- Icons are vector glyphs built from frames (UI/Icons.lua), never images. Every layout number is
 -- in Config/Hud.lua. Color rule: pink (Theme.colors.spend) is only for spending, rarity colors only
 -- for rarity, navy for everything else. Size equals priority.
 
@@ -40,7 +40,7 @@ local Purchase = require(script.Parent.Parent.Purchase)
 local Theme = require(script.Parent.Theme)
 local C = require(script.Parent.Components)
 local Viewport = require(script.Parent.Viewport)
-local Glyphs = require(script.Parent.Glyphs)
+local Icons = require(script.Parent.Icons)
 local L = require(Shared.Config.Hud)
 
 local New, Children, Computed, ForPairs, Observer, Spring, OnEvent =
@@ -262,7 +262,7 @@ local function cashBox()
 					return 1 + bumpSpring:get() * 0.06
 				end),
 			}),
-			Glyphs.new("coin", {
+			Icons.new("coin", {
 				AnchorPoint = Vector2.new(0, 0.5),
 				Position = UDim2.new(0, L.top.iconInset, 0.5, L.top.iconNudge),
 				Size = L.top.icon,
@@ -329,7 +329,7 @@ local function cashBox()
 		local payout = State.lastPayout:get(false)
 		local fromPen = payout.amount == gained and State.clock:get(false) - payout.at < 1.5
 		local pop = C.label({
-			Text = "+" .. Format.cash(gained) .. (if fromPen then " 🐾" else ""),
+			Text = "+" .. Format.cash(gained),
 			TextColor3 = Theme.colors.cream,
 			AnchorPoint = Vector2.new(0, 0.5),
 			Position = UDim2.new(0, 38, 1, 40),
@@ -342,6 +342,12 @@ local function cashBox()
 		local scale = Instance.new("UIScale")
 		scale.Scale = 0.3
 		scale.Parent = pop
+		if fromPen then
+			-- Pen income: a paw before the amount.
+			local paw =
+				C.icon("paw", 20, nil, { AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(0, -4, 0.5, 0) })
+			paw.Parent = pop
+		end
 		pop.Parent = box
 		TweenService:Create(scale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
 			:Play()
@@ -393,18 +399,21 @@ local function rebirthStrip()
 				end),
 				ZIndex = 2,
 			}),
-			C.label({
-				Size = UDim2.new(1, -10, 1, -4),
-				Position = UDim2.fromOffset(5, 2),
-				MaxTextSize = 15,
+			C.iconText({
+				Icon = "rebirth",
+				IconSize = 14,
+				Size = UDim2.new(1, -10, 1, 0),
+				Position = UDim2.fromOffset(5, 0),
+				TextSize = 15,
 				StrokeThickness = 1.5,
+				Gap = 4,
 				ZIndex = 3,
 				Text = Computed(function()
 					local snap = State.snapshot:get()
 					local n = (if snap then snap.rebirths else 0) + 1
 					return if progress:get() >= 1
-						then string.format("♻ REBIRTH %d READY · TAP", n)
-						else string.format("♻ REBIRTH %d · %d%%", n, math.floor(progress:get() * 100))
+						then string.format("REBIRTH %d READY · TAP", n)
+						else string.format("REBIRTH %d · %d%%", n, math.floor(progress:get() * 100))
 				end),
 			}),
 			hit(function()
@@ -414,7 +423,7 @@ local function rebirthStrip()
 	})
 end
 
--- Group member bonus, beside the Rebirth strip under Cash: "👥 +10%" while it applies.
+-- Group member bonus, beside the Rebirth strip under Cash: "[group] +10%" while it applies.
 local function groupBadge()
 	return New("Frame")({
 		Name = "GroupBadge",
@@ -429,12 +438,14 @@ local function groupBadge()
 		end),
 		[Children] = {
 			C.stroke(Theme.colors.ink, 2),
-			C.label({
-				Text = string.format("👥 +%d%%", math.floor(GameConfig.groupCashBonus * 100 + 0.5)),
-				Size = UDim2.new(1, -6, 1, -4),
-				Position = UDim2.fromOffset(3, 2),
-				MaxTextSize = 12,
+			C.iconText({
+				Icon = "group",
+				IconSize = 14,
+				Text = string.format("+%d%%", math.floor(GameConfig.groupCashBonus * 100 + 0.5)),
+				Size = UDim2.fromScale(1, 1),
+				TextSize = 12,
 				StrokeThickness = 1.5,
+				Gap = 4,
 				ZIndex = 2,
 			}),
 		},
@@ -450,7 +461,7 @@ local function gemsBox()
 		Size = UDim2.fromOffset(L.top.gemsWidth, ROW_H),
 		Rim = NAVY,
 		Children = {
-			Glyphs.new("gem", {
+			Icons.new("gem", {
 				AnchorPoint = Vector2.new(0, 0.5),
 				Position = UDim2.new(0, L.top.iconInset, 0.5, L.top.iconNudge),
 				Size = L.top.icon,
@@ -503,7 +514,7 @@ local function iconButton(name: string, glyph: string, slot: number, alert: any,
 				Text = "",
 				Pulse = alert,
 				OnClick = onClick,
-				Children = Glyphs.new(glyph, {
+				Children = Icons.new(glyph, {
 					AnchorPoint = Vector2.new(0.5, 0.5),
 					Position = UDim2.new(0.5, T.glyphShift, 0.5, 0),
 					Size = T.glyph,
@@ -579,7 +590,8 @@ local function shopButton()
 				else UDim2.fromOffset(PLOT.width, PLOT.height)
 		end),
 		Color = SPEND,
-		Icon = "🛒",
+		Icon = "cart",
+		IconSize = 28,
 		Text = "SHOP",
 		Studs = true,
 		MaxTextSize = Computed(function()
@@ -620,8 +632,12 @@ local function weatherText()
 		if not i then
 			return ""
 		end
-		local name = i.event.icon .. " " .. string.upper(i.event.name)
+		local name = string.upper(i.event.name)
 		return if i.active then name .. " NOW · " .. clock(i.left) else name .. " IN " .. clock(i.left)
+	end)
+	local glyph = Computed(function()
+		local i = info:get()
+		return if i then i.event.glyph else nil
 	end)
 	-- Far from an event: a quiet navy chip with cream text; from announceSeconds before it until
 	-- it ends: the event's color. Always a chip, so the column's rows are spaced the same as drawn.
@@ -649,9 +665,14 @@ local function weatherText()
 			Size = UDim2.fromScale(1, 1),
 			Rim = rim,
 			Children = {
+				C.icon(glyph, W.text + 2, nil, {
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.new(0, W.textX, 0.5, 0),
+					ZIndex = 3,
+				}),
 				C.label({
-					Position = UDim2.fromOffset(W.textX, W.textY),
-					Size = UDim2.new(1, -(W.textX + W.textRight), 1, -2 * W.textY),
+					Position = UDim2.fromOffset(W.textX + W.text + 8, W.textY),
+					Size = UDim2.new(1, -(W.textX + W.text + 8 + W.textRight), 1, -2 * W.textY),
 					TextXAlignment = Enum.TextXAlignment.Left,
 					MaxTextSize = W.text,
 					TextColor3 = textColor,
@@ -664,8 +685,21 @@ local function weatherText()
 	})
 end
 
--- One text line of a two-line column button (Instant Weather, Starter Bundle).
-local function columnLine(line: { y: number, height: number, text: number }, text: any)
+-- One text line of a two-line column button (Instant Weather, Starter Bundle), with an optional
+-- glyph before it (`icon`) or after it (`after`, e.g. the gem after a price).
+local function columnLine(line: { y: number, height: number, text: number }, text: any, icon: string?, after: string?)
+	if icon or after then
+		return C.iconText({
+			Icon = icon,
+			IconAfter = after,
+			Text = text,
+			Position = UDim2.fromOffset(COLUMN.lineInset, line.y),
+			Size = UDim2.new(1, -2 * COLUMN.lineInset, 0, line.height),
+			TextSize = line.text,
+			Gap = 5,
+			ZIndex = 4,
+		})
+	end
 	return C.label({
 		Text = text,
 		Position = UDim2.fromOffset(COLUMN.lineInset, line.y),
@@ -699,7 +733,7 @@ local function bundleRibbon()
 				openPanel("store")
 			end,
 			Children = {
-				columnLine(COLUMN.line1, "🎁 STARTER BUNDLE"),
+				columnLine(COLUMN.line1, "STARTER BUNDLE", "gift"),
 				columnLine(
 					COLUMN.line2,
 					Computed(function()
@@ -858,8 +892,7 @@ end
 -- One owned egg: tap to pick it, then tap soil to plant.
 local function eggCard(eggId: string, count: number)
 	local tier = Eggs.tiers[eggId]
-	-- Limited eggs carry their icon ("🎃 PUMPKIN").
-	local label = (if tier.icon then tier.icon .. " " else "") .. shortName(eggId)
+	local label = shortName(eggId)
 	return trayTile({
 		Name = eggId,
 		-- Cash eggs first, then Gem eggs, each in tier order, then limited eggs.
@@ -937,13 +970,15 @@ local function luckBadge()
 		[Children] = {
 			C.stroke(Theme.colors.ink, 2.5),
 			C.bevel(3, 0.55),
-			C.label({
-				Text = Computed(function()
-					return if owned:get() then "✅ 2x LUCK" else "🔒 2x LUCK"
+			C.iconText({
+				Icon = Computed(function()
+					return if owned:get() then "check" else "lock"
 				end),
-				Size = UDim2.new(1, -8, 1, -6),
-				Position = UDim2.fromOffset(4, 3),
-				MaxTextSize = 14,
+				IconSize = 16,
+				Text = "2x LUCK",
+				Size = UDim2.fromScale(1, 1),
+				TextSize = 14,
+				Gap = 4,
 				ZIndex = 5,
 			}),
 		},
@@ -999,13 +1034,16 @@ local function skipBadge()
 		[Children] = {
 			C.stroke(Theme.colors.ink, 2.5),
 			C.bevel(3, 0.55),
-			C.label({
+			C.iconText({
+				Icon = "skip",
+				IconAfter = "gem",
+				IconSize = 16,
 				Text = Computed(function()
-					return string.format("⏩ %d 💎", info:get().cost)
+					return tostring(info:get().cost)
 				end),
-				Size = UDim2.new(1, -8, 1, -6),
-				Position = UDim2.fromOffset(4, 3),
-				MaxTextSize = 14,
+				Size = UDim2.fromScale(1, 1),
+				TextSize = 14,
+				Gap = 4,
 				ZIndex = 5,
 			}),
 		},
@@ -1036,7 +1074,7 @@ local function hatchButton()
 			end
 		end,
 		Children = {
-			Glyphs.new("egg", {
+			Icons.new("egg", {
 				AnchorPoint = Vector2.new(0.5, 0),
 				Position = UDim2.new(0.5, -L.glyph.shadow / 2, 0, TRAY.hatchGlyphY),
 				Size = TRAY.hatchGlyph,
@@ -1261,7 +1299,7 @@ local function waterButton()
 					end
 				end,
 				Children = {
-					Glyphs.new("drop", {
+					Icons.new("drop", {
 						AnchorPoint = Vector2.new(0, 0.5),
 						Position = UDim2.new(0, PLOT.glyphInset, 0.5, L.top.iconNudge),
 						Size = PLOT.glyph,
@@ -1350,15 +1388,21 @@ local function nextUp()
 		end),
 		[Children] = {
 			C.stroke(Theme.colors.ink, 3),
+			C.icon(
+				"star",
+				18,
+				nil,
+				{ AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 9, 0.5, 0), ZIndex = 2 }
+			),
 			C.label({
 				Text = Computed(function()
-					return "⭐ " .. string.upper(objective:get().text)
+					return string.upper(objective:get().text)
 				end),
-				Position = UDim2.fromOffset(10, 5),
+				Position = UDim2.fromOffset(34, 5),
 				Size = Computed(function()
 					return if objective:get().progress ~= nil
-						then UDim2.new(1, -120, 1, -10)
-						else UDim2.new(1, -20, 1, -10)
+						then UDim2.new(1, -144, 1, -10)
+						else UDim2.new(1, -44, 1, -10)
 				end),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				MaxTextSize = 15,
@@ -1405,7 +1449,7 @@ local function bagChip()
 				return if c.cap > 0 and c.n >= c.cap * 0.9 then Theme.colors.danger else NAVY
 			end),
 			Children = {
-				Glyphs.new("bag", {
+				Icons.new("bag", {
 					AnchorPoint = Vector2.new(0, 0.5),
 					Position = UDim2.new(0, COLUMN.bagGlyphInset, 0.5, L.top.iconNudge),
 					Size = COLUMN.bagGlyph,
@@ -1456,8 +1500,8 @@ local function instantWeatherButton()
 				openPanel("instantWeather")
 			end,
 			Children = {
-				columnLine(COLUMN.line1, "☢ INSTANT WEATHER"),
-				columnLine(COLUMN.line2, Format.number(Products.gems.InstantWeather.cost) .. " 💎"),
+				columnLine(COLUMN.line1, "INSTANT WEATHER", "radiation"),
+				columnLine(COLUMN.line2, Format.number(Products.gems.InstantWeather.cost), nil, "gem"),
 			},
 		}),
 	})

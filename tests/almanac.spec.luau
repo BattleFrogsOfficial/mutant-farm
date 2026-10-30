@@ -50,15 +50,17 @@ return function(t)
 			for _, m in ms do
 				byAt[m.at] = m
 			end
-			t.eq(Track.label(byAt[25]), "25 💎25")
-			t.eq(Track.label(byAt[100]), "100 🥚Toxic")
-			t.eq(Track.label(byAt[200]), "200 🥚Void")
-			t.eq(Track.label(byAt[300]), "300 🥚Cosmic")
-			t.eq(Track.label(byAt[400]), "400 🍀+10% luck")
-			t.eq(Track.label(byAt[100], "short"), "100🥚")
-			t.eq(Track.label(byAt[400], "short"), "400🍀")
-			t.eq(Track.label(byAt[100], "icon"), "🥚")
-			t.eq(Track.label(byAt[400], "icon"), "🍀")
+			t.eq(Track.label(byAt[25]), "25 · 25 Gems")
+			t.eq(Track.label(byAt[100]), "100 · Toxic Egg")
+			t.eq(Track.label(byAt[200]), "200 · Void Egg")
+			t.eq(Track.label(byAt[300]), "300 · Cosmic Egg")
+			t.eq(Track.label(byAt[400]), "400 · +10% luck")
+			t.eq(Track.label(byAt[100], "short"), "100")
+			t.eq(Track.label(byAt[400], "short"), "400")
+			t.eq(Track.parts(byAt[100]).pre, "100")
+			t.eq(Track.parts(byAt[100]).post, "Toxic Egg")
+			t.eq(Track.parts(byAt[25]).post, "25 Gems")
+			t.eq(Track.parts(byAt[400], "short").post, "")
 			t.eq(Track.tooltip(byAt[25]), "25 species: 25 Gems")
 			t.eq(Track.tooltip(byAt[100]), "100 species: Toxic Egg")
 			t.eq(Track.tooltip(byAt[400]), "400 species: +10% luck forever")
@@ -178,7 +180,7 @@ return function(t)
 				end
 			end)
 		end,
-		["desktop labels show the big later rewards in full, phones the numbers"] = function()
+		["labels show the big later rewards in full, on desktop and small phones"] = function()
 			local function shown(found, font)
 				local out = {}
 				for _, mk in Track.layout(found, TOTAL, WIDTH, font).markers do
@@ -192,10 +194,10 @@ return function(t)
 				local s = shown(found, UI.labelSize)
 				for at, text in
 					{
-						[100] = "100 🥚Toxic",
-						[200] = "200 🥚Void",
-						[300] = "300 🥚Cosmic",
-						[400] = "400 🍀+10% luck",
+						[100] = "100 · Toxic Egg",
+						[200] = "200 · Void Egg",
+						[300] = "300 · Cosmic Egg",
+						[400] = "400 · +10% luck",
 					}
 				do
 					if at > found then
@@ -203,13 +205,13 @@ return function(t)
 					end
 				end
 			end
-			-- Small phones (bigger font): the number and the icon, so the eggs stay apart.
+			-- Small phones (bigger font): the stacked labels still fit in full.
 			local s = shown(5, Track.fontSize(0.559))
-			t.eq(s[25], "25 💎25")
-			t.eq(s[100], "100🥚")
-			t.eq(s[200], "200🥚")
-			t.eq(s[300], "300🥚")
-			t.eq(s[400], "400🍀")
+			t.eq(s[25], "25 · 25 Gems")
+			t.eq(s[100], "100 · Toxic Egg")
+			t.eq(s[200], "200 · Void Egg")
+			t.eq(s[300], "300 · Cosmic Egg")
+			t.eq(s[400], "400 · +10% luck")
 		end,
 		["tap targets: nearest marker, no overlaps, at least the marker, capped"] = function()
 			for _, hit in { UI.hitWidth, 80 } do

@@ -66,4 +66,24 @@ function Format.timeLeft(seconds: number): string
 	return string.format("%dm", m)
 end
 
+-- An emoji-like codepoint (pictographs, symbols, arrows, dingbats, variation selectors). The HUD and
+-- panels draw icons as UI/Icons glyphs, never emoji.
+function Format.isEmoji(code: number): boolean
+	return code > 0x2FFF or (code >= 0x2190 and code <= 0x2BFF) or code == 0xFE0F or code == 0x200D
+end
+
+-- `text` without its emoji (and the space an emoji leaves at the start): server messages that also
+-- go to chat keep their emoji there, not in a toast.
+function Format.stripEmoji(text: string): string
+	local out = {}
+	for _, code in utf8.codes(text) do
+		if not Format.isEmoji(code) then
+			table.insert(out, utf8.char(code))
+		end
+	end
+	local s = table.concat(out)
+	s = s:gsub("^%s+", ""):gsub("%s%s+", " ")
+	return s
+end
+
 return Format

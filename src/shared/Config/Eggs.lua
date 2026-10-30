@@ -157,6 +157,7 @@ for _, entry in LimitedEggs do
 		name = entry.name,
 		tagline = entry.tagline,
 		icon = entry.icon,
+		glyph = entry.glyph,
 		event = entry.event,
 		unlockRebirth = 0,
 		cost = 0, -- never sold for Cash
