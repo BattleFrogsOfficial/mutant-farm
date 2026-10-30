@@ -316,6 +316,17 @@ local function oddsList(eggId: string)
 	return rows
 end
 
+local FURTHER_TEXT = UI.furtherText
+
+-- A grow time, short: "5m", "1h", "1h 30m".
+local function growShort(seconds: number): string
+	local h, m = seconds // 3600, (seconds % 3600) // 60
+	if h > 0 then
+		return if m > 0 then string.format("%dh %dm", h, m) else h .. "h"
+	end
+	return m .. "m"
+end
+
 -- What unlocks a locked tier, short: "$25K earned" / "Rebirth 3".
 local function conditionText(base: string): string
 	local tier = Eggs.tiers[base]
@@ -542,8 +553,10 @@ local function card(spec: { i: number?, limited: string? })
 			}),
 			-- Under the name: the shortfall / grow info (near + buyable), or the unlock condition with
 			-- a lock glyph before it.
-			C.icon("lock", 18, nil, {
-				Position = UDim2.fromOffset(10, 215),
+			-- Further-locked cards are only ever side cards (drawn at sideScale), so their condition
+			-- and tagline use FURTHER_TEXT: 14 px on screen at 0.6x.
+			C.icon("lock", 24, nil, {
+				Position = UDim2.fromOffset(10, 214),
 				ZIndex = 12,
 				Visible = Computed(function()
 					return kind:get() == "further"
@@ -552,12 +565,14 @@ local function card(spec: { i: number?, limited: string? })
 			C.label({
 				Name = "Line",
 				Position = Computed(function()
-					return UDim2.fromOffset(if kind:get() == "further" then 34 else 8, 214)
+					return UDim2.fromOffset(if kind:get() == "further" then 42 else 8, 214)
 				end),
 				Size = Computed(function()
-					return UDim2.new(1, if kind:get() == "further" then -42 else -16, 0, 20)
+					return if kind:get() == "further" then UDim2.new(1, -50, 0, 28) else UDim2.new(1, -16, 0, 20)
 				end),
-				MaxTextSize = 17,
+				MaxTextSize = Computed(function()
+					return if kind:get() == "further" then FURTHER_TEXT else 17
+				end),
 				StrokeThickness = 1.5,
 				ZIndex = 12,
 				Visible = Computed(function()
@@ -585,23 +600,19 @@ local function card(spec: { i: number?, limited: string? })
 							then "Need " .. Format.number(s) .. " more Gems" .. suffix
 							else "Earn " .. Format.cash(s) .. " more" .. suffix
 					end
-					return string.format(
-						"Grows %s · sells %s+",
-						Format.duration(tier.growTime),
-						Format.cash(tier.baseValue)
-					)
+					return string.format("Grows %s · sells %s+", growShort(tier.growTime), Format.cash(tier.baseValue))
 				end),
 			}),
 			-- Further locked: the tagline.
 			C.label({
 				Name = "Tagline",
 				Text = tier.tagline,
-				Position = UDim2.fromOffset(12, 240),
-				Size = UDim2.new(1, -24, 0, 66),
+				Position = UDim2.fromOffset(10, 246),
+				Size = UDim2.new(1, -20, 0, 64),
 				TextWrapped = true,
 				TextColor3 = Theme.colors.cream,
 				StrokeThickness = 0,
-				MaxTextSize = 20,
+				MaxTextSize = FURTHER_TEXT,
 				Visible = Computed(function()
 					return kind:get() == "further"
 				end),

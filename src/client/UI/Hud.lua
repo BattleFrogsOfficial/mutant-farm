@@ -386,7 +386,7 @@ local function rebirthStrip()
 		AnchorPoint = Vector2.new(0.5, 0),
 		AnchorPoint = Vector2.new(0, 0),
 		Position = UDim2.new(0.5, CASH_X - CASH_W / 2, 0, ROW_Y + ROW_H + 6),
-		Size = UDim2.fromOffset(CASH_W - 80, 18),
+		Size = UDim2.fromOffset(CASH_W - 92, 18), -- clear of the 80-wide group badge
 		BackgroundColor3 = Theme.colors.ink,
 		BorderSizePixel = 0,
 		Visible = Computed(function()
@@ -438,7 +438,7 @@ local function groupBadge()
 		Name = "GroupBadge",
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(0.5, CASH_X + CASH_W / 2, 0, ROW_Y + ROW_H + 6),
-		Size = UDim2.fromOffset(72, 18),
+		Size = UDim2.fromOffset(80, 22),
 		BackgroundColor3 = NAVY,
 		BorderSizePixel = 0,
 		Visible = Computed(function()
@@ -449,10 +449,10 @@ local function groupBadge()
 			C.stroke(Theme.colors.ink, 2),
 			C.iconText({
 				Icon = "group",
-				IconSize = 14,
+				IconSize = 16,
 				Text = string.format("+%d%%", math.floor(GameConfig.groupCashBonus * 100 + 0.5)),
 				Size = UDim2.fromScale(1, 1),
-				TextSize = 12,
+				TextSize = 16,
 				StrokeThickness = 1.5,
 				Gap = 4,
 				ZIndex = 2,
@@ -1080,7 +1080,7 @@ local function skipBadge()
 					return tostring(info:get().cost)
 				end),
 				Size = UDim2.fromScale(1, 1),
-				TextSize = 14,
+				TextSize = 16,
 				Gap = 4,
 				ZIndex = 5,
 			}),
@@ -1202,10 +1202,11 @@ local function eggTray()
 					C.label({
 						Size = UDim2.new(1, -16, 1, -6),
 						Position = UDim2.fromOffset(8, 3),
-						MaxTextSize = 14,
+						TextScaled = false,
+						TextSize = 14,
 						ZIndex = 4,
 						Text = Computed(function()
-							return if hasEggs:get() then "PICK AN EGG · TAP SOIL" else "OUT OF EGGS"
+							return if hasEggs:get() then "TAP SOIL TO PLANT" else "OUT OF EGGS"
 						end),
 					}),
 				},
@@ -1413,7 +1414,7 @@ local function nextUp()
 						else UDim2.new(1, -44, 1, -10)
 				end),
 				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 15,
+				MaxTextSize = 16,
 				ZIndex = 2,
 			}),
 			New("Frame")({

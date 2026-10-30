@@ -58,10 +58,10 @@ return {
 	-- still tells). Widths are estimated per character in em of Montserrat Black (measured:
 	-- lowercase and digits ~0.63, capitals ~0.75); the preview's Almanac check measures the drawn
 	-- labels.
-	labelSize = 13,
+	labelSize = 16,
 	minScreenPx = 11,
 	maxLabelSize = 20,
-	rewardScale = 0.85,
+	rewardScale = 0.875, -- 14 px under a 16 px number
 	charEm = 0.64,
 	capEm = 0.76,
 	charEms = { ["·"] = 0.36, ["%"] = 0.93, M = 0.96, W = 1.2, m = 0.96, w = 0.9 },
@@ -74,18 +74,18 @@ return {
 
 	-- Under the track: tier tabs, the 6x2 species grid, the pager, 8 px apart as frames, so the
 	-- outlines and shadows drawn outside them never touch (the picked tab's 4 px gold outline, the
-	-- cards' shadows, the pager buttons' outlines). 76 + 8 + 36 + 8 + (2 x 100 + 8) + 8 + 48 = 392,
+	-- cards' shadows, the pager buttons' outlines). 76 + 8 + 42 + 8 + (2 x 97 + 8) + 8 + 48 = 392,
 	-- the content height (480 - 72 - 16).
 	tabsGap = 8, -- track -> tabs
-	tabHeight = 36,
+	tabHeight = 42,
 	-- A tab: the tier name on top, its found / total count on a smaller line under it, each at its
 	-- full size (a 7th tab makes them 98 wide; text never shrinks to fit).
 	tabTextInset = 7,
 	tabName = { y = 2, height = 19, text = 17 },
-	tabCount = { y = 20, height = 14, text = 12 },
+	tabCount = { y = 21, height = 18, text = 16 },
 	gridGap = 8, -- tabs -> grid
 	cellWidth = 110, -- 6 x 110 + 5 x 8 = 700 <= content width (728)
-	cellHeight = 100,
+	cellHeight = 97,
 	cellGap = 8,
 	pagerHeight = 48,
 }

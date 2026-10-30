@@ -121,7 +121,7 @@ return function()
 								end),
 								Size = UDim2.new(1, -10, 1, -6),
 								Position = UDim2.fromOffset(5, 3),
-								MaxTextSize = 14,
+								MaxTextSize = 16,
 								ZIndex = 4,
 							}),
 						},

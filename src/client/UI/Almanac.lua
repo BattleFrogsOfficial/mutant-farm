@@ -278,7 +278,7 @@ local function card(id: string, order: number, entry: any, onOpen: (string) -> (
 						})
 					end,
 					Silhouette = not found,
-					Size = UDim2.new(1, -8, 1, -34),
+					Size = UDim2.new(1, -8, 1, -42),
 					Position = UDim2.fromOffset(4, 2),
 					ZIndex = 3,
 				}),
@@ -286,8 +286,12 @@ local function card(id: string, order: number, entry: any, onOpen: (string) -> (
 					Text = if found then e.name else "???",
 					AnchorPoint = Vector2.new(0.5, 1),
 					Position = UDim2.new(0.5, 0, 1, -6),
-					Size = UDim2.new(1, -8, 0, 20),
-					MaxTextSize = 15,
+					Size = UDim2.new(1, -8, 0, 34),
+					-- A fixed 14 px (the text-size rule); a long name wraps to a second line.
+					TextScaled = false,
+					TextSize = 14,
+					TextWrapped = true,
+					TextYAlignment = Enum.TextYAlignment.Bottom,
 					TextColor3 = if found then Theme.colors.white else Theme.colors.muted,
 					ZIndex = 3,
 				}),
@@ -299,16 +303,10 @@ local function card(id: string, order: number, entry: any, onOpen: (string) -> (
 					BackgroundColor3 = rarityColor,
 					ZIndex = 3,
 				}),
-				-- Limited species: "LIMITED · Halloween 2026" across the top of the card.
-				if Eggs.tiers[e.tier].limited
-					then C.label({
-						Name = "Limited",
-						Text = "LIMITED · " .. Eggs.tiers[e.tier].event,
-						Position = UDim2.fromOffset(4, 3),
-						Size = UDim2.new(1, -48, 0, 14), -- clear of the "x3" count on the right
-						TextXAlignment = Enum.TextXAlignment.Left,
-						MaxTextSize = 11,
-						TextColor3 = Color3.fromHex(Eggs.tiers[e.tier].color),
+				-- Limited species: the limited egg's glyph in the top-left corner.
+				if Eggs.tiers[e.tier].limited and Eggs.tiers[e.tier].glyph
+					then C.icon(Eggs.tiers[e.tier].glyph, 18, nil, {
+						Position = UDim2.fromOffset(5, 4),
 						ZIndex = 4,
 					})
 					else nil,
@@ -316,8 +314,10 @@ local function card(id: string, order: number, entry: any, onOpen: (string) -> (
 					Text = "x" .. entry.n,
 					AnchorPoint = Vector2.new(1, 0),
 					Position = UDim2.new(1, -4, 0, 2),
-					Size = UDim2.fromOffset(40, 18),
-					MaxTextSize = 14,
+					Size = UDim2.fromOffset(40, 20),
+					TextScaled = false,
+					TextSize = 16,
+					TextXAlignment = Enum.TextXAlignment.Right,
 					TextColor3 = Theme.colors.gold,
 					ZIndex = 4,
 				}) or nil,

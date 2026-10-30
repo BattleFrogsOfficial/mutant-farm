@@ -37,7 +37,8 @@ local function line(order: number, text: any, color: Color3, icon: string?)
 					TextXAlignment = Enum.TextXAlignment.Left,
 					TextColor3 = color,
 					StrokeThickness = 0,
-					MaxTextSize = 14,
+					TextScaled = false,
+					TextSize = 14,
 				}),
 			},
 		})
@@ -49,7 +50,8 @@ local function line(order: number, text: any, color: Color3, icon: string?)
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextColor3 = color,
 		StrokeThickness = 0,
-		MaxTextSize = 14,
+		TextScaled = false,
+		TextSize = 14,
 	})
 end
 
@@ -114,7 +116,7 @@ return function()
 		end),
 		Icon = "rebirth",
 		Accent = Theme.colors.purple,
-		Size = UDim2.fromOffset(560, 400),
+		Size = UDim2.fromOffset(640, 400),
 		IsOpen = Computed(function()
 			return State.panel:get() == "rebirth"
 		end),
@@ -161,7 +163,7 @@ return function()
 						end),
 						Size = UDim2.new(1, -10, 1, -6),
 						Position = UDim2.fromOffset(5, 3),
-						MaxTextSize = 15,
+						MaxTextSize = 16,
 						ZIndex = 5,
 					}),
 				},

@@ -394,11 +394,24 @@ window.checkPanel = (W, H) => {
 
 // Every scene once: no emoji drawn as text (icons are UI/Icons glyphs) and no image elements.
 const EMOJI = /[\\u2190-\\u2BFF\\u3000-\\uFFFF\\u200D]|[\\uD800-\\uDBFF]/;
-window.checkText = () => {
+// Text sizes, in design px (the 900x540 canvas: on-screen px / the HUD scale): at least MIN_TEXT,
+// and NUMBER_TEXT for a price or number (anything with "$", or only digits, signs and units).
+const MIN_TEXT = 14, NUMBER_TEXT = 16;
+const NUMBERISH = /^[\\s+\\-x$R.,:\\/%0-9KMBT·]*\\d[\\s+\\-x$R.,:\\/%0-9KMBTms·]*$/;
+window.checkText = (sizes) => {
   const problems = [];
+  const gui = document.querySelector(".gui");
+  const hudScale = gui ? gui.getBoundingClientRect().width / gui.offsetWidth : 1;
   for (const sp of document.querySelectorAll(".gui span")) {
     if (sp.offsetParent === null || !sp.textContent.trim()) continue;
     if (EMOJI.test(sp.textContent.replace(/[·]/g, ""))) problems.push(\`emoji in text "\${sp.textContent.trim()}"\`);
+    if (!sizes) continue;
+    const host = sp.parentElement, holder = host.parentElement;
+    const scale = holder && holder.offsetWidth ? holder.getBoundingClientRect().width / holder.offsetWidth : 1;
+    const design = parseFloat(getComputedStyle(host).fontSize) * scale / hudScale;
+    const text = sp.textContent.trim();
+    const min = text.includes("$") || NUMBERISH.test(text) ? NUMBER_TEXT : MIN_TEXT;
+    if (design < min - 0.25) problems.push(\`"\${text}" at \${design.toFixed(1)} px (min \${min})\`);
   }
   for (const el of document.querySelectorAll('.gui [data-cls="ImageLabel"], .gui [data-cls="ImageButton"]')) {
     if (el.offsetParent !== null) problems.push(\`image element \${el.title}\`);
@@ -489,6 +502,8 @@ const count = await page.evaluate(() => window.sceneCount);
 // ONLY=<prefix> (fix loops): screenshots AND checks only for scenes whose name starts with it; the
 // full run (no ONLY) once at the end.
 const only = (name) => !process.env.ONLY || name.startsWith(process.env.ONLY);
+// CHECKS=text,hud,shop,panel,extra (fix loops): run only those checks; all by default.
+const runs = (name) => !process.env.CHECKS || process.env.CHECKS.split(",").includes(name);
 if (process.env.ONLY) console.log(`ONLY=${process.env.ONLY}: screenshots and checks limited to those scenes`);
 // Scenes named "name@WxH" were exported for one screen size: render only at that size, saved
 // as name-<label>.png.
@@ -508,7 +523,7 @@ for (let i = 0; i < count; i++) {
   }
 }
 // Text check: every scene once (at its own size, else the smallest phone).
-{
+if (runs("text")) {
   let textIssues = 0, textChecked = 0;
   for (let i = 0; i < count; i++) {
     if (!only(sceneNames[i])) continue;
@@ -516,7 +531,9 @@ for (let i = 0; i < count; i++) {
     const [W, H] = sized ? [+sized[1], +sized[2]] : [800, 360];
     await page.setViewportSize({ width: W, height: H });
     await page.evaluate(([i, W, H]) => window.render(i, W, H), [i, W, H]);
-    const problems = await page.evaluate(() => window.checkText());
+    // Sizes: every UI scene but the world ones (SurfaceGui / billboard canvases) and the icon sheet.
+    const sizes = !/^(world|glyphs)/.test(sceneNames[i]);
+    const problems = await page.evaluate((sizes) => window.checkText(sizes), sizes);
     textChecked++;
     for (const p of [...new Set(problems)]) console.log(`[text] ${sceneNames[i]} ${W}x${H}: ${p}`);
     textIssues += new Set(problems).size;
@@ -525,7 +542,7 @@ for (let i = 0; i < count; i++) {
 }
 // Overlap check on every HUD state (hub, plot) at every screen size.
 let issues = 0, checked = 0;
-const hudScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("hud")))).filter(([n]) => only(n));
+const hudScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("hud")))).filter(([n]) => only(n) && runs("hud"));
 for (const [sceneName, hudIndex] of hudScenes) {
   const sized = /@(\d+)x(\d+)$/.exec(sceneName);
   for (const [label, W, H] of [...sizes, ...checkSizes]) {
@@ -547,7 +564,7 @@ console.log(`HUD overlap check: ${issues} issue(s) across ${checked} state x scr
 // Egg Shop carousel checks at every screen size, in Cash, Gems and policy-restricted modes, plus the
 // mid-session unlock scene.
 let shopIssues = 0, shopChecked = 0;
-const shopScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("shop")))).filter(([n]) => only(n));
+const shopScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("shop")))).filter(([n]) => only(n) && runs("shop"));
 const cashRects = {};
 for (const [sceneName, index] of shopScenes) {
   const [, kind, w, h] = /^([\w-]+)@(\d+)x(\d+)$/.exec(sceneName);
@@ -596,7 +613,7 @@ for (const [sceneName, index] of shopScenes) {
 console.log(`Shop check: ${shopIssues} issue(s) across ${shopChecked} scenes`);
 // Rebirth Now (panel and Altar sign) at every size, and the Instant Weather picker.
 let panelIssues = 0, panelChecked = 0;
-const panelScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("rebirth-now") || n === "instantWeather"))).filter(([n]) => only(n));
+const panelScenes = (await page.evaluate(() => data.scenes.map((s, i) => [s.name, i]).filter(([n]) => n.startsWith("rebirth-now") || n === "instantWeather"))).filter(([n]) => only(n) && runs("panel"));
 for (const [sceneName, index] of panelScenes) {
   const sized = /^([\w-]+)@(\d+)x(\d+)$/.exec(sceneName);
   for (const [label, W, H] of [...sizes, ...checkSizes]) {
@@ -620,7 +637,7 @@ console.log(`Panel check: ${panelIssues} issue(s) across ${panelChecked} scenes`
     window.sceneChecks.forEach((c, ci) => data.scenes.forEach((s, si) => { if (c.match(s.name)) out.push([ci, si, s.name, c.name]); }));
     return out;
   });
-  for (const [ci, si, sceneName, checkName] of pairs.filter(([, , n]) => only(n))) {
+  for (const [ci, si, sceneName, checkName] of pairs.filter(([, , n]) => only(n) && runs("extra"))) {
     const sized = /@(\d+)x(\d+)$/.exec(sceneName);
     for (const [label, W, H] of [...sizes, ...checkSizes]) {
       if (sized && (+sized[1] !== W || +sized[2] !== H)) continue;

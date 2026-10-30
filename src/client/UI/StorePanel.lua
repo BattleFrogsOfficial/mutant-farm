@@ -31,6 +31,11 @@ local PASS_ICON = {
 	VIP = "crown",
 }
 -- +10 Plot Slots is only sold while it would give all ten (bought slots <= max - 10).
+-- Pass cards: two per row, wide enough for a 14 px description on two lines.
+local PASS_W, PASS_H = 284, 118
+-- The Gems price buttons on the potion and Instant Weather cards.
+local SPEND_BUTTON_W = 150
+
 local function slotsPassUseful(): boolean
 	local snap = State.snapshot:get()
 	return snap == nil or snap.slotCount <= Upgrades.slots.max - 10
@@ -94,8 +99,8 @@ local function bundleBanner()
 			C.icon("gift", 56, nil, { Position = UDim2.fromOffset(16, 16), ZIndex = 2 }),
 			C.label({
 				Text = "STARTER BUNDLE",
-				Position = UDim2.fromOffset(90, 8),
-				Size = UDim2.new(1, -300, 0, 28),
+				Position = UDim2.fromOffset(84, 8),
+				Size = UDim2.new(1, -(84 + 196), 0, 28),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				MaxTextSize = 24,
 				TextColor3 = Color3.fromHex("#FFF3A8"),
@@ -103,10 +108,11 @@ local function bundleBanner()
 			}),
 			C.label({
 				Text = string.format("2x LUCK + AUTO-HARVEST + %d GEMS", offer.grants.gems),
-				Position = UDim2.fromOffset(90, 38),
-				Size = UDim2.new(1, -300, 0, 20),
+				Position = UDim2.fromOffset(84, 38),
+				Size = UDim2.new(1, -(84 + 196), 0, 20),
 				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 15,
+				TextScaled = false,
+				TextSize = 14,
 				ZIndex = 2,
 			}),
 			C.label({
@@ -114,11 +120,12 @@ local function bundleBanner()
 					local s = math.max(0, math.floor(left:get()))
 					return string.format("ONLY ONCE · ENDS IN %d:%02d", s // 60, s % 60)
 				end),
-				Position = UDim2.fromOffset(90, 62),
-				Size = UDim2.new(1, -300, 0, 18),
+				Position = UDim2.fromOffset(84, 62),
+				Size = UDim2.new(1, -(84 + 196), 0, 20),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextColor3 = Theme.colors.gold,
-				MaxTextSize = 14,
+				TextScaled = false,
+				TextSize = 16,
 				ZIndex = 2,
 			}),
 			C.button({
@@ -150,7 +157,7 @@ local function gemCard(productId: string, order: number)
 				Name = "Tag",
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.new(0.5, 0, 0, 0),
-				Size = UDim2.fromOffset(104, 20),
+				Size = UDim2.fromOffset(118, 22),
 				BackgroundColor3 = Theme.colors.danger,
 				BorderSizePixel = 0,
 				ZIndex = 4,
@@ -158,9 +165,9 @@ local function gemCard(productId: string, order: number)
 					C.stroke(Theme.colors.ink, 2),
 					C.label({
 						Text = string.upper(product.tag),
-						Size = UDim2.new(1, -6, 1, -4),
-						Position = UDim2.fromOffset(3, 2),
-						MaxTextSize = 12,
+						Size = UDim2.fromScale(1, 1),
+						TextScaled = false,
+						TextSize = 14,
 						ZIndex = 5,
 					}),
 				},
@@ -203,7 +210,7 @@ local function passCard(passId: string, order: number)
 	return box({
 		Name = passId,
 		LayoutOrder = order,
-		Size = UDim2.fromOffset(182, 112),
+		Size = UDim2.fromOffset(PASS_W, PASS_H),
 		Visible = if passId == "PlotSlots10"
 			then Computed(function()
 				return owned:get() or slotsPassUseful()
@@ -216,19 +223,21 @@ local function passCard(passId: string, order: number)
 				Position = UDim2.fromOffset(50, 8),
 				Size = UDim2.new(1, -58, 0, 20),
 				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 15,
+				TextScaled = false,
+				TextSize = 16,
 				ZIndex = 2,
 			}),
 			C.label({
 				Text = pass.description,
-				Position = UDim2.fromOffset(50, 28),
-				Size = UDim2.new(1, -58, 0, 28),
+				Position = UDim2.fromOffset(50, 30),
+				Size = UDim2.new(1, -58, 0, 36),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Top,
 				TextWrapped = true,
 				TextColor3 = Theme.colors.muted,
 				StrokeThickness = 0,
-				MaxTextSize = 11,
+				TextScaled = false,
+				TextSize = 14,
 				ZIndex = 2,
 			}),
 			C.button({
@@ -267,7 +276,7 @@ local function potionCard()
 	return box({
 		Name = "LuckPotion",
 		LayoutOrder = 7,
-		Size = UDim2.new(1, -8, 0, 84),
+		Size = UDim2.new(1, -8, 0, 88),
 		Visible = Computed(function()
 			local snap = State.snapshot:get()
 			return snap ~= nil and snap.paidRandomRestricted == false
@@ -277,7 +286,7 @@ local function potionCard()
 			C.label({
 				Text = string.format("LUCK POTION · %dx LUCK FOR 30 MIN", potion.luck),
 				Position = UDim2.fromOffset(84, 12),
-				Size = UDim2.new(1, -290, 0, 24),
+				Size = UDim2.new(1, -(84 + SPEND_BUTTON_W + 26), 0, 24),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				MaxTextSize = 18,
 				ZIndex = 2,
@@ -291,19 +300,20 @@ local function potionCard()
 					return "Rarer mutants, more mutations, bigger sizes. Stacks with 2x Luck."
 				end),
 				Position = UDim2.fromOffset(84, 40),
-				Size = UDim2.new(1, -290, 0, 32),
+				Size = UDim2.new(1, -(84 + SPEND_BUTTON_W + 26), 0, 36),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Top,
 				TextWrapped = true,
 				TextColor3 = Theme.colors.cream,
 				StrokeThickness = 0,
-				MaxTextSize = 13,
+				TextScaled = false,
+				TextSize = 14,
 				ZIndex = 2,
 			}),
 			C.button({
 				AnchorPoint = Vector2.new(1, 0.5),
 				Position = UDim2.new(1, -14, 0.5, 0),
-				Size = UDim2.fromOffset(180, 54),
+				Size = UDim2.fromOffset(SPEND_BUTTON_W, 54),
 				Color = PINK,
 				Text = tostring(potion.cost),
 				IconAfter = "gem",
@@ -328,7 +338,7 @@ local function instantWeatherCard()
 	return box({
 		Name = "InstantWeather",
 		LayoutOrder = 8,
-		Size = UDim2.new(1, -8, 0, 84),
+		Size = UDim2.new(1, -8, 0, 88),
 		Visible = Computed(function()
 			local snap = State.snapshot:get()
 			return snap ~= nil and snap.paidRandomRestricted == false
@@ -338,7 +348,7 @@ local function instantWeatherCard()
 			C.label({
 				Text = "INSTANT WEATHER · ON YOUR FARM",
 				Position = UDim2.fromOffset(84, 12),
-				Size = UDim2.new(1, -290, 0, 24),
+				Size = UDim2.new(1, -(84 + SPEND_BUTTON_W + 26), 0, 24),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				MaxTextSize = 18,
 				ZIndex = 2,
@@ -346,19 +356,20 @@ local function instantWeatherCard()
 			C.label({
 				Text = "Acid Rain, Solar Flare or Glitch Storm for 2 minutes, just on your plot.",
 				Position = UDim2.fromOffset(84, 40),
-				Size = UDim2.new(1, -290, 0, 32),
+				Size = UDim2.new(1, -(84 + SPEND_BUTTON_W + 26), 0, 36),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				TextYAlignment = Enum.TextYAlignment.Top,
 				TextWrapped = true,
 				TextColor3 = Theme.colors.cream,
 				StrokeThickness = 0,
-				MaxTextSize = 13,
+				TextScaled = false,
+				TextSize = 14,
 				ZIndex = 2,
 			}),
 			C.button({
 				AnchorPoint = Vector2.new(1, 0.5),
 				Position = UDim2.new(1, -14, 0.5, 0),
-				Size = UDim2.fromOffset(180, 54),
+				Size = UDim2.fromOffset(SPEND_BUTTON_W, 54),
 				Color = PINK,
 				Text = tostring(cost),
 				IconAfter = "gem",
@@ -426,7 +437,7 @@ return function()
 				sectionTitle(2, "GEMS", "gem"),
 				row(3, 128, gems),
 				sectionTitle(4, "GAME PASSES · FOREVER", "star"),
-				row(5, 2 * 112 + 12 + 4, passes),
+				row(5, 3 * PASS_H + 2 * 12 + 4, passes),
 				sectionTitle(
 					6,
 					"SPEND GEMS",

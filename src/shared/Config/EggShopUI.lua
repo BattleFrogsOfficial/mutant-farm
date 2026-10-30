@@ -7,6 +7,9 @@ return {
 	panelHeight = 470,
 	cardWidth = 240, -- the focused card at full size
 	cardHeight = 320,
+	-- Further-locked cards' condition and tagline: they're only ever side cards (sideScale), so
+	-- 24 draws 14 px (the minimum text size) at 0.6x.
+	furtherText = 24,
 	sideScale = 0.6, -- neighbors one pitch away are drawn at this scale (continuous in between)
 	pitch = 216, -- center-to-center distance between cards (focused half + neighbor half + gap)
 	neighborOpacity = 0.6, -- neighbors drawn at this opacity (a panel-colored veil on top)

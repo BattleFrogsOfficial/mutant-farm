@@ -82,9 +82,9 @@ return {
 	-- Weather line, centered under the Cash / Gems row in every zone (`y` from the top of the
 	-- canvas, under the Rebirth strip): plain text with the event's glyph, a chip in the event's
 	-- color from 5 min before it until it ends. Text `text` px, glyph `glyph` px.
-	weather = { y = 72, width = 340, height = 30, text = 16, glyph = 20 },
+	weather = { y = 78, width = 340, height = 30, text = 16, glyph = 20 },
 	-- The toast lane: centered under the weather line, `width` wide, its top `y` down.
-	toast = { y = 112, width = 360, height = 48 },
+	toast = { y = 118, width = 360, height = 48 },
 
 	-- SHOP: the biggest button in the hub. At the plot it is the WATER button's size, beside it.
 	-- Mid-right (touch screens; at the plot also narrow windows) SHOP and WATER sit `column.gap`
@@ -105,12 +105,12 @@ return {
 		height = 64,
 		gap = 8,
 		glyph = 24,
-		glyphInset = 8, -- the drop's left edge from the button's left edge
+		glyphInset = 6, -- the drop's left edge from the button's left edge
 		trayClearance = 11, -- frame edge to the tray's shadow: 8 px as drawn + WATER's 3 px outline
 		-- WATER's two lines ("2x GROWTH" / "FOR 30s"; while watered "2x ACTIVE" / "0:18"), right of
 		-- the glyph: x = glyphInset + glyph + `textGap`.
-		textGap = 6,
-		textRight = 6,
+		textGap = 4,
+		textRight = 4,
 		line1 = { y = 10, height = 20, text = 14 },
 		line2 = { y = 32, height = 20, text = 16 },
 	},
@@ -137,20 +137,20 @@ return {
 		art = 64,
 		artY = 2,
 		lift = 8, -- the picked egg rises this much
-		badgeWidth = 32, -- "x3" (at least; badges grow with their text)
-		nextBadgeWidth = 46, -- "$500"
-		badgeHeight = 20,
+		badgeWidth = 34, -- "x3" (at least; badges grow with their text)
+		nextBadgeWidth = 52, -- "$500"
+		badgeHeight = 22,
 		badgeInset = 3,
-		badgeText = 14,
+		badgeText = 16, -- counts and prices: the 16 px number rule
 		labelInset = 4, -- name: from the tile's sides and bottom
 		labelHeight = 34, -- two lines of `labelText`, bottom-aligned
 		labelText = 14,
 		-- Next egg tile: one name line (`nextNameHeight`, its bottom `nextNameBottom` above the tile's
 		-- bottom) over the two "AT THE" / "EGG SHOP" lines (`nextShopHeight`, `labelInset` up).
-		nextNameBottom = 34,
+		nextNameBottom = 38,
 		nextNameHeight = 18,
-		nextShopHeight = 30,
-		nextShopText = 13, -- >= 7 px on the narrowest phone (scale ~0.56)
+		nextShopHeight = 34,
+		nextShopText = 14,
 		nextShopInset = 3,
 		hatchWidth = 102,
 		hatchInset = 10, -- from the tray's right edge, lined up with the 2x Luck badge
@@ -163,7 +163,7 @@ return {
 	-- Next Up's bottom edge above the screen bottom (clear of the tray's tab). It slides left when
 	-- the mid-right buttons (a narrow window) would reach over it.
 	nextUpBottom = 202,
-	nextUpWidth = 400,
+	nextUpWidth = 430,
 	nextUpHeight = 32,
 
 	-- Vector glyphs (UI/Icons.lua): ink outline and the boxy hard shadow (Theme.shadow), in design
