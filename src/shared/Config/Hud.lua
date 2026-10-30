@@ -23,7 +23,8 @@ return {
 	-- gap + faceOutline + Theme.shadow apart.
 	faceOutline = 3,
 
-	-- Top row, directly under Roblox's top bar: Cash (centered `cashX` off the middle) and Gems.
+	-- Top row, directly under Roblox's top bar: Cash (centered `cashX` off the middle) and Gems,
+	-- `gap` apart as drawn (Cash's shadow to the Gems outline).
 	top = {
 		y = 6,
 		height = 36, -- top-row panels stay short so the HUD still sits high

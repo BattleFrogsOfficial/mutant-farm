@@ -445,7 +445,8 @@ local function gemsBox()
 	return C.pill({
 		Name = "Gems",
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, CASH_X + CASH_W / 2 + L.top.gap + L.top.gemsWidth / 2, 0, ROW_Y),
+		-- `top.gap` right of Cash as drawn (Cash's shadow to the Gems outline), like the tiles.
+		Position = UDim2.new(0.5, CASH_X + CASH_W / 2 + L.top.gap + INK + L.top.gemsWidth / 2, 0, ROW_Y),
 		Size = UDim2.fromOffset(L.top.gemsWidth, ROW_H),
 		Rim = NAVY,
 		Children = {

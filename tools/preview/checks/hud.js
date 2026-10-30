@@ -1,6 +1,6 @@
 // HUD layout checks (scenes from ui-export's built-ins and tools/preview/scenes/hud.luau), on every
 // "hud..." scene at its size. Design px = on-screen px / the HUD scale. See Config/Hud.lua.
-//   top-right tiles 8 px apart AS DRAWN (one tile's shadow to the next one's ink outline), red dots
+//   Cash -> Gems and the top-right tiles 8 px apart AS DRAWN (shadow to the next ink outline), red dots
 //   inside their tiles and clear of the glyph (its outline and shadow); in hud-dots all three dots
 //   are lit
 //   right column rows in order weather, Instant Weather, bundle, bag, 8 px apart as drawn (and 8 px
@@ -54,6 +54,14 @@ registerCheck({
       }
       return r || rect(e);
     };
+
+    // Cash -> Gems, 8 design px apart as drawn.
+    const cash = el("Cash"), gems = el("Gems");
+    if (!vis(cash) || !vis(gems)) problems.push("Cash or Gems missing");
+    else {
+      const gap = (drawn(gems).left - drawn(cash).right) / scaleOf(cash);
+      if (!near(gap, 8, 1.5)) problems.push(`Cash -> Gems drawn gap ${gap.toFixed(1)} px (want 8)`);
+    }
 
     // Tiles: Upgrades | Daily | Almanac, 8 design px apart as drawn, red dots inside.
     const tiles = ["Upgrades", "Daily", "Almanac"].map((n) => [n, el(n)]);
