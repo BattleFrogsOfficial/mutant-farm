@@ -5,8 +5,7 @@
 return {
 	-- Scaling (shared/HudScale.lua): the HUD scales with the SHORTER screen edge against the
 	-- design height, capped so big monitors don't get a giant HUD (touch devices stay at 1:1), and
-	-- never so far that the canvas gets narrower than designWidth (4:3 / docked windows) or that
-	-- Cash reaches into Roblox's top-left chat window (`top.chatWidth`).
+	-- never so far that the canvas gets narrower than designWidth (4:3 / docked windows).
 	designWidth = 900,
 	designHeight = 540,
 	minScale = 0.5,
@@ -39,11 +38,6 @@ return {
 		plus = 32, -- Gems' pink "+" (square), `plusInset` px from the panel's right edge
 		plusInset = 4,
 		plusGap = 4, -- between the Gems amount and the "+"
-		-- Roblox's default chat window (top-left, under the top bar) in screen px: `chatWidth`, or
-		-- `chatFraction` of the screen on narrow ones. Cash's left edge (outline included) stays
-		-- right of it: on windows under ~900 px wide the HUD scales down a little (HudScale).
-		chatWidth = 230,
-		chatFraction = 0.3,
 	},
 
 	-- Upgrades / Daily / Almanac tiles, top-right, left to right, `gap` px apart as drawn (from one

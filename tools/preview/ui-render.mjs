@@ -223,14 +223,12 @@ window.render = (sceneIndex, W, H) => {
   const inset = full ? 0 : ${TOPBAR};
   const usableH = H - inset;
   // The game's scale (shared/HudScale, numbers from Config/Hud): the shorter edge against the design
-  // height, never a canvas under designWidth or Cash in the top-left chat, capped lower on touch
-  // devices (the device's input, not the layout: a hybrid scene has the touch layout at the mouse cap).
+  // height, never a canvas under designWidth, capped lower on touch devices (the device's input,
+  // not the layout: a hybrid scene has the touch layout at the mouse cap).
   const hud = data.hud;
   const scene = data.scenes[sceneIndex];
   const touchDevice = scene.touchDevice ?? scene.touch === true;
-  const cashLeft = hud.top.cashWidth / 2 - hud.top.cashX + hud.faceOutline;
-  const chat = Math.min(hud.top.chatWidth, W * hud.top.chatFraction);
-  const fitted = Math.min(Math.min(W, usableH) / hud.designHeight, W / hud.designWidth, (W / 2 - chat) / cashLeft);
+  const fitted = Math.min(Math.min(W, usableH) / hud.designHeight, W / hud.designWidth);
   const scale = Math.min(Math.max(fitted, hud.minScale), touchDevice ? hud.maxScaleTouch : hud.maxScale);
   const gui = document.createElement("div");
   gui.className = "gui inner";
@@ -423,11 +421,10 @@ window.checkOverlaps = (W, H, touch) => {
   // Roblox's own UI the HUD must keep clear of (approximate footprints, in screen px):
   //   the chat window, moved to the bottom-left and shrunk (UIController.placeChat), and on touch
   //   screens the thumbstick (bottom-left) and jump button (bottom-right).
-  // Chat is configured bottom-left; it's also checked top-left (Roblox's default) in case the
-  // new top bar keeps it there.
+  // Chat is pinned bottom-left (default.project.json and UIController at runtime): it can't be
+  // top-left, so that corner isn't guarded.
   const robloxUi = [
     ["Chat", 8, H - 8 - Math.min(190, H * 0.42), 8 + Math.min(215, W * 0.3), H - 8],
-    ["ChatTop", 0, 46, Math.min(230, W * 0.3), Math.min(220, H * 0.45)],
   ];
   if (touch) {
     robloxUi.push(["Thumbstick", 30, H - 160, 160, H - 30]);
