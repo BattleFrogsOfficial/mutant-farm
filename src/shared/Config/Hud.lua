@@ -5,7 +5,8 @@
 return {
 	-- Scaling (shared/HudScale.lua): the HUD scales with the SHORTER screen edge against the
 	-- design height, capped so big monitors don't get a giant HUD (touch devices stay at 1:1), and
-	-- never so far that the canvas gets narrower than designWidth (4:3 / docked windows).
+	-- never so far that the canvas gets narrower than designWidth (4:3 / docked windows) or that
+	-- Cash reaches into Roblox's top-left chat window (`top.chatWidth`).
 	designWidth = 900,
 	designHeight = 540,
 	minScale = 0.5,
@@ -37,6 +38,11 @@ return {
 		plus = 32, -- Gems' pink "+" (square), `plusInset` px from the panel's right edge
 		plusInset = 4,
 		plusGap = 4, -- between the Gems amount and the "+"
+		-- Roblox's default chat window (top-left, under the top bar) in screen px: `chatWidth`, or
+		-- `chatFraction` of the screen on narrow ones. Cash's left edge (outline included) stays
+		-- right of it: on windows under ~900 px wide the HUD scales down a little (HudScale).
+		chatWidth = 230,
+		chatFraction = 0.3,
 	},
 
 	-- Upgrades / Daily / Almanac tiles, top-right, left to right, `gap` px apart as drawn (from one
@@ -78,9 +84,12 @@ return {
 	},
 
 	-- SHOP: the biggest button in the hub. At the plot it is the WATER button's size, beside it.
+	-- Mid-right (touch screens; at the plot also narrow windows) SHOP and WATER sit `column.gap`
+	-- under the right column at its tallest in that zone, and the hub SHOP must still clear the
+	-- jump button on the smallest phones (800x360): hubHeight <= 84.
 	shop = {
 		hubWidth = 230,
-		hubHeight = 88,
+		hubHeight = 80,
 		hubText = 36,
 		plotText = 22,
 	},
@@ -94,7 +103,7 @@ return {
 		gap = 8,
 		glyph = 28,
 		glyphInset = 10, -- the drop's left edge from the button's left edge
-		trayClearance = 12,
+		trayClearance = 11, -- frame edge to the tray's shadow: 8 px as drawn + WATER's 3 px outline
 		ringWidth = 5, -- the drain ring along the Water button's edge
 		-- WATER's two lines ("WATER" / "· 2x 30s"), right of the glyph: x = glyphInset + glyph + `textGap`.
 		textGap = 8,
@@ -106,15 +115,18 @@ return {
 	-- Egg tray (plot, bottom center): owned eggs + one "next egg" tile, HATCH on the right.
 	-- Tiles size to content: egg art, a name line, a count (or price) badge in the corner. A tile
 	-- is at least `tileWidth` (`nextTileWidth` for the next egg tile with its "AT THE EGG SHOP"
-	-- line) and grows with its text, estimated at `charWidth` em per character of GothamBlack caps
-	-- (a little generous, so text never has to shrink).
+	-- line) and grows with its text, estimated at `charWidth` em per GothamBlack capital and
+	-- `spaceWidth` em per space (a little generous, so text never has to shrink). `width` fits two
+	-- owned eggs plus the next egg tile (Starter, Swamp, "Lab / AT THE EGG SHOP") without scrolling;
+	-- more eggs scroll.
 	tray = {
-		width = 424,
+		width = 440,
 		height = 146,
 		bottom = 12,
 		tileWidth = 78,
 		nextTileWidth = 120,
-		charWidth = 0.74,
+		charWidth = 0.72,
+		spaceWidth = 0.3,
 		tileHeight = 104,
 		tileGap = 8,
 		art = 64,

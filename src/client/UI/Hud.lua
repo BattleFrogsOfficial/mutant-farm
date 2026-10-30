@@ -129,6 +129,31 @@ local shopMidRight = Computed(function()
 	return touch or (plot and narrow)
 end)
 
+-- The right column (under the top-right tiles) starts here; its rows are ROW_STEP apart.
+local COLUMN_TOP = ROW_Y + ROW_H + COLUMN.gap + INK
+local ROW_STEP = COLUMN.gap + INK
+-- Its bottom row's frame edge at its tallest in each zone. Hub: weather, Instant Weather, bundle.
+-- Plot: weather or Instant Weather (Instant Weather hides while the weather chip shows), bundle, bag.
+local HUB_COLUMN_BOTTOM = COLUMN_TOP
+	+ COLUMN.weather.height
+	+ ROW_STEP
+	+ COLUMN.instantHeight
+	+ ROW_STEP
+	+ COLUMN.bundleHeight
+local PLOT_COLUMN_BOTTOM = COLUMN_TOP
+	+ math.max(COLUMN.weather.height, COLUMN.instantHeight)
+	+ ROW_STEP
+	+ COLUMN.bundleHeight
+	+ ROW_STEP
+	+ COLUMN.bagHeight
+-- Mid-right SHOP / WATER: the top of a `height` button centered on the canvas's height, but never
+-- closer than COLUMN.gap (as drawn) under the right column at its tallest, so a row appearing or
+-- going never moves them.
+local function midRightTop(screen: { width: number, height: number, scale: number }, height: number, hub: boolean)
+	local columnBottom = if hub then HUB_COLUMN_BOTTOM else PLOT_COLUMN_BOTTOM
+	return math.max((screen.height / screen.scale - height) / 2, columnBottom + ROW_STEP)
+end
+
 -- "4:12" / "1:02:09"
 local function clock(seconds: number): string
 	seconds = math.max(0, math.floor(seconds))
@@ -511,10 +536,16 @@ local function shopButton()
 		-- On touch screens the jump button owns the bottom-right corner: Shop moves to mid-right (at
 		-- the plot also on a narrow mouse screen, where WATER and SHOP don't fit beside the tray).
 		AnchorPoint = Computed(function()
-			return if shopMidRight:get() then Vector2.new(1, 0.5) else Vector2.new(1, 1)
+			return if shopMidRight:get() then Vector2.new(1, 0) else Vector2.new(1, 1)
 		end),
 		Position = Computed(function()
-			return if shopMidRight:get() then UDim2.new(1, -EDGE, 0.5, 0) else UDim2.new(1, -EDGE, 1, -EDGE)
+			-- Read every dependency up front (Fusion 0.2: no Computed first read mid-update).
+			local midRight, screen, hub = shopMidRight:get(), State.screen:get(), inHub:get()
+			if not midRight then
+				return UDim2.new(1, -EDGE, 1, -EDGE)
+			end
+			local height = if hub then L.shop.hubHeight else PLOT.height
+			return UDim2.new(1, -EDGE, 0, midRightTop(screen, height, hub))
 		end),
 		Size = Computed(function()
 			return if inHub:get()
@@ -767,7 +798,10 @@ local function tileWidthFor(minWidth: number, lines: { { any } }): number
 	local width = minWidth
 	for _, line in lines do
 		local text, size, inset = line[1] :: string, line[2] :: number, line[3] :: number
-		width = math.max(width, math.ceil((utf8.len(text) or #text) * size * TRAY.charWidth) + 2 * inset)
+		local spaces = select(2, string.gsub(text, " ", ""))
+		local chars = (utf8.len(text) or #text) - spaces
+		local em = chars * TRAY.charWidth + spaces * TRAY.spaceWidth
+		width = math.max(width, math.ceil(em * size) + 2 * inset)
 	end
 	return width
 end
@@ -1067,7 +1101,8 @@ local function eggTray()
 						SortOrder = Enum.SortOrder.LayoutOrder,
 						Padding = UDim.new(0, TRAY.tileGap),
 					}),
-					New("UIPadding")({ PaddingLeft = UDim.new(0, 2) }),
+					-- Room for the first tile's outline, drawn outside its frame (4 px gold when picked).
+					New("UIPadding")({ PaddingLeft = UDim.new(0, 4) }),
 					ForPairs(eggs, function(eggId: string, count: number)
 						return eggId, eggCard(eggId, count)
 					end, Fusion.cleanup),
@@ -1140,11 +1175,14 @@ local function waterButton()
 		Name = "Water",
 		-- Left of SHOP, the same size; bottom-right, or mid-right with SHOP (plotMidRight).
 		AnchorPoint = Computed(function()
-			return if plotMidRight:get() then Vector2.new(1, 0.5) else Vector2.new(1, 1)
+			return if plotMidRight:get() then Vector2.new(1, 0) else Vector2.new(1, 1)
 		end),
 		Position = Computed(function()
+			local midRight, screen = plotMidRight:get(), State.screen:get()
 			local beside = -(EDGE + PLOT.width + PLOT.gap)
-			return if plotMidRight:get() then UDim2.new(1, beside, 0.5, 0) else UDim2.new(1, beside, 1, -EDGE)
+			return if midRight
+				then UDim2.new(1, beside, 0, midRightTop(screen, PLOT.height, false))
+				else UDim2.new(1, beside, 1, -EDGE)
 		end),
 		Size = UDim2.fromOffset(PLOT.width, PLOT.height),
 		BackgroundTransparency = 1,
@@ -1375,14 +1413,14 @@ local function rightColumn()
 	return New("Frame")({
 		Name = "RightColumn",
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -EDGE, 0, ROW_Y + ROW_H + COLUMN.gap + INK),
+		Position = UDim2.new(1, -EDGE, 0, COLUMN_TOP),
 		Size = UDim2.fromOffset(COLUMN.width, COLUMN.height),
 		BackgroundTransparency = 1,
 		[Children] = {
 			New("UIListLayout")({
 				SortOrder = Enum.SortOrder.LayoutOrder,
 				HorizontalAlignment = Enum.HorizontalAlignment.Right,
-				Padding = UDim.new(0, COLUMN.gap + INK),
+				Padding = UDim.new(0, ROW_STEP),
 			}),
 			weatherText(),
 			instantWeatherButton(),

@@ -205,6 +205,19 @@ registerCheck({
         }
       }
       if (tiles.filter((t) => t === "NextEgg").length > 1) problems.push("more than one next-egg tile");
+      // The early trays (up to 2 owned eggs + the next egg) fit without scrolling: every tile, as
+      // drawn (outline and shadow), lies across inside the Cards viewport, which ends before HATCH.
+      if (/^hud-plot-(eggs[012]|watered)/.test(kind) && cards && inner) {
+        const box = rect(cards);
+        const hatch = el("Hatch");
+        if (hatch && vis(hatch) && drawn(hatch).left < box.right - 0.5) problems.push("the egg cards run under HATCH");
+        for (const tile of [...inner.children].filter((c) => c.classList.contains("g"))) {
+          const d = drawn(tile);
+          if (d.left < box.left - 0.5 || d.right > box.right + 0.5) {
+            problems.push(`${tile.title} tile is cut off by the tray (${d.left.toFixed(0)}..${d.right.toFixed(0)} in ${box.left.toFixed(0)}..${box.right.toFixed(0)})`);
+          }
+        }
+      }
       // Every scene: the next egg is never a rebirth-gated tier (all mocks are at Rebirth 0).
       const nextName = next ? ((next.querySelector('[title="Label"] span') || {}).textContent || "") : "";
       if (/TOXIC|VOID|COSMIC/.test(nextName)) problems.push(`gated tier "${nextName}" as the next egg`);

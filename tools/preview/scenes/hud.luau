@@ -1,8 +1,9 @@
 -- HUD scenes (tools/preview/checks/hud.js checks them): the egg tray with 0 / 1 / 2 / 6 owned egg
 -- types (the "next egg" tile and gated tiers), the 6-egg tray on a touch screen, the watered
--- state (drain ring running, WATER dimmed), and every red dot lit (hud-dots, hud-plot-dots). Every scene is captured at every preview size through
--- captureHud, so it also runs through the HUD overlap check. The hub at every size is the built-in
--- hud@WxH set.
+-- state (drain ring running, WATER dimmed), every red dot lit (hud-dots, hud-plot-dots), and the
+-- right column at its tallest over a touch layout's mid-right SHOP / WATER (phone and hybrid
+-- device). Every scene is captured at every preview size through captureHud, so it also runs
+-- through the HUD overlap check. The hub at every size is the built-in hud@WxH set.
 return function(api)
 	local State = api.State
 	local set = api.set
@@ -105,6 +106,20 @@ return function(api)
 		api.captureHud("hud-plot-dots")
 		set(State.almanacSeen, -1)
 	end
+
+	-- The right column at its tallest (no global event soon, so Instant Weather shows; the Starter
+	-- Bundle runs; the bag at the plot) above the mid-right SHOP / WATER of a touch layout: on a
+	-- phone (touch device, 1.0x cap) and on a hybrid device (touch layout, mouse cap up to 1.25x).
+	set(State.weather, { nextId = "GlitchStorm", nextAt = NOW + 1200, id = "", endsAt = 0 })
+	set(State.touch, true)
+	set(State.zone, "hub")
+	api.captureHud("hud-instant-weather-touch")
+	set(State.zone, "plot")
+	api.captureHud("hud-plot-instant-weather-touch")
+	api.setTouchDevice(false)
+	api.captureHud("hud-plot-hybrid-touch")
+	set(State.zone, "hub")
+	api.captureHud("hud-hybrid-touch")
 
 	api.reset()
 	api.restoreRoot()

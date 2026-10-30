@@ -336,6 +336,17 @@ do
 	end
 end
 
+-- The device the scale's cap is chosen for (UIController: TouchEnabled and not MouseEnabled):
+-- the layout's State.touch, unless a scene sets a hybrid device (api.setTouchDevice(false) for a
+-- touch layout on a device with a mouse; nil to go back).
+local touchDeviceOverride: boolean? = nil
+local function touchDevice(): boolean
+	if touchDeviceOverride ~= nil then
+		return touchDeviceOverride
+	end
+	return State.touch:get(false) == true
+end
+
 local scenes = {}
 local function capture(name: string)
 	flush()
@@ -445,8 +456,14 @@ local function capture(name: string)
 		end
 		return node
 	end
-	-- touch: ui-render scales touch scenes with Config/Hud.maxScaleTouch, like UIController.
-	table.insert(scenes, { name = name, root = ser(root), touch = State.touch:get(false) == true })
+	-- touchDevice: ui-render caps the scale with Config/Hud.maxScaleTouch, like UIController (by the
+	-- device, which is the layout's State.touch unless a scene sets a hybrid device).
+	table.insert(scenes, {
+		name = name,
+		root = ser(root),
+		touch = State.touch:get(false) == true,
+		touchDevice = touchDevice(),
+	})
 end
 
 local function set(value, v)
@@ -475,10 +492,11 @@ local SCREENS = {
 	{ 1920, 1080 },
 	{ 1663, 726 },
 	{ 960, 720 },
+	{ 800, 600 },
 }
 local TOPBAR = 58
 local function screenAt(w: number, h: number)
-	return { width = w, height = h - TOPBAR, scale = HudScale.of(w, h - TOPBAR, State.touch:get(false)) }
+	return { width = w, height = h - TOPBAR, scale = HudScale.of(w, h - TOPBAR, touchDevice()) }
 end
 local function captureHud(name)
 	for _, wh in SCREENS do
@@ -679,6 +697,7 @@ do
 		set(State.weather, { nextId = "AcidRain", nextAt = 1_800_000_000 + 252, id = "", endsAt = 0 })
 		set(State.objective, { text = "Next soil patch: $675", progress = 0.62 })
 		set(State.almanac, almanac)
+		touchDeviceOverride = nil
 		set(State.screen, screenAt(1280, 720))
 	end
 	local defaultRoot = mainRoot
@@ -697,6 +716,10 @@ do
 		roblox = roblox,
 		Instance = Instance,
 		reset = reset,
+		-- setTouchDevice(false): a hybrid device (touch layout, mouse scale cap); nil: the default.
+		setTouchDevice = function(on: boolean?)
+			touchDeviceOverride = on
+		end,
 		-- Capture something other than the whole UI: setRoot(frame) (ui-render draws the root's
 		-- children, so wrap a single element in a holder frame), then restoreRoot().
 		setRoot = function(r)

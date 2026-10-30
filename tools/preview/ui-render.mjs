@@ -24,6 +24,7 @@ const checkSizes = [
   ["hd", 1920, 1080],
   ["wide", 1663, 726],
   ["win43", 960, 720],
+  ["svga", 800, 600],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
 const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "InstantWeather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
@@ -217,11 +218,15 @@ window.render = (sceneIndex, W, H) => {
   const inset = full ? 0 : ${TOPBAR};
   const usableH = H - inset;
   // The game's scale (shared/HudScale, numbers from Config/Hud): the shorter edge against the design
-  // height, capped lower on touch screens.
+  // height, never a canvas under designWidth or Cash in the top-left chat, capped lower on touch
+  // devices (the device's input, not the layout: a hybrid scene has the touch layout at the mouse cap).
   const hud = data.hud;
-  const touch = data.scenes[sceneIndex].touch === true;
-  const fitted = Math.min(Math.min(W, usableH) / hud.designHeight, W / hud.designWidth);
-  const scale = Math.min(Math.max(fitted, hud.minScale), touch ? hud.maxScaleTouch : hud.maxScale);
+  const scene = data.scenes[sceneIndex];
+  const touchDevice = scene.touchDevice ?? scene.touch === true;
+  const cashLeft = hud.top.cashWidth / 2 - hud.top.cashX + hud.faceOutline;
+  const chat = Math.min(hud.top.chatWidth, W * hud.top.chatFraction);
+  const fitted = Math.min(Math.min(W, usableH) / hud.designHeight, W / hud.designWidth, (W / 2 - chat) / cashLeft);
+  const scale = Math.min(Math.max(fitted, hud.minScale), touchDevice ? hud.maxScaleTouch : hud.maxScale);
   const gui = document.createElement("div");
   gui.className = "gui inner";
   gui.style.left = "0"; gui.style.top = inset + "px";
