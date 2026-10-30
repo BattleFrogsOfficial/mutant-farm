@@ -27,6 +27,7 @@ local Shared = ReplicatedStorage.Shared
 local Eggs = require(Shared.Config.Eggs)
 local Weather = require(Shared.Config.Weather)
 local Format = require(Shared.Format)
+local GateSign = require(Shared.GateSign)
 local Remotes = require(Shared.Remotes)
 local MutantModel = require(Shared.MutantModel)
 local Mutants = require(Shared.Config.Mutants)
@@ -236,9 +237,14 @@ local income = Computed(function()
 	local snap = State.snapshot:get()
 	return if snap then snap.incomePerMinute or 0 else 0
 end)
+local penIncome = Computed(function()
+	local snap = State.snapshot:get()
+	return if snap then snap.penPerMinute or 0 else 0
+end)
 
--- Cash: the balance rolls instead of jumping; under it the income rate and countdown, and a thin
--- bar along the bottom edge filling toward the next pen payout. "+$" pops drop out underneath.
+-- Cash: the balance rolls instead of jumping; beside it the farm's income (shared/GateSign, as on
+-- the gate: "$3.4K/MIN", "$0/MIN · PLANT EGGS" before anything earns), and a thin bar along the
+-- bottom edge filling toward the next pen payout. "+$" pops drop out underneath.
 local function cashBox()
 	local rolling = Spring(State.cash, 12, 1)
 	local snapped = false -- don't count up from $0 on join
@@ -271,7 +277,7 @@ local function cashBox()
 			C.label({
 				Name = "Amount",
 				Position = UDim2.fromOffset(TOP_TEXT_X, 4),
-				Size = UDim2.new(0.45, -TOP_TEXT_X, 0, 26),
+				Size = UDim2.new(L.top.amountShare, -TOP_TEXT_X, 0, 26),
 				TextXAlignment = Enum.TextXAlignment.Left,
 				MaxTextSize = 24,
 				StrokeThickness = 3,
@@ -282,21 +288,17 @@ local function cashBox()
 			}),
 			C.label({
 				Name = "Rate",
-				Position = UDim2.new(0.45, 0, 0, 11),
-				Size = UDim2.new(0.55, -10, 0, 13),
+				Position = UDim2.new(L.top.amountShare, 0, 0, 9),
+				Size = UDim2.new(1 - L.top.amountShare, -10, 0, 18),
 				TextXAlignment = Enum.TextXAlignment.Right,
 				TextColor3 = Theme.colors.cream,
-				StrokeThickness = 0,
-				MaxTextSize = 12,
+				StrokeThickness = 1.5,
+				MaxTextSize = L.top.rateText,
 				ZIndex = 2,
 				Text = Computed(function()
-					if income:get() <= 0 then
-						return "HATCH MUTANTS TO EARN / MIN"
-					end
-					State.now:get()
-					local snap = State.snapshot:get(false)
-					local left = if snap then math.max(0, snap.nextPayoutAt - workspace:GetServerTimeNow()) else 0
-					return string.format("+%s / MIN · %s", Format.cash(income:get()), clock(left))
+					local snap = State.snapshot:get()
+					local harvested = if snap then snap.stats.harvested else 0
+					return string.upper(GateSign.incomeText(income:get(), harvested))
 				end),
 			}),
 			New("Frame")({
@@ -304,7 +306,7 @@ local function cashBox()
 				AnchorPoint = Vector2.new(0, 1),
 				Position = UDim2.fromScale(0, 1),
 				Size = Computed(function()
-					return UDim2.new(if income:get() > 0 then payoutProgress:get() else 0, 0, 0, 3)
+					return UDim2.new(if penIncome:get() > 0 then payoutProgress:get() else 0, 0, 0, 3)
 				end),
 				BackgroundColor3 = Theme.colors.cream,
 				BorderSizePixel = 0,

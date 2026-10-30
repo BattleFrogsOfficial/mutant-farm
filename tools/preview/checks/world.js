@@ -97,7 +97,7 @@ registerCheck({
       if (!board) { problems.push(`${name} missing`); continue; }
       const text = q(board, "Text");
       const content = text ? text.textContent.trim() : "";
-      const want = name === "GateNew" ? /^\$0\/min\nplant eggs to earn$/ : /^\$[\d.]+[KMBT]?\/min$/;
+      const want = name === "GateNew" ? /^\$0\/min · PLANT EGGS$/ : /^\$[\d.]+[KMBT]?\/min$/;
       if (!want.test(content)) problems.push(`${name}: text "${content}"`);
       const f = font(text);
       if (f < 16) problems.push(`${name}: text only ${f.toFixed(1)} canvas px (< 16, 0.4 stud)`);

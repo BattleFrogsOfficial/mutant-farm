@@ -27,8 +27,10 @@ return {
 	top = {
 		y = 6,
 		height = 36, -- top-row panels stay short so the HUD still sits high
-		cashX = -66,
-		cashWidth = 300,
+		cashX = -96,
+		cashWidth = 360,
+		amountShare = 0.36, -- the Cash amount's share of the panel; the income line takes the rest
+		rateText = 16,
 		gemsWidth = 120,
 		gap = 8,
 		icon = 24, -- coin / gem glyphs

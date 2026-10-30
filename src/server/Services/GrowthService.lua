@@ -40,15 +40,13 @@ local rng = Rng.new(Random.new():NextInteger(1, 2 ^ 31 - 1))
 
 local GUARANTEED_RARE_PLANT = 2 -- the Nth egg a player ever plants
 
--- 2x Luck pass x Luck Potion (while active). Rolls.clampLuck caps the total at Game.maxLuck.
+-- (DataService.luck: passes, potion, Almanac luck; DataService.oddsBonus: the Mutation Odds upgrade.)
 local function luck(data: Types.Profile): number
-	local pass = if data.ownedPasses.Luck2x then 2 else 1
-	local potion = if DataService.now() < data.potionUntil then Products.gems.LuckPotion.luck else 1
-	return pass * potion * (1 + data.almanacLuck)
+	return DataService.luck(data)
 end
 
 local function oddsBonus(data: Types.Profile): number
-	return Upgrades.mutationOdds.bonusPerLevel * data.upgrades.mutationOdds
+	return DataService.oddsBonus(data)
 end
 
 -- Gem variants hatch the base tier's species.

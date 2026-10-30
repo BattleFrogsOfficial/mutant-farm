@@ -28,7 +28,7 @@ local function onClaim(player: Player, data: Types.Profile)
 	if reward.kind == "eggs" then
 		data.eggs[reward.egg] = (data.eggs[reward.egg] or 0) + reward.count
 	elseif reward.kind == "cash" then
-		local amount = math.max(reward.min, math.floor(DataService.incomePerMinute(data) * reward.minutes))
+		local amount = math.max(reward.min, math.floor(DataService.penIncome(data) * reward.minutes))
 		if not EconomyService.addCash(player, data, amount, "TimedReward", "Daily_" .. day) then
 			return
 		end

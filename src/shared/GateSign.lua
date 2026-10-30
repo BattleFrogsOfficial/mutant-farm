@@ -1,18 +1,18 @@
 --!strict
--- The farm gate's second line (PlotService writes it under the "<name>'s Farm" board): the live
--- pen income, alone ("$3.4K/min"). Before the first harvest a hint goes under it on its own line
--- ("$0/min" / "plant eggs to earn"), so the board never breaks the hint mid-phrase.
+-- The farm's income line, on the gate sign (PlotService writes it under the "<name>'s Farm" board)
+-- and under Cash: the expected Cash per minute (DataService.incomePerMinute: growing eggs + pen),
+-- alone ("$3.4K/min"). With nothing earning before the first harvest it says what to do.
 
 local Format = require(script.Parent.Format)
 
 local GateSign = {}
 
--- "$0/min\nplant eggs to earn" until the first harvest, then "$3.4K/min" (also "$0/min" with an
--- empty pen).
+-- "$0/min · PLANT EGGS" while nothing earns before the first harvest, else "$3.4K/min" (also
+-- "$0/min" later with nothing growing and an empty pen).
 function GateSign.incomeText(incomePerMinute: number, harvested: number): string
 	local rate = Format.cash(math.max(0, incomePerMinute)) .. "/min"
-	if harvested <= 0 then
-		return rate .. "\nplant eggs to earn"
+	if harvested <= 0 and incomePerMinute <= 0 then
+		return rate .. " · PLANT EGGS"
 	end
 	return rate
 end

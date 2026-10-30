@@ -12,6 +12,7 @@ local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
 local Eggs = require(Shared.Config.Eggs)
 local Growth = require(Shared.Growth)
+local Expected = require(Shared.Expected)
 local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
 local Pen = require(Shared.Pen)
@@ -164,9 +165,36 @@ function DataService.penIncome(data: Types.Profile, offline: boolean?): number
 	return total
 end
 
--- Cash the pen pays every minute while you're online, rounded down for display.
+-- 2x Luck pass x Luck Potion (while active) x the Almanac's permanent luck. Rolls.clampLuck caps
+-- the total at Game.maxLuck.
+function DataService.luck(data: Types.Profile): number
+	local pass = if data.ownedPasses.Luck2x then 2 else 1
+	local potion = if DataService.now() < data.potionUntil then Products.gems.LuckPotion.luck else 1
+	return pass * potion * (1 + data.almanacLuck)
+end
+
+-- Extra mutation chance from the Mutation Odds upgrade.
+function DataService.oddsBonus(data: Types.Profile): number
+	return Upgrades.mutationOdds.bonusPerLevel * data.upgrades.mutationOdds
+end
+
+-- Farm income for the HUD and the gate sign, rounded down: the expected Cash per minute of the
+-- eggs growing now (shared/Expected.growingPerMinute, at the plot's speed, doubled while watered)
+-- plus the pen's income. Recomputed with every snapshot (plant, harvest, sell, water, passes,
+-- rebirth all send one).
 function DataService.incomePerMinute(data: Types.Profile): number
-	return math.floor(DataService.penIncome(data))
+	local speed = DataService.speed(data)
+	if DataService.now() < data.wateredUntil then
+		speed *= GameConfig.waterMultiplier
+	end
+	local growing = Expected.growingPerMinute(
+		data.slots,
+		DataService.luck(data),
+		DataService.oddsBonus(data),
+		DataService.cashMultiplier(data),
+		speed
+	)
+	return math.floor(growing + DataService.penIncome(data))
 end
 
 -- PolicyService result per online player (MonetizationService fills it on join): true when paid
@@ -218,6 +246,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		nextSlotCost = DataService.nextSlotCost(data),
 		stats = data.stats,
 		incomePerMinute = DataService.incomePerMinute(data),
+		penPerMinute = math.floor(DataService.penIncome(data)),
 		nextPayoutAt = DataService.nextPayoutAt[player] or 0,
 		payoutSeconds = GameConfig.payoutSeconds,
 		daily = DataService.dailyStatus(data),

@@ -304,6 +304,26 @@ return function(t)
 			t.eq(data.gems, 0)
 		end,
 
+		["$/min: growing eggs count before the first harvest, in the snapshot and on the gate"] = function()
+			local world = t.server()
+			local player, data = world:join(1, { eggs = { Starter = 2 }, grantedStarterEggs = true })
+			local DataService = world.service.DataService
+			t.eq(DataService.incomePerMinute(data), 0, "nothing growing, empty pen")
+			world:send(player, "Plant", 1, "Starter")
+			world:send(player, "Plant", 2, "Starter")
+			world:advance(60)
+			local income = DataService.incomePerMinute(data)
+			t.ok(income > 0, "2 Starters growing: income > 0")
+			-- Roughly two Starter eggs' expected value per grow time (Starter ~1 min): tens of $/min.
+			t.ok(income >= 2 * 50 and income < 2 * 2000, "plausible: " .. income)
+			local states = world:received(player, "State")
+			local last = states[#states] and states[#states][1]
+			t.ok(last and last.incomePerMinute > 0, "the snapshot carries it")
+			-- Watering doubles the growing part.
+			world:send(player, "Water")
+			t.ok(DataService.incomePerMinute(data) > income * 1.5, "watered: about 2x")
+		end,
+
 		["Auto-Harvest offline: 3 h of 5-minute eggs fills the bag and spends Cash"] = function()
 			local world = t.server()
 			local player, data = world:join(1, {

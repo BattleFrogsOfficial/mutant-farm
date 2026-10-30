@@ -47,4 +47,26 @@ function Expected.egg(tierId: string, luck: number, oddsBonus: number, rarity: s
 		tier.growTime * time
 end
 
+-- Expected Cash per minute from the eggs growing in `slots` ({ eggId, rarity }): each egg's
+-- expected sale value (its rarity is already rolled) x `cashMultiplier`, over its full grow time at
+-- `speed` (the plot's speed, x the water multiplier while watered).
+function Expected.growingPerMinute(
+	slots: { [any]: { eggId: string, rarity: string } },
+	luck: number,
+	oddsBonus: number,
+	cashMultiplier: number,
+	speed: number
+): number
+	local total = 0
+	for _, slot in slots do
+		if Eggs.tiers[slot.eggId] and slot.rarity then
+			local value, seconds = Expected.egg(slot.eggId, luck, oddsBonus, slot.rarity)
+			if seconds > 0 and speed > 0 then
+				total += value * cashMultiplier / (seconds / speed) * 60
+			end
+		end
+	end
+	return total
+end
+
 return Expected
