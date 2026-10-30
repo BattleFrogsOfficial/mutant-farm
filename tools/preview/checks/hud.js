@@ -3,8 +3,10 @@
 //   Cash -> Gems and the top-right tiles 8 px apart AS DRAWN (shadow to the next ink outline), red dots
 //   inside their tiles and clear of the glyph (its outline and shadow); in hud-dots all three dots
 //   are lit
-//   right column rows in order weather, Instant Weather, bundle, bag, 8 px apart as drawn (and 8 px
-//   under the tiles' shadows); Instant Weather as wide as the bundle ribbon
+//   right column rows in order Instant Weather, bundle, bag, 8 px apart as drawn (and 8 px under
+//   the tiles' shadows); Instant Weather as wide as the bundle ribbon
+//   weather line centered under the Cash / Gems row in every zone: plain text far from an event, a
+//   chip in the event's color from 5 min before it (hud-weather-idle, hud-weather-soon, hud-plot-weather-active)
 //   plot: SHOP the same size as WATER and right beside it (same row, WATER on the left; never
 //   stacked); WATER reads "2x GROWTH" / "FOR 30s", and while watered "2x ACTIVE" / the seconds
 //   left, dimmed (never pink), no drain ring
@@ -97,8 +99,25 @@ registerCheck({
       }
     }
 
+    // Weather line: shown, centered under Cash + Gems, below them; plain far from an event, a chip
+    // (the event's color) when soon or active, with the right wording.
+    const weather = el("Weather"), cashEl = el("Cash"), gemsEl = el("Gems");
+    if (!vis(weather)) problems.push("weather line missing");
+    else if (vis(cashEl) && vis(gemsEl)) {
+      const w = rect(weather), c = rect(cashEl), g = rect(gemsEl);
+      const mid = (c.left + g.right) / 2, wmid = (w.left + w.right) / 2;
+      if (Math.abs(mid - wmid) > 2 * scaleOf(weather) + 1) problems.push(`weather line off center (${wmid.toFixed(0)} vs ${mid.toFixed(0)})`);
+      if (w.top < c.bottom) problems.push("weather line isn't under the Cash row");
+      const chip = vis(weather.querySelector('[title="Chip"]'));
+      const text = ((weather.querySelector('[title="Text"] span') || {}).textContent || "").trim();
+      if (!weather.querySelector('[title="Glyph"]')) problems.push("weather line has no glyph");
+      if (kind.startsWith("hud-weather-idle") && (chip || !/ IN \d+:\d\d$/.test(text))) problems.push(`idle weather "${text}"${chip ? " (boxed)" : ""}`);
+      if (kind.startsWith("hud-weather-soon") && (!chip || !/ IN \d+:\d\d$/.test(text))) problems.push(`soon weather "${text}"${chip ? "" : " (no chip)"}`);
+      if (kind.startsWith("hud-plot-weather-active") && (!chip || !/ · \d+:\d\d LEFT$/.test(text))) problems.push(`active weather "${text}"`);
+    }
+
     // Right column: visible rows in order, 8 px apart as drawn, the first 8 px under the tiles.
-    const order = ["Weather", "InstantWeather", "Bundle", "BagChip"];
+    const order = ["InstantWeather", "Bundle", "BagChip"];
     const rows = order.map((n) => [n, el(n)]).filter(([, e]) => vis(e));
     // In screen order too (a reordered layout would still pass the gap checks).
     for (let i = 0; i + 1 < rows.length; i++)

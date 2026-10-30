@@ -120,6 +120,16 @@ return function(api)
 		set(State.almanacSeen, -1)
 	end
 
+	-- Weather line: far from an event (plain), 5 min before (chip), running (chip, time left).
+	set(State.zone, "hub")
+	set(State.weather, { nextId = "SolarFlare", nextAt = NOW + 564, id = "", endsAt = 0 })
+	api.captureHud("hud-weather-idle")
+	set(State.weather, { nextId = "GlitchStorm", nextAt = NOW + 252, id = "", endsAt = 0 })
+	api.captureHud("hud-weather-soon")
+	set(State.zone, "plot")
+	set(State.weather, { nextId = "AcidRain", nextAt = NOW + 1500, id = "SolarFlare", endsAt = NOW + 102 })
+	api.captureHud("hud-plot-weather-active")
+
 	-- The right column at its tallest (no global event soon, so Instant Weather shows; the Starter
 	-- Bundle runs; the bag at the plot) above the mid-right SHOP / WATER of a touch layout: on a
 	-- phone (touch device, 1.0x cap) and on a hybrid device (touch layout, mouse cap up to 1.25x).

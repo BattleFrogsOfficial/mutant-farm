@@ -54,6 +54,18 @@ local SPEND = Theme.colors.spend
 -- the middle, Gems right after it.
 local CASH_X = L.top.cashX
 local CASH_W = L.top.cashWidth
+-- The middle of the Cash + Gems row (design px from the screen's middle): the weather line and
+-- the toasts center under it.
+local TOP_ROW_CENTER = (
+	CASH_X
+	- CASH_W / 2
+	+ CASH_X
+	+ CASH_W / 2
+	+ L.top.gap
+	+ L.faceOutline
+	+ Theme.shadow
+	+ L.top.gemsWidth
+) / 2
 local ROW_Y = L.top.y -- the top row, directly under Roblox's top bar
 local ROW_H = L.top.height
 local EDGE = L.edge
@@ -133,16 +145,11 @@ end)
 -- The right column (under the top-right tiles) starts here; its rows are ROW_STEP apart.
 local COLUMN_TOP = ROW_Y + ROW_H + COLUMN.gap + INK
 local ROW_STEP = COLUMN.gap + INK
--- Its bottom row's frame edge at its tallest in each zone. Hub: weather, Instant Weather, bundle.
--- Plot: weather or Instant Weather (Instant Weather hides while the weather chip shows), bundle, bag.
-local HUB_COLUMN_BOTTOM = COLUMN_TOP
-	+ COLUMN.weather.height
-	+ ROW_STEP
-	+ COLUMN.instantHeight
-	+ ROW_STEP
-	+ COLUMN.bundleHeight
+-- Its bottom row's frame edge at its tallest in each zone. Hub: Instant Weather, bundle. Plot:
+-- Instant Weather, bundle, bag.
+local HUB_COLUMN_BOTTOM = COLUMN_TOP + COLUMN.instantHeight + ROW_STEP + COLUMN.bundleHeight
 local PLOT_COLUMN_BOTTOM = COLUMN_TOP
-	+ math.max(COLUMN.weather.height, COLUMN.instantHeight)
+	+ COLUMN.instantHeight
 	+ ROW_STEP
 	+ COLUMN.bundleHeight
 	+ ROW_STEP
@@ -607,10 +614,11 @@ end
 
 ---------------------------------------------------------------------------- hub only
 
--- Weather, the column's first row: "☢ ACID RAIN IN 12:40" in a quiet chip in the hub; from
--- Weather.announceSeconds (5 min) before an event until it ends, in every zone and in the event's
--- color: "☢ ACID RAIN IN 4:12", then "☢ ACID RAIN NOW · 1:12".
-local function weatherText()
+-- Weather line, centered under the Cash / Gems row in every zone. Far from an event: plain text
+-- with the event's glyph, "SOLAR FLARE IN 9:24". From Weather.announceSeconds (5 min) before it
+-- until it ends: a chip in the event's color, "SOLAR FLARE IN 4:12", then "SOLAR FLARE · 1:42
+-- LEFT" while it runs.
+local function weatherLine()
 	local info = Computed(function()
 		State.now:get()
 		local w = State.weather:get()
@@ -635,55 +643,61 @@ local function weatherText()
 			return ""
 		end
 		local name = string.upper(i.event.name)
-		return if i.active then name .. " NOW · " .. clock(i.left) else name .. " IN " .. clock(i.left)
+		return if i.active then name .. " · " .. clock(i.left) .. " LEFT" else name .. " IN " .. clock(i.left)
 	end)
 	local glyph = Computed(function()
 		local i = info:get()
 		return if i then i.event.glyph else nil
 	end)
-	-- Far from an event: a quiet navy chip with cream text; from announceSeconds before it until
-	-- it ends: the event's color. Always a chip, so the column's rows are spaced the same as drawn.
-	local rim = Computed(function()
-		local i, isSoon = info:get(), soon:get()
-		return if i and isSoon then Color3.fromHex(i.event.color) else NAVY
+	local color = Computed(function()
+		local i = info:get()
+		return if i then Color3.fromHex(i.event.color) else NAVY
 	end)
-	local textColor = Computed(function()
-		local i, isSoon = info:get(), soon:get()
-		return if i and isSoon then Color3.fromHex(i.event.color) else Theme.colors.cream
-	end)
-	local W = COLUMN.weather
+	local W = L.weather
 	return New("Frame")({
 		Name = "Weather",
-		LayoutOrder = 1,
-		Size = UDim2.fromOffset(COLUMN.width, W.height),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, TOP_ROW_CENTER, 0, W.y),
+		Size = UDim2.fromOffset(W.width, W.height),
 		BackgroundTransparency = 1,
 		Visible = Computed(function()
-			-- Read every dependency up front (Fusion 0.2: no Computed first read mid-update).
-			local isSoon, hub, i = soon:get(), inHub:get(), info:get()
-			return isSoon or (hub and i ~= nil)
+			return info:get() ~= nil
 		end),
-		[Children] = C.pill({
-			Name = "Chip",
-			Size = UDim2.fromScale(1, 1),
-			Rim = rim,
-			Children = {
-				C.icon(glyph, W.text + 2, nil, {
-					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, W.textX, 0.5, 0),
-					ZIndex = 3,
-				}),
-				C.label({
-					Position = UDim2.fromOffset(W.textX + W.text + 8, W.textY),
-					Size = UDim2.new(1, -(W.textX + W.text + 8 + W.textRight), 1, -2 * W.textY),
-					TextXAlignment = Enum.TextXAlignment.Left,
-					MaxTextSize = W.text,
-					TextColor3 = textColor,
-					StrokeThickness = 2.5,
-					Text = text,
-					ZIndex = 3,
-				}),
-			},
-		}),
+		[Children] = {
+			-- The chip (soon / active): the event's color, ink outline, hard shadow.
+			New("Frame")({
+				Name = "Chip",
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				Visible = soon,
+				[Children] = {
+					C.shadow(),
+					New("Frame")({
+						Name = "Face",
+						Size = UDim2.fromScale(1, 1),
+						BackgroundColor3 = color,
+						BorderSizePixel = 0,
+						ZIndex = 1,
+						[Children] = { C.stroke(Theme.colors.ink, 3), C.bevel(2, 0.7) },
+					}),
+				},
+			}),
+			C.iconText({
+				Name = "Line",
+				Icon = glyph,
+				IconSize = W.glyph,
+				Text = text,
+				TextSize = W.text,
+				TextColor3 = Computed(function()
+					return if soon:get() then Theme.colors.ink else Theme.colors.cream
+				end),
+				StrokeThickness = Computed(function()
+					return if soon:get() then 0 else 2
+				end),
+				Size = UDim2.fromScale(1, 1),
+				ZIndex = 3,
+			}),
+		},
 	})
 end
 
@@ -1517,7 +1531,6 @@ local function rightColumn()
 				HorizontalAlignment = Enum.HorizontalAlignment.Right,
 				Padding = UDim.new(0, ROW_STEP),
 			}),
-			weatherText(),
 			instantWeatherButton(),
 			bundleRibbon(),
 			bagChip(),
@@ -1529,6 +1542,7 @@ return function()
 	return {
 		-- always
 		cashBox(),
+		weatherLine(),
 		rebirthStrip(),
 		groupBadge(),
 		gemsBox(),

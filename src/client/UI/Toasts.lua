@@ -9,6 +9,11 @@ local State = require(script.Parent.Parent.State)
 local Theme = require(script.Parent.Theme)
 local C = require(script.Parent.Components)
 local Format = require(game:GetService("ReplicatedStorage").Shared.Format)
+local Hud = require(game:GetService("ReplicatedStorage").Shared.Config.Hud)
+
+-- Centered under the Cash / Gems row, like the weather line above it (UI/Hud TOP_ROW_CENTER).
+local TOP = Hud.top
+local CENTER = (2 * TOP.cashX + TOP.gap + Hud.faceOutline + Theme.shadow + TOP.gemsWidth) / 2
 
 local New, Children, Computed, ForPairs = Fusion.New, Fusion.Children, Fusion.Computed, Fusion.ForPairs
 
@@ -25,8 +30,8 @@ return function()
 		Name = "Toast",
 		ZIndex = 20, -- above open panels
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 74),
-		Size = UDim2.fromOffset(360, 48),
+		Position = UDim2.new(0.5, CENTER, 0, Hud.toast.y),
+		Size = UDim2.fromOffset(Hud.toast.width, Hud.toast.height),
 		BackgroundTransparency = 1,
 		[Children] = ForPairs(byId, function(id: number, encoded: string)
 			local kind, text = encoded:match("^(%a+)|(.*)$")

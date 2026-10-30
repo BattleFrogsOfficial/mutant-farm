@@ -55,15 +55,12 @@ return {
 		dotInset = 9,
 	},
 
-	-- Right column under the tiles, top to bottom: weather countdown, Instant Weather, Starter
-	-- Bundle, bag count, `gap` px apart as drawn (shadow to outline; the first row `gap` under the
-	-- tiles' shadows). Weather, Instant Weather and the bundle share `width`.
+	-- Right column under the tiles, top to bottom: Instant Weather, Starter Bundle, bag count, `gap`
+	-- px apart as drawn (shadow to outline; the first row `gap` under the tiles' shadows). Instant
+	-- Weather and the bundle share `width`. (The weather line sits under Cash: `weather` below.)
 	column = {
 		gap = 8,
 		width = 200,
-		-- Weather countdown chip (hub; every zone from 5 min before an event until it ends): text
-		-- `textX` px in from the left, `textRight` from the right, `textY` from top and bottom.
-		weather = { height = 32, textX = 12, textRight = 6, textY = 3, text = 17 },
 		instantHeight = 50,
 		bundleHeight = 54,
 		bagWidth = 130,
@@ -81,6 +78,13 @@ return {
 		bundlePulse = 2, -- the Starter Bundle ribbon beats once every 2 s
 		bundleGlyph = 28,
 	},
+
+	-- Weather line, centered under the Cash / Gems row in every zone (`y` from the top of the
+	-- canvas, under the Rebirth strip): plain text with the event's glyph, a chip in the event's
+	-- color from 5 min before it until it ends. Text `text` px, glyph `glyph` px.
+	weather = { y = 72, width = 340, height = 30, text = 16, glyph = 20 },
+	-- The toast lane: centered under the weather line, `width` wide, its top `y` down.
+	toast = { y = 112, width = 360, height = 48 },
 
 	-- SHOP: the biggest button in the hub. At the plot it is the WATER button's size, beside it.
 	-- Mid-right (touch screens; at the plot also narrow windows) SHOP and WATER sit `column.gap`
