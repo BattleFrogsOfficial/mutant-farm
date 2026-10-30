@@ -77,6 +77,16 @@ rule: reviews are for the launch build).
 - **The bundle countdown** in the Store banner is 16 px; the HUD ribbon's is 18 px on its own line.
 - **Three-strike rule**: nothing hit it.
 
+### Follow-up: Almanac labels centered on their diamonds
+
+The 100 and 400 labels (and 200 / 300, less visibly) were slid sideways to fit: 400 by the track's
+right end, 100 by the next milestone's label. Now every label is centered on its marker; the bar's
+ends are inset for the first/last label; a big label that can't fit beside the next one shows its
+number alone, then hides (tap the diamond for the tooltip). Trade-off: while the next milestone is
+25-50 species before a big one (e.g. 26-74 found for 100), that big reward isn't spelled out under
+its diamond. New preview check: each drawn label line within 1.5 px of its diamond's center (it
+flags 106 offsets on the old layout, 0 now).
+
 ## Needs a Studio look
 
 Nothing on the Roblox side runs headlessly; the preview approximates GothamBlack with Montserrat

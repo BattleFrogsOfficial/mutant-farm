@@ -12,10 +12,11 @@
 --     big (eggs, luck). The passed and later stretches share what the segment leaves, in
 --     proportion to the species counts they cover;
 --   * when every milestone is passed, all of them, gold, spread over the whole (gold) bar.
--- Labels sit in a row under the markers. Their widths are estimated (Config/AlmanacUI em widths)
--- so they can be placed without measuring text: the later big labels are packed sideways (each
--- still spanning its marker) to fit in full; if they can't, they all drop to "100🥚", then to icons,
--- and an icon that still collides hides. A tapped marker's tooltip takes the label row and hides
+-- Labels sit in a row under the markers, each centered exactly on its marker (never slid sideways:
+-- a label off its diamond reads as belonging to the neighbour). Their widths are estimated
+-- (Config/AlmanacUI em widths) so they can be placed without measuring text; the bar's ends are
+-- inset so the first and last labels fit centered. A big label that would collide with one already
+-- placed drops to its number alone ("100"), and hides if even that collides. A tapped marker's tooltip takes the label row and hides
 -- the labels it covers. Each marker also gets a tap target: the stretch of track nearer to it than
 -- to its neighbours, capped (Config/AlmanacUI.hitWidth / minTapScreenPx).
 
@@ -38,7 +39,7 @@ export type Label = {
 	post: string, -- second line: the reward ("" when collapsed to the number)
 	x: number, -- left edge (track px)
 	w: number,
-	short: boolean, -- collapsed to its icon
+	short: boolean, -- collapsed to the number alone
 	covered: boolean, -- under the open tooltip (not drawn)
 }
 
@@ -179,36 +180,6 @@ function AlmanacTrack.extent(size: number, outline: number?): number
 	return (size + 2 * (outline or UIConfig.markerOutline)) * SQRT2
 end
 
--- Packs labels (in marker order, each { w, center }) into [wall, width] with labelGap between
--- them, each spanning its marker's center by labelInset, as close to centered as that allows.
--- Returns the left edges, or nil when they can't all fit.
-local function pack(items: { { w: number, center: number } }, wall: number, width: number): { number }?
-	local gap, inset = UIConfig.labelGap, UIConfig.labelInset
-	local lo, hi, xs = {}, {}, {}
-	for i, it in items do
-		local reach = math.min(inset, it.w / 2)
-		lo[i] = math.max(wall, it.center + reach - it.w)
-		hi[i] = math.min(width - it.w, it.center - reach)
-		if lo[i] > hi[i] + 1e-6 then
-			return nil
-		end
-		xs[i] = math.clamp(it.center - it.w / 2, lo[i], hi[i])
-	end
-	-- Push right past each left neighbour, then pull left before each right neighbour.
-	for i = 2, #items do
-		xs[i] = math.max(xs[i], xs[i - 1] + items[i - 1].w + gap)
-	end
-	for i = #items, 1, -1 do
-		xs[i] = math.min(xs[i], hi[i], if i < #items then xs[i + 1] - gap - items[i].w else math.huge)
-	end
-	for i in items do
-		if xs[i] < lo[i] - 1e-6 or (i > 1 and xs[i] < xs[i - 1] + items[i - 1].w + gap - 1e-6) then
-			return nil
-		end
-	end
-	return xs
-end
-
 local function overlaps(a: Label, b: { x: number, w: number }, gap: number): boolean
 	return a.x < b.x + b.w + gap and b.x < a.x + a.w + gap
 end
@@ -238,8 +209,19 @@ function AlmanacTrack.layout(
 	local allPassed = passed == #ms
 	local last = ms[passed]
 	local nextM = ms[passed + 1]
+	-- The bar's ends: room for the big diamond, and for the label of the end marker centered on
+	-- it (the first milestone shows its full label only while it's the next one; once passed, its
+	-- number at most; the last one always has its full label).
 	local pad = math.ceil(AlmanacTrack.extent(UIConfig.nextSize) / 2)
-	local barLeft, barRight = pad, width - pad
+	local function endPad(m: Milestone?, form: Form): number
+		if not m then
+			return pad
+		end
+		return math.max(pad, math.ceil(AlmanacTrack.partsWidth(AlmanacTrack.parts(m, form), font) / 2))
+	end
+	local first = ms[1]
+	local barLeft = endPad(first, if first and found < first.at then "full" else "short")
+	local barRight = width - endPad(ms[#ms], "full")
 	local span = barRight - barLeft
 
 	local markers: { Marker } = {}
@@ -291,9 +273,10 @@ function AlmanacTrack.layout(
 		end
 	end
 
-	-- Labels, by priority: the next milestone (always, in full), the last passed one (its number,
-	-- at the segment's start; earlier passed ones stay unlabeled), then the big later ones in one form for all: in full if they pack, else
-	-- "100🥚", else icons (centered; any icon that still collides hides).
+	-- Labels, each centered on its marker, by priority: the next milestone (always, in full), the
+	-- last passed one (its number, at the segment's start; earlier passed ones stay unlabeled), then
+	-- the big later ones left to right: in full if that fits beside the labels already placed, else
+	-- the number alone, else none (the tooltip still tells).
 	local placed: { Label } = {}
 	local function make(p: Parts, center: number, short: boolean): Label
 		local w = AlmanacTrack.partsWidth(p, font)
@@ -341,45 +324,13 @@ function AlmanacTrack.layout(
 	table.sort(rest, function(a, b)
 		return a.x < b.x
 	end)
-	-- The fixed labels (next, last passed) all sit left of the later markers: a wall to pack from.
-	local wall = 0
-	for _, p in placed do
-		wall = math.max(wall, p.x + p.w + UIConfig.labelGap)
-	end
-	local done = false
-	for _, form: Form in { "full", "short" } do
-		local items = {}
-		for _, mk in rest do
-			local p = AlmanacTrack.parts(mk.milestone, form)
-			table.insert(items, { p = p, w = AlmanacTrack.partsWidth(p, font), center = mk.x })
-		end
-		local xs = pack(items, wall, width)
-		if xs then
-			for i, mk in rest do
-				local p = items[i].p
-				local l: Label = {
-					text = if p.post ~= "" then p.pre .. " · " .. p.post else p.pre,
-					pre = p.pre,
-					glyph = p.glyph,
-					post = p.post,
-					x = xs[i],
-					w = items[i].w,
-					short = false,
-					covered = false,
-				}
-				mk.label = l
-				table.insert(placed, l)
-			end
-			done = true
-			break
-		end
-	end
-	if not done then
-		for _, mk in rest do
-			local l = make(AlmanacTrack.parts(mk.milestone, "short"), mk.x, true)
+	for _, mk in rest do
+		for _, form: Form in { "full", "short" } do
+			local l = make(AlmanacTrack.parts(mk.milestone, form), mk.x, form == "short")
 			if fits(l, placed) then
 				mk.label = l
 				table.insert(placed, l)
+				break
 			end
 		end
 	end

@@ -423,8 +423,6 @@ local function marker(mk: AlmanacTrack.Marker)
 	})
 end
 
--- A label is tappable too: it opens its own marker's tooltip (labels may sit a little to the side
--- of their marker, over a neighbour's tap target).
 -- A label: the species needed on top ("100"), the reward under it ("Toxic Egg", smaller), centered
 -- under its marker. Tapping it opens its marker's tooltip.
 local function trackLabel(mk: AlmanacTrack.Marker, font: number)

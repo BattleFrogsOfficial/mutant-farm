@@ -160,11 +160,15 @@ return function(t)
 					end
 					if mk.label then
 						t.ok(mk.label.x >= 0 and mk.label.x + mk.label.w <= WIDTH, "label inside at " .. found)
-						-- Packed sideways at most so far that it still spans its marker.
-						local reach = math.min(UI.labelInset, mk.label.w / 2) - 1e-6
+						-- Centered exactly on its marker (never slid toward a neighbour).
 						t.ok(
-							mk.label.x <= mk.x - reach and mk.label.x + mk.label.w >= mk.x + reach,
-							string.format("label '%s' spans its marker at %d", mk.label.text, found)
+							math.abs(mk.label.x + mk.label.w / 2 - mk.x) < 1e-6,
+							string.format(
+								"label '%s' centered on its marker at %d (font %d)",
+								mk.label.text,
+								found,
+								font
+							)
 						)
 						table.insert(labels, mk.label)
 					end
@@ -180,38 +184,41 @@ return function(t)
 				end
 			end)
 		end,
-		["labels show the big later rewards in full, on desktop and small phones"] = function()
+		["big later labels: in full unless the next label is in the way, then the number, then none"] = function()
 			local function shown(found, font)
 				local out = {}
 				for _, mk in Track.layout(found, TOTAL, WIDTH, font).markers do
-					if mk.label then
-						out[mk.milestone.at] = mk.label.text
-					end
+					out[mk.milestone.at] = if mk.label then mk.label.text else false
 				end
 				return out
 			end
-			for _, found in { 0, 5, 24, 26, 45, 99, 101, 175, 399 } do
+			local full = {
+				[100] = "100 · Toxic Egg",
+				[200] = "200 · Void Egg",
+				[300] = "300 · Cosmic Egg",
+				[400] = "400 · +10% luck",
+			}
+			-- Desktop, the next milestone well clear of every big one: all four in full.
+			for _, found in { 0, 5, 24, 99, 101, 175, 399 } do
 				local s = shown(found, UI.labelSize)
-				for at, text in
-					{
-						[100] = "100 · Toxic Egg",
-						[200] = "200 · Void Egg",
-						[300] = "300 · Cosmic Egg",
-						[400] = "400 · +10% luck",
-					}
-				do
+				for at, text in full do
 					if at > found then
 						t.eq(s[at], text, string.format("desktop label %d at %d found", at, found))
 					end
 				end
 			end
-			-- Small phones (bigger font): the stacked labels still fit in full.
+			-- The next one 50 species before a big one: the big one keeps its number, centered.
+			t.eq(shown(26, UI.labelSize)[100], "100")
+			-- 25 before: not even the number fits beside the next label; the tooltip still tells.
+			t.eq(shown(60, UI.labelSize)[100], false)
+			t.eq(shown(60, UI.labelSize)[75], "75 · 25 Gems")
+			-- Small phones (bigger font): the rest still in full.
 			local s = shown(5, Track.fontSize(0.559))
 			t.eq(s[25], "25 · 25 Gems")
-			t.eq(s[100], "100 · Toxic Egg")
-			t.eq(s[200], "200 · Void Egg")
-			t.eq(s[300], "300 · Cosmic Egg")
-			t.eq(s[400], "400 · +10% luck")
+			t.eq(s[100], "100")
+			t.eq(s[200], full[200])
+			t.eq(s[300], full[300])
+			t.eq(s[400], full[400])
 		end,
 		["tap targets: nearest marker, no overlaps, at least the marker, capped"] = function()
 			for _, hit in { UI.hitWidth, 80 } do

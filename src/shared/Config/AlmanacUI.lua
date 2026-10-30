@@ -52,12 +52,12 @@ return {
 	-- Labels: two lines under each labeled marker, the species needed on top ("100") and the
 	-- reward under it ("Toxic Egg", at rewardScale of the font), GothamBlack (drawn as Montserrat
 	-- Black) at labelSize, raised so they never draw below minScreenPx on screen (small phones), up
-	-- to maxLabelSize (two lines fit the label row: trackHeight - labelTop). The later big labels
-	-- are packed left/right (each still spanning its marker by labelInset) so they fit in full; if
-	-- they can't, all drop to the number alone, then any that still collides hides (the tooltip
-	-- still tells). Widths are estimated per character in em of Montserrat Black (measured:
-	-- lowercase and digits ~0.63, capitals ~0.75); the preview's Almanac check measures the drawn
-	-- labels.
+	-- to maxLabelSize (two lines fit the label row: trackHeight - labelTop). Every label is centered
+	-- exactly on its marker (the bar's ends are inset to make room for the end labels); a big one
+	-- that would come within labelGap of a label already placed drops to its number, then hides
+	-- (the tooltip still tells). Widths are estimated per character in em of Montserrat Black
+	-- (measured: lowercase and digits ~0.63, capitals ~0.75); the preview's Almanac check measures
+	-- the drawn labels.
 	labelSize = 16,
 	minScreenPx = 11,
 	maxLabelSize = 20,
@@ -68,7 +68,6 @@ return {
 	spaceEm = 0.3,
 	emojiEm = 1.25,
 	labelGap = 8, -- min space between two labels (and a label and the tooltip)
-	labelInset = 6, -- a label always reaches this far past its marker's center on both sides
 	tooltipPad = 8, -- tooltip box: text + this on each side
 	tooltipOutline = 3,
 

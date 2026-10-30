@@ -55,8 +55,8 @@ registerCheck({
       const over = hits[i - 1].r.right - hits[i].r.left;
       if (over > 0.5) problems.push(`tap targets ${hits[i - 1].name} and ${hits[i].name} overlap by ${over.toFixed(1)}px`);
     }
-    // Each label spans its own marker (packing may shift it sideways, never off its marker), and
-    // on desktop sizes the big later ones keep their numbers ("100 · [egg] Toxic", never just the glyph).
+    // Each label is centered on its own marker: the label box and each drawn line ("100", "Toxic
+    // Egg") within 1.5 px of the diamond's center. On desktop sizes the labels keep their numbers.
     const desktop = W >= 1024 && H >= 540;
     for (const el of labels) {
       const at = el.title.slice("Label".length);
@@ -64,7 +64,13 @@ registerCheck({
       if (!mk) { problems.push(`${el.title} has no marker`); continue; }
       const mr = mk.getBoundingClientRect(), lr = el.getBoundingClientRect();
       const cx = (mr.left + mr.right) / 2;
-      if (lr.left > cx + 0.5 || lr.right < cx - 0.5) problems.push(`${el.title} doesn't span its marker`);
+      if (Math.abs((lr.left + lr.right) / 2 - cx) > 1.5) problems.push(`${el.title} box off its marker by ${((lr.left + lr.right) / 2 - cx).toFixed(1)}px`);
+      for (const sp of el.querySelectorAll("span")) {
+        if (sp.textContent.trim() === "") continue;
+        const r = sp.getBoundingClientRect();
+        const off = (r.left + r.right) / 2 - cx;
+        if (Math.abs(off) > 1.5) problems.push(`${el.title} "${sp.textContent.trim()}" off its marker by ${off.toFixed(1)}px`);
+      }
       if (desktop && !el.textContent.includes(at)) problems.push(`${el.title} "${el.textContent.trim()}" lost its number on desktop`);
     }
     // On-screen font: the label's px times every scale above it (HUD scale, panel fit).
