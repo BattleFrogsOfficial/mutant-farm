@@ -311,6 +311,7 @@ local snapshot = {
 	payoutSeconds = 60,
 	totalSlots = 8,
 	ownedPasses = {},
+	replant = {},
 	rebirthCost = 700_000,
 	bundleOfferEndsAt = 1_800_000_000 + 581,
 	daily = { day = 2, canClaim = true, streak = 1 },
@@ -502,8 +503,10 @@ local TOPBAR = 58
 local function screenAt(w: number, h: number)
 	return { width = w, height = h - TOPBAR, scale = HudScale.of(w, h - TOPBAR, touchDevice()) }
 end
-local function captureHud(name)
-	for _, wh in SCREENS do
+-- `sizes` (optional): only these screens (the scene JSON has a size budget: Chromium won't load
+-- ~100 MB).
+local function captureHud(name, sizes: { { number } }?)
+	for _, wh in sizes or SCREENS do
 		local w, h = wh[1], wh[2]
 		set(State.screen, screenAt(w, h))
 		capture(string.format("%s@%dx%d", name, w, h))

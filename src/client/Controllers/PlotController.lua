@@ -38,6 +38,8 @@ type SlotVisual = {
 	timer: SlotTimer.Timer?,
 	markerGui: SurfaceGui?,
 	marker: SoilMarker.Marker?,
+	toggleGui: SurfaceGui?,
+	toggle: SoilMarker.Toggle?,
 }
 
 type Roamer = {
@@ -169,8 +171,49 @@ local function updateMarker(v: SlotVisual, t: number)
 	end
 end
 
+-- Auto-Harvest's REPLANT toggle on each owned patch of yours (pass owners only), planted or not.
+-- Its SurfaceGui lives in PlayerGui (Adornee = the patch) so the button takes taps there.
+local function updateToggle(v: SlotVisual)
+	local snap = State.snapshot:get(false)
+	local show = snap ~= nil
+		and snap.ownedPasses ~= nil
+		and snap.ownedPasses.AutoHarvest == true
+		and isMine(v.plot)
+		and v.slot:GetAttribute("State") == "owned"
+	if not show then
+		if v.toggleGui then
+			v.toggleGui.Enabled = false
+		end
+		return
+	end
+	local index = (v.slot:GetAttribute("Index") or 0) :: number
+	if not v.toggleGui then
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "ReplantToggle"
+		gui.Face = Enum.NormalId.Top
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = WorldUI.soil.pixelsPerStud
+		gui.LightInfluence = 0
+		gui.ResetOnSpawn = false
+		gui.Adornee = v.slot
+		local toggle = SoilMarker.newToggle()
+		toggle.button.Parent = gui
+		toggle.button.Activated:Connect(function()
+			local now = State.snapshot:get(false)
+			local on = now ~= nil and now.replant ~= nil and now.replant[tostring(index)] == true
+			Remotes.get("SetReplant"):FireServer(index, not on)
+		end)
+		gui.Parent = player:WaitForChild("PlayerGui")
+		v.toggleGui, v.toggle = gui, toggle
+	end
+	local gui, toggle = v.toggleGui :: SurfaceGui, v.toggle :: SoilMarker.Toggle
+	gui.Enabled = true
+	SoilMarker.setToggle(toggle, snap.replant ~= nil and snap.replant[tostring(index)] == true)
+end
+
 local function updateSlot(v: SlotVisual, now: number, t: number)
 	updateMarker(v, t)
+	updateToggle(v)
 	local eggId = v.slot:GetAttribute("EggId") :: string?
 	local owned = v.slot:GetAttribute("State") == "owned"
 	if not owned or not eggId or not Eggs.tiers[eggId] then

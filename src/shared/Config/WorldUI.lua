@@ -10,7 +10,7 @@ return {
 		pixelsPerStud = 40,
 		-- The tile as a fraction of the patch: a small "+" on an empty patch, a wider one with the
 		-- price on the patch you can buy next.
-		plusSize = { 0.38, 0.38 },
+		plusSize = { 0.34, 0.34 }, -- leaves room for the REPLANT toggle along the gate edge
 		priceSize = { 0.9, 0.38 },
 		outline = 4, -- ink outline (canvas px; ~2 px on a phone)
 		shadow = 6, -- hard shadow offset (canvas px)
@@ -29,6 +29,20 @@ return {
 		-- Preview only: roughly how wide a patch is on a phone (844x390) at the default camera
 		-- distance (~15 studs), in screen px. The UI preview draws the marker at this size.
 		phonePatchPx = 66,
+		-- Auto-Harvest's REPLANT toggle on each owned patch (pass owners only): a navy chip along
+		-- the patch's edge nearest the gate, as fractions of the patch, clear of the "+" tile. On:
+		-- check glyph + "REPLANT"; off: an empty box, dimmed. The chip's face is turned by
+		-- `rotation` like the tile. The label has one fixed size, as big as fits on one line
+		-- (estimated at textEm per character of GothamBlack capitals).
+		toggle = {
+			position = { 0.04, 0.04 }, -- canvas top = the reader's near (gate) edge
+			size = { 0.92, 0.21 },
+			glyph = 0.55, -- check glyph / empty box, x the chip's height
+			pad = 4, -- canvas px
+			textEm = 0.78,
+			offTransparency = 0.5, -- the face when off
+			text = "REPLANT",
+		},
 	},
 	-- Timer over a growing egg on your own plot: a BillboardGui of fixed pixel size (the same on
 	-- every screen). The "2x" chip sits above the bar's right end while the plot is watered. Every

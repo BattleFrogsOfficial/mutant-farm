@@ -77,6 +77,30 @@ return function(api)
 		marker.root.Parent = patch
 	end
 
+	-- Auto-Harvest's REPLANT toggle, on and off, on a planted patch and on an empty one ("+"),
+	-- as read from the gate (the chip's face unturned and mirrored into the reader's corner).
+	local toggleCases = { { "ToggleOn", true, nil }, { "ToggleOff", false, nil }, { "ToggleOnPlus", true, "plus" } }
+	local T = WorldUI.soil.toggle
+	for i, case in toggleCases do
+		local name, on, kind = table.unpack(case)
+		local patch = box("Patch" .. name, root, 40 + (#soilCases + i - 1) * patchStep, 60, canvas, canvas, patchScale)
+		patch.BackgroundTransparency = 0
+		patch.BackgroundColor3 = Color3.fromHex("#5B3A24")
+		if kind then
+			local marker = SoilMarker.new()
+			SoilMarker.set(marker, kind, nil, 1)
+			marker.holder.Rotation = 0
+			marker.root.Parent = patch
+		end
+		local toggle = SoilMarker.newToggle()
+		SoilMarker.setToggle(toggle, on)
+		toggle.face.Rotation = 0
+		toggle.button:FindFirstChild("Shadow").Rotation = 0
+		toggle.button:FindFirstChild("Shadow").Position = UDim2.fromOffset(WorldUI.soil.shadow, WorldUI.soil.shadow)
+		toggle.button.Position = UDim2.fromScale(1 - T.position[1] - T.size[1], 1 - T.position[2] - T.size[2])
+		toggle.button.Parent = patch
+	end
+
 	-- Timers at their real pixel size.
 	local timerY = 60 + math.ceil(WorldUI.soil.phonePatchPx / hudScale) + 70
 	local timerStep = math.ceil(SlotTimer.SIZE.X / hudScale) + 60

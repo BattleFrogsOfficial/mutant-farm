@@ -34,6 +34,28 @@ registerCheck({
       if (offScreen(pr)) problems.push(`${name} goes off screen`);
       const holder = q(patch, "Holder");
       const tile = holder && paintedRect(holder);
+      // Auto-Harvest's REPLANT toggle: inside the patch, clear of the "+" tile, check glyph when on
+      // (an empty box when off), the label in full and readable on a phone.
+      const toggle = q(patch, "ReplantToggle");
+      if (name.startsWith("PatchToggle")) {
+        if (!toggle) { problems.push(`${name}: no toggle drawn`); continue; }
+        const face = q(toggle, "Face");
+        const fr = paintedRect(face);
+        if (!fr || !inside(fr, pr)) problems.push(`${name}: toggle leaves the patch`);
+        if (tile && fr && overlap(fr, tile)) problems.push(`${name}: toggle overlaps the "+" tile`);
+        const on = !name.includes("Off");
+        if (vis(q(face, "Check")) !== on) problems.push(`${name}: check glyph ${on ? "missing" : "shown"}`);
+        const box = q(face, "EmptyBox"); // hidden subtrees aren't exported
+        if (!!(box && vis(box)) === on) problems.push(`${name}: empty box ${on ? "shown" : "missing"}`);
+        const label = q(face, "Text");
+        if ((label && label.textContent.trim()) !== "REPLANT") problems.push(`${name}: label "${label && label.textContent.trim()}"`);
+        const lf = font(label);
+        if (lf < 8) problems.push(`${name}: label only ${lf.toFixed(1)}px on a phone (< 8)`);
+        const lr = paintedRect(label);
+        if (lr && label.querySelector("span") && label.querySelector("span").getClientRects().length > 1) problems.push(`${name}: label wraps`);
+        if (lr && fr && (lr.right > fr.right + 0.5 || lr.left < fr.left - 0.5)) problems.push(`${name}: label spills off the chip`);
+        if (!holder) continue;
+      }
       if (!tile) { problems.push(`${name}: no tile drawn`); continue; }
       if (!inside(tile, pr)) problems.push(`${name}: tile leaves the patch`);
       const text = q(holder, "Text");

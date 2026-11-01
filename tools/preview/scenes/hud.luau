@@ -51,6 +51,21 @@ return function(api)
 	api.captureHud("hud-plot-eggs6-touch")
 	set(State.touch, false)
 
+	-- Auto-Harvest owner: a shorter HATCH with REPLANT ALL under it (all on; some on), the 6-egg
+	-- tray so the cards still fit beside the column.
+	local auto = { AutoHarvest = true }
+	local allOn = {}
+	for i = 1, api.snapshot.totalSlots do
+		allOn[tostring(i)] = true
+	end
+	set(State.snapshot, snapWith(six, 26_000, { ownedPasses = auto, replant = allOn }))
+	api.captureHud("hud-plot-replant-all", { { 1280, 720 }, { 844, 390 }, { 667, 375 }, { 1000, 658 } })
+	set(State.snapshot, snapWith({ Starter = 2 }, 0, { ownedPasses = auto, replant = { ["1"] = true } }))
+	api.captureHud("hud-plot-replant-some", { { 1280, 720 }, { 800, 360 } })
+	set(State.touch, true)
+	api.captureHud("hud-plot-replant-some-touch", { { 844, 390 }, { 667, 375 } })
+	set(State.touch, false)
+
 	-- Watered: the ring runs (a growing egg), WATER is dimmed and shows the countdown.
 	local Eggs = api.requireModule(api.Shared.Config.Eggs)
 	local watered = snapWith({ Starter = 3, Swamp = 2 }, 12_400, {

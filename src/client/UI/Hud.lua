@@ -1089,15 +1089,29 @@ local function skipBadge()
 end
 
 -- HATCH inside the tray: "HATCH 3" when eggs are ready, dimmed otherwise.
+-- Auto-Harvest owners get REPLANT ALL under a shorter HATCH (Config/Hud tray.hatchCompact).
+local hasAutoHarvest = Computed(function()
+	local snap = State.snapshot:get()
+	return snap ~= nil and snap.ownedPasses ~= nil and snap.ownedPasses.AutoHarvest == true
+end)
+-- The HATCH column's top edge in the tray (the full-height HATCH is centered 10 px low).
+local HATCH_TOP = TRAY.height / 2 + 10 - TRAY.tileHeight / 2
+
 local function hatchButton()
 	local ready = Computed(function()
 		return State.readyCount:get() > 0
 	end)
+	local HC = TRAY.hatchCompact
+	local function pick(full: any, compact: any)
+		return Computed(function()
+			return if hasAutoHarvest:get() then compact else full
+		end)
+	end
 	return C.button({
 		Name = "Hatch",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -TRAY.hatchInset, 0.5, 10),
-		Size = UDim2.fromOffset(TRAY.hatchWidth, TRAY.tileHeight),
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -TRAY.hatchInset, 0, HATCH_TOP),
+		Size = pick(UDim2.fromOffset(TRAY.hatchWidth, TRAY.tileHeight), UDim2.fromOffset(TRAY.hatchWidth, HC.height)),
 		Color = NAVY,
 		Text = "",
 		Studs = true,
@@ -1112,20 +1126,29 @@ local function hatchButton()
 			end
 		end,
 		Children = {
+			-- The glyph at both sizes (a glyph's size is fixed when it's built).
 			Icons.new("egg", {
 				AnchorPoint = Vector2.new(0.5, 0),
 				Position = UDim2.new(0.5, -L.glyph.shadow / 2, 0, TRAY.hatchGlyphY),
 				Size = TRAY.hatchGlyph,
 				ZIndex = 4,
+				Visible = pick(true, false),
+			}),
+			Icons.new("egg", {
+				AnchorPoint = Vector2.new(0.5, 0),
+				Position = UDim2.new(0.5, -L.glyph.shadow / 2, 0, HC.glyphY),
+				Size = HC.glyph,
+				ZIndex = 4,
+				Visible = pick(false, true),
 			}),
 			C.label({
 				Text = Computed(function()
 					local n = State.readyCount:get()
 					return if n > 0 then string.format("HATCH %d", n) else "HATCH"
 				end),
-				Position = UDim2.fromOffset(6, TRAY.hatchLine1.y),
-				Size = UDim2.new(1, -12, 0, TRAY.hatchLine1.height),
-				MaxTextSize = TRAY.hatchLine1.text,
+				Position = pick(UDim2.fromOffset(6, TRAY.hatchLine1.y), UDim2.fromOffset(6, HC.line1.y)),
+				Size = pick(UDim2.new(1, -12, 0, TRAY.hatchLine1.height), UDim2.new(1, -12, 0, HC.line1.height)),
+				MaxTextSize = pick(TRAY.hatchLine1.text, HC.line1.text),
 				ZIndex = 4,
 			}),
 			C.label({
@@ -1133,10 +1156,68 @@ local function hatchButton()
 				Text = Computed(function()
 					return if ready:get() then "TAP!" else "GROWING"
 				end),
-				Position = UDim2.fromOffset(6, TRAY.hatchLine2.y),
-				Size = UDim2.new(1, -12, 0, TRAY.hatchLine2.height),
-				MaxTextSize = TRAY.hatchLine2.text,
+				Position = pick(UDim2.fromOffset(6, TRAY.hatchLine2.y), UDim2.fromOffset(6, HC.line2.y)),
+				Size = pick(UDim2.new(1, -12, 0, TRAY.hatchLine2.height), UDim2.new(1, -12, 0, HC.line2.height)),
+				MaxTextSize = pick(TRAY.hatchLine2.text, HC.line2.text),
 				TextColor3 = Theme.colors.cream,
+				ZIndex = 4,
+			}),
+		},
+	})
+end
+
+-- REPLANT ALL (Auto-Harvest owners): every owned patch's replant toggle at once. Shows the state
+-- ("ALL ON" lit, "ALL OFF" / "SOME ON" dim); a tap turns them all on, or all off when all are on.
+local function replantAllButton()
+	local R = TRAY.replantAll
+	local state = Computed(function()
+		local snap = State.snapshot:get()
+		if not snap then
+			return "off"
+		end
+		local on, total = 0, snap.totalSlots or 0
+		for i = 1, total do
+			if snap.replant and snap.replant[tostring(i)] then
+				on += 1
+			end
+		end
+		return if total > 0 and on == total then "all" elseif on > 0 then "some" else "off"
+	end)
+	return C.button({
+		Name = "ReplantAll",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -TRAY.hatchInset, 0, HATCH_TOP + TRAY.hatchCompact.height + R.gap),
+		Size = UDim2.fromOffset(TRAY.hatchWidth, R.height),
+		Color = NAVY,
+		Text = "",
+		Visible = hasAutoHarvest,
+		Selected = Computed(function()
+			return state:get() == "all"
+		end),
+		OnClick = function()
+			Remotes.get("SetReplant"):FireServer(0, state:get(false) ~= "all")
+		end,
+		Children = {
+			C.label({
+				Text = "REPLANT",
+				Position = UDim2.fromOffset(6, R.line1.y),
+				Size = UDim2.new(1, -12, 0, R.line1.height),
+				TextScaled = false,
+				TextSize = R.line1.text,
+				ZIndex = 4,
+			}),
+			C.label({
+				Text = Computed(function()
+					local st = state:get()
+					return if st == "all" then "ALL ON" elseif st == "some" then "SOME ON" else "ALL OFF"
+				end),
+				Position = UDim2.fromOffset(6, R.line2.y),
+				Size = UDim2.new(1, -12, 0, R.line2.height),
+				TextScaled = false,
+				TextSize = R.line2.text,
+				TextColor3 = Computed(function()
+					return if state:get() == "all" then Theme.colors.toxic else Theme.colors.muted
+				end),
 				ZIndex = 4,
 			}),
 		},
@@ -1242,6 +1323,7 @@ local function eggTray()
 				},
 			}),
 			hatchButton(),
+			replantAllButton(),
 		},
 	})
 end

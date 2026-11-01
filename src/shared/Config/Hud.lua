@@ -158,6 +158,21 @@ return {
 		hatchGlyphY = 14,
 		hatchLine1 = { y = 54, height = 20, text = 18 }, -- "HATCH 3"
 		hatchLine2 = { y = 76, height = 16, text = 14 }, -- "TAP!" / "GROWING"
+		-- Auto-Harvest owners: HATCH is shorter (same top) and REPLANT ALL sits under it in the
+		-- same column, `gap` below: hatchCompact.height + gap + replantAll.height = tileHeight.
+		hatchCompact = {
+			height = 70,
+			glyph = 26,
+			glyphY = 5,
+			line1 = { y = 32, height = 18, text = 16 },
+			line2 = { y = 50, height = 16, text = 14 },
+		},
+		replantAll = {
+			gap = 8,
+			height = 38,
+			line1 = { y = 3, height = 16, text = 14 }, -- "REPLANT"
+			line2 = { y = 19, height = 16, text = 14 }, -- "ALL ON" / "ALL OFF" / "SOME ON"
+		},
 		chatWidth = 215, -- the chat window at its smallest (WidthScale 0.5), plus margin
 	},
 	-- Next Up's bottom edge above the screen bottom (clear of the tray's tab). It slides left when
