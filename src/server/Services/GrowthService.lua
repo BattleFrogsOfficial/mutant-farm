@@ -711,10 +711,25 @@ function GrowthService.Start()
 		for _, player in Players:GetPlayers() do
 			local data = DataService.get(player)
 			if data and next(data.slots) then
-				-- Clients compute growth from the last attributes; only resend when something mutated.
+				-- Clients compute growth from the last attributes; only resend when something mutated
+				-- or an egg just matured (it stops counting in the farm's $/min).
+				local wasReady = 0
+				for _, slot in data.slots do
+					if isMature(slot) then
+						wasReady += 1
+					end
+				end
 				local events = GrowthService.settle(data, DataService.now())
+				local ready = 0
+				for _, slot in data.slots do
+					if isMature(slot) then
+						ready += 1
+					end
+				end
 				if #events > 0 then
 					announce(player, data, events)
+				end
+				if #events > 0 or ready ~= wasReady then
 					DataService.changed(player)
 				end
 			end

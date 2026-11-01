@@ -192,19 +192,44 @@ end
 -- eggs growing now (shared/Expected.growingPerMinute, at the plot's speed, doubled while watered)
 -- plus the pen's income. Recomputed with every snapshot (plant, harvest, sell, water, passes,
 -- rebirth all send one).
+-- Planted eggs now: still growing, and mature (ready to hatch).
+function DataService.eggCounts(data: Types.Profile): (number, number)
+	local now, speed = DataService.now(), DataService.speed(data)
+	local growing, ready = 0, 0
+	for _, slot in data.slots do
+		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+		if Growth.secondsRemaining(slot.growth, required, now, data.wateredUntil, speed) > 0 then
+			growing += 1
+		else
+			ready += 1
+		end
+	end
+	return growing, ready
+end
+
+-- Expected Cash per minute: the eggs still growing (a mature egg earns nothing until it's
+-- hatched) plus the pen. Cents are kept (a lone pen mutant earns a few cents a minute).
 function DataService.incomePerMinute(data: Types.Profile): number
+	local now = DataService.now()
 	local speed = DataService.speed(data)
-	if DataService.now() < data.wateredUntil then
+	local growingSlots = {}
+	for key, slot in data.slots do
+		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+		if Growth.secondsRemaining(slot.growth, required, now, data.wateredUntil, speed) > 0 then
+			growingSlots[key] = slot
+		end
+	end
+	if now < data.wateredUntil then
 		speed *= GameConfig.waterMultiplier
 	end
 	local growing = Expected.growingPerMinute(
-		data.slots,
+		growingSlots,
 		DataService.luck(data),
 		DataService.oddsBonus(data),
 		DataService.cashMultiplier(data),
 		speed
 	)
-	return math.floor(growing + DataService.penIncome(data))
+	return math.floor((growing + DataService.penIncome(data)) * 100) / 100
 end
 
 -- PolicyService result per online player (MonetizationService fills it on join): true when paid
@@ -240,6 +265,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 			required = Growth.requiredSeconds(slot.eggId, slot.rarity),
 		}
 	end
+	local growingCount, readyCount = DataService.eggCounts(data)
 	local replant = {}
 	for key, patch in data.patches do
 		if patch.replant then
@@ -263,6 +289,8 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		nextSlotCost = DataService.nextSlotCost(data),
 		stats = data.stats,
 		incomePerMinute = DataService.incomePerMinute(data),
+		growingCount = growingCount,
+		readyCount = readyCount,
 		penPerMinute = math.floor(DataService.penIncome(data)),
 		nextPayoutAt = DataService.nextPayoutAt[player] or 0,
 		payoutSeconds = GameConfig.payoutSeconds,

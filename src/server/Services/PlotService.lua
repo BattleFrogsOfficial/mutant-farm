@@ -57,8 +57,10 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 	end
 	plot.model:SetAttribute("WateredUntil", data.wateredUntil)
 	plot.model:SetAttribute("Speed", DataService.speed(data))
-	-- The gate's second line: live pen income ("$0/min · plant eggs to earn" before the first harvest).
-	plot.income.Text = GateSign.incomeText(DataService.incomePerMinute(data), data.stats.harvested)
+	-- The gate's second line: the farm's income ("$3.4K/min"; "· HATCH EGGS" / "· PLANT EGGS"
+	-- when nothing is growing).
+	local growing, ready = DataService.eggCounts(data)
+	plot.income.Text = GateSign.incomeText(DataService.incomePerMinute(data), growing, ready)
 	setBoardVisible(plot.income, true)
 	local pen = penJson(data)
 	if plot.model:GetAttribute("Pen") ~= pen then

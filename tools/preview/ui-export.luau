@@ -306,6 +306,8 @@ local snapshot = {
 		totalCashEarned = 12_400,
 	},
 	incomePerMinute = 3_400,
+	growingCount = 6,
+	readyCount = 0,
 	penPerMinute = 1_200,
 	nextPayoutAt = 1_800_000_000 + 21,
 	payoutSeconds = 60,

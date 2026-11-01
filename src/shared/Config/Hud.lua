@@ -104,12 +104,14 @@ return {
 		width = 132,
 		height = 64,
 		gap = 8,
-		glyph = 24,
+		glyph = 20,
 		glyphInset = 6, -- the drop's left edge from the button's left edge
 		trayClearance = 11, -- frame edge to the tray's shadow: 8 px as drawn + WATER's 3 px outline
 		-- WATER's two lines ("2x GROWTH" / "FOR 30s"; while watered "2x ACTIVE" / "0:18"), right of
 		-- the glyph: x = glyphInset + glyph + `textGap`.
-		textGap = 4,
+		-- 132 - (6 + 20 + 9) - 4 = 93 px for "2x GROWTH" at 14 px (~92 px in GothamBlack); the
+		-- gap keeps the drop clear of the words.
+		textGap = 9,
 		textRight = 4,
 		line1 = { y = 10, height = 20, text = 14 },
 		line2 = { y = 32, height = 20, text = 16 },

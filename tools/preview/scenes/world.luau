@@ -127,7 +127,7 @@ return function(api)
 	local gateY = timerY + math.ceil(SlotTimer.SIZE.Y / hudScale) + 70
 	label("GATE SIGN (canvas px)", 40, gateY - 40)
 	for i, case in { { "GateNew", 0, 0 }, { "GateIncome", 3_400, 3 } } do
-		local name, income, harvested = table.unpack(case)
+		local name, income, growing = table.unpack(case)
 		local board = box(name, root, 40 + (i - 1) * 560, gateY, 300, 60, 1)
 		board.BackgroundTransparency = 0
 		board.BackgroundColor3 = Color3.fromHex("#1E2230")
@@ -138,7 +138,7 @@ return function(api)
 		text.Font = roblox.Enum.Font.FredokaOne
 		text.TextScaled = true
 		text.TextColor3 = Color3.fromHex("#7CFF4A")
-		text.Text = GateSign.incomeText(income, harvested)
+		text.Text = GateSign.incomeText(income, growing, 0)
 		local stroke = Instance.new("UIStroke")
 		stroke.Thickness = 4
 		stroke.Color = Color3.fromHex("#1E2230")

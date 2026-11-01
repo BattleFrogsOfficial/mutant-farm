@@ -363,7 +363,7 @@ return function(t)
 			t.eq(DataService.incomePerMinute(data), 0, "nothing growing, empty pen")
 			world:send(player, "Plant", 1, "Starter")
 			world:send(player, "Plant", 2, "Starter")
-			world:advance(60)
+			world:advance(30) -- half grown (a Starter takes at least 60 s)
 			local income = DataService.incomePerMinute(data)
 			t.ok(income > 0, "2 Starters growing: income > 0")
 			-- Roughly two Starter eggs' expected value per grow time (Starter ~1 min): tens of $/min.
@@ -374,6 +374,16 @@ return function(t)
 			-- Watering doubles the growing part.
 			world:send(player, "Water")
 			t.ok(DataService.incomePerMinute(data) > income * 1.5, "watered: about 2x")
+			-- Once both are ready (nothing growing) they stop counting, and a fresh snapshot says so.
+			local sent = #world:received(player, "State")
+			world:advance(10 * 60, GameConfig.growthTickSeconds)
+			t.eq(DataService.incomePerMinute(data), 0, "ready eggs earn nothing until hatched")
+			local after = world:received(player, "State")
+			t.ok(#after > sent, "a snapshot went out when they matured")
+			local snap = after[#after][1]
+			t.eq(snap.incomePerMinute, 0)
+			t.eq(snap.growingCount, 0)
+			t.eq(snap.readyCount, 2)
 		end,
 
 		["Auto-Harvest: a Common is sold at once, an Uncommon is kept"] = function()

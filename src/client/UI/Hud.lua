@@ -304,8 +304,9 @@ local function cashBox()
 				ZIndex = 2,
 				Text = Computed(function()
 					local snap = State.snapshot:get()
-					local harvested = if snap then snap.stats.harvested else 0
-					return string.upper(GateSign.incomeText(income:get(), harvested))
+					local growing = if snap then snap.growingCount or 0 else 0
+					local ready = if snap then snap.readyCount or 0 else 0
+					return string.upper(GateSign.incomeText(income:get(), growing, ready))
 				end),
 			}),
 			New("Frame")({
