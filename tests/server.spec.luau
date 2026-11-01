@@ -5,6 +5,10 @@ return function(t)
 	local GameConfig = t.require("src/shared/Config/Game")
 	local Growth = t.require("src/shared/Growth")
 
+	local function DataService(world)
+		return world.service.DataService
+	end
+
 	local function count(map): number
 		local n = 0
 		for _ in map do
@@ -424,6 +428,96 @@ return function(t)
 			t.eq(count(data.inventory), GameConfig.inventoryCap)
 		end,
 
+		["Auto-Harvest replant: toggle off leaves the patch empty"] = function()
+			local world = t.server()
+			local _, data = world:join(1, {
+				cash = 10_000,
+				eggs = { Starter = 5 },
+				grantedStarterEggs = true,
+				ownedPasses = { AutoHarvest = true },
+				slots = { ["1"] = grown("Starter", "Uncommon") },
+				patches = { ["1"] = { replant = false, egg = "Starter" } },
+			})
+			world:advance(GameConfig.growthTickSeconds + 1)
+			t.eq(count(data.inventory), 1, "hatched")
+			t.eq(data.slots["1"], nil, "not replanted")
+			t.eq(data.eggs.Starter, 5, "no egg used")
+		end,
+
+		["Auto-Harvest replant: toggle on plants from the bag before buying"] = function()
+			local world = t.server()
+			local _, data = world:join(1, {
+				cash = 10_000,
+				eggs = { Starter = 1 },
+				grantedStarterEggs = true,
+				ownedPasses = { AutoHarvest = true },
+				slots = { ["1"] = grown("Starter", "Uncommon"), ["2"] = grown("Starter", "Uncommon") },
+				patches = { ["1"] = { replant = true, egg = "Starter" }, ["2"] = { replant = true, egg = "Starter" } },
+			})
+			world:advance(GameConfig.growthTickSeconds + 1)
+			t.ok(data.slots["1"] ~= nil and data.slots["2"] ~= nil, "both replanted")
+			t.eq(data.eggs.Starter, nil, "the bag's egg went first")
+			t.eq(data.cash, 10_000 - 50, "then one was bought at the shop price")
+		end,
+
+		["Auto-Harvest replant: a Gem egg is never bought, only replanted from the bag"] = function()
+			local world = t.server()
+			local _, data = world:join(1, {
+				cash = 10_000_000,
+				gems = 10_000,
+				grantedStarterEggs = true,
+				ownedPasses = { AutoHarvest = true },
+				slots = { ["1"] = grown("StarterGem", "Rare") },
+				patches = { ["1"] = { replant = true, egg = "StarterGem" } },
+			})
+			world:advance(GameConfig.growthTickSeconds + 1)
+			t.eq(data.slots["1"], nil, "no StarterGem in the bag: the patch waits")
+			t.eq(data.gems, 10_000, "no Gems spent")
+			data.eggs.StarterGem = 1
+			world:advance(GameConfig.growthTickSeconds)
+			t.ok(data.slots["1"] ~= nil and data.slots["1"].eggId == "StarterGem", "replanted from the bag")
+		end,
+
+		["Auto-Harvest replant: an unaffordable patch retries and plants once Cash arrives"] = function()
+			local world = t.server()
+			local _, data = world:join(1, {
+				cash = 0,
+				eggs = {},
+				grantedStarterEggs = true,
+				ownedPasses = { AutoHarvest = true },
+				patches = { ["1"] = { replant = true, egg = "Swamp" } },
+			})
+			world:advance(GameConfig.growthTickSeconds * 3)
+			t.eq(data.slots["1"], nil, "no Cash: still empty")
+			data.cash = 600
+			world:advance(GameConfig.growthTickSeconds)
+			t.ok(data.slots["1"] ~= nil and data.slots["1"].eggId == "Swamp", "planted on the next tick")
+			t.eq(data.cash, 100)
+		end,
+
+		["Auto-Harvest replant: SetReplant needs the pass; hand harvest turns it off, hand planting doesn't"] = function()
+			local world = t.server()
+			local player, data = world:join(1, { eggs = { Starter = 3 }, grantedStarterEggs = true })
+			world:send(player, "SetReplant", 1, true)
+			t.eq(data.patches["1"], nil, "no pass: refused")
+			data.ownedPasses.AutoHarvest = true
+			world:send(player, "SetReplant", 0, true)
+			for i = 1, DataService(world).totalSlots(data) do
+				t.ok(data.patches[tostring(i)] and data.patches[tostring(i)].replant, "all on")
+			end
+			world:send(player, "SetReplant", 99, false) -- past the owned patches: ignored
+			world:send(player, "SetReplant", 1, "yes") -- not a boolean: ignored
+			t.ok(data.patches["1"].replant, "bad arguments change nothing")
+			world:send(player, "Plant", 1, "Starter")
+			t.ok(data.patches["1"].replant and data.patches["1"].egg == "Starter", "planting keeps the toggle")
+			data.ownedPasses.AutoHarvest = nil -- harvest by hand, without the pass harvesting first
+			world:advance(Growth.requiredSeconds("Starter", data.slots["1"].rarity) + 1)
+			world:send(player, "Harvest", 1)
+			t.eq(data.slots["1"], nil, "harvested by hand")
+			t.eq(data.patches["1"].replant, false, "emptied by hand: toggle off")
+			t.ok(data.patches["2"].replant, "other patches unchanged")
+		end,
+
 		["Auto-Harvest offline: rolls stop 2 h after leaving without Offline Mutations"] = function()
 			local world = t.server({ seed = 7 })
 			local player, data = world:join(1, {
@@ -436,6 +530,7 @@ return function(t)
 			for i = 1, 2 do
 				world:send(player, "Plant", i, "Swamp")
 			end
+			world:send(player, "SetReplant", 0, true)
 			world:leave(player)
 			world:advance(5 * 3600)
 			world:join(1)

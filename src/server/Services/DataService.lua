@@ -44,6 +44,7 @@ local TEMPLATE: Types.Profile = {
 	rebirths = 0,
 	slotCount = Upgrades.slots.base,
 	slots = {},
+	patches = {}, -- Auto-Harvest replant toggle + last egg per patch (Types.Patch)
 	eggs = {}, -- starting eggs are granted once in onPlayerAdded (Reconcile would refill a template value)
 	inventory = {},
 	pen = {},
@@ -239,6 +240,12 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 			required = Growth.requiredSeconds(slot.eggId, slot.rarity),
 		}
 	end
+	local replant = {}
+	for key, patch in data.patches do
+		if patch.replant then
+			replant[key] = true
+		end
+	end
 	return {
 		serverTime = DataService.now(),
 		cash = data.cash,
@@ -250,6 +257,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		wateredUntil = data.wateredUntil,
 		eggs = data.eggs,
 		slots = slots,
+		replant = replant,
 		inventory = data.inventory,
 		inventoryCap = GameConfig.inventoryCap,
 		nextSlotCost = DataService.nextSlotCost(data),

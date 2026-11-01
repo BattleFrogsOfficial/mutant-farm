@@ -11,4 +11,8 @@ function Validate.string(value: any, maxLength: number): boolean
 	return typeof(value) == "string" and #value > 0 and #value <= maxLength
 end
 
+function Validate.boolean(value: any): boolean
+	return typeof(value) == "boolean"
+end
+
 return Validate

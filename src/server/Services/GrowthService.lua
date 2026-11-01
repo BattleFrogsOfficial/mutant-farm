@@ -164,6 +164,13 @@ local function plant(player: Player, data: Types.Profile, key: string, eggId: st
 		data.eggs[eggId] = nil
 	end
 	data.stats.eggsPlanted += 1
+	-- Remember the egg for Auto-Harvest's replant (planting never changes the toggle).
+	local patch = data.patches[key]
+	if patch then
+		patch.egg = eggId
+	else
+		data.patches[key] = { replant = false, egg = eggId }
+	end
 	local rarity = if data.stats.eggsPlanted == GUARANTEED_RARE_PLANT
 		then "Rare"
 		else Rolls.rollRarity(rng, eggId, luck(data))
@@ -293,20 +300,32 @@ local function harvest(player: Player, data: Types.Profile, key: string, opts: H
 	return item, nil
 end
 
+-- A patch emptied by hand turns its replant toggle off.
+local function clearReplant(data: Types.Profile, key: string)
+	local patch = data.patches[key]
+	if patch then
+		patch.replant = false
+	end
+end
+
 local function onHarvest(player: Player, data: Types.Profile, slotIndex: any)
 	if not Validate.integer(slotIndex, 1, DataService.totalSlots(data)) then
 		return
 	end
 	settleNow(player, data)
-	local _, reason = harvest(player, data, tostring(slotIndex))
+	local item, reason = harvest(player, data, tostring(slotIndex))
+	if item then
+		clearReplant(data, tostring(slotIndex))
+	end
 	if reason then
 		Net.notify(player, reason, "error")
 	end
 	DataService.changed(player)
 end
 
--- Auto-Harvest replants the same egg: one from the bag of eggs if there is one, else it buys one
--- with Cash (never Gems) when the player can. Returns true if it planted.
+-- Auto-Harvest's replant (patches with the toggle on): the same egg, from the bag of eggs if there
+-- is one, else bought with Cash at the shop price when the player can; Gem and limited eggs are
+-- never bought (those patches replant from the bag only). Returns true if it planted.
 local function replant(player: Player, data: Types.Profile, key: string, eggId: string, at: number?): boolean
 	if (data.eggs[eggId] or 0) < 1 then
 		local ok = ShopRules.canBuy(eggId, 1, {
@@ -333,8 +352,9 @@ end
 -- Auto-Harvest pass: hatch every mature egg (no cutscene, just a toast). One of
 -- Game.autoSellRarity is sold at once (EconomyService.sellItem: logged, counted as earned; never a
 -- pinned one), needing no bag room; the rest go to the bag while it has room, else wait mature on
--- their patch. Then the same egg is replanted (see replant). `at`/`quiet` are for the offline
--- catch-up. Returns how many it harvested.
+-- their patch. Then each empty patch with its replant toggle on plants its egg again (see
+-- replant); toggle off leaves it empty. `at`/`quiet` are for the offline catch-up. Returns how
+-- many it harvested.
 local function autoHarvest(player: Player, data: Types.Profile, at: number?, quiet: boolean?): number
 	local harvested, soldCount, soldValue = 0, 0, 0
 	local keys = {}
@@ -347,7 +367,6 @@ local function autoHarvest(player: Player, data: Types.Profile, at: number?, qui
 		return (tonumber(a) or 0) < (tonumber(b) or 0)
 	end)
 	for _, key in keys do
-		local eggId = data.slots[key].eggId
 		local sell = AutoHarvest.decide(data.slots[key].rarity, inventoryCount(data), GameConfig.inventoryCap)
 		if sell == "wait" then
 			continue -- bag full: it waits, mature, on its patch
@@ -364,8 +383,14 @@ local function autoHarvest(player: Player, data: Types.Profile, at: number?, qui
 				soldValue += value
 			end
 		end
-		if inventoryCount(data) < GameConfig.inventoryCap then
-			replant(player, data, key, eggId, at)
+	end
+	-- Every empty patch with its toggle on gets its egg back (just harvested, or still waiting for
+	-- Cash or an egg: it retries on each pass). Toggle off: it stays empty.
+	for i = 1, DataService.totalSlots(data) do
+		local key = tostring(i)
+		local patch = data.patches[key]
+		if patch and patch.replant and patch.egg and not data.slots[key] then
+			replant(player, data, key, patch.egg, at)
 		end
 	end
 	if soldCount > 0 and not quiet then
@@ -386,12 +411,32 @@ local function autoHarvest(player: Player, data: Types.Profile, at: number?, qui
 	return harvested
 end
 
+-- The Auto-Harvest replant toggle of one owned patch, or (slotIndex 0) of every owned patch.
+local function onSetReplant(player: Player, data: Types.Profile, slotIndex: any, on: any)
+	local total = DataService.totalSlots(data)
+	if not Validate.integer(slotIndex, 0, total) or not Validate.boolean(on) or not data.ownedPasses.AutoHarvest then
+		return
+	end
+	local from, to = if slotIndex == 0 then 1 else slotIndex, if slotIndex == 0 then total else slotIndex
+	for i = from, to do
+		local key = tostring(i)
+		local patch = data.patches[key]
+		if patch then
+			patch.replant = on
+		else
+			data.patches[key] = { replant = on }
+		end
+	end
+	DataService.changed(player)
+end
+
 local function onHarvestAll(player: Player, data: Types.Profile)
 	settleNow(player, data)
 	local count, value, reason = 0, 0, nil
 	for key in table.clone(data.slots) do
 		local item, why = harvest(player, data, key)
 		if item then
+			clearReplant(data, key)
 			count += 1
 			value += Valuation.sellValue(item, DataService.cashMultiplier(data))
 		end
@@ -621,6 +666,7 @@ function GrowthService.Start()
 	Net.on("SkipTimers", onSkipTimers)
 	Net.on("BuyUpgrade", onBuyUpgrade)
 	Net.on("BuyGemUpgrade", onBuyGemUpgrade)
+	Net.on("SetReplant", onSetReplant)
 
 	while true do
 		task.wait(GameConfig.growthTickSeconds)
@@ -633,9 +679,10 @@ function GrowthService.Start()
 					announce(player, data, events)
 					DataService.changed(player)
 				end
-				if data.ownedPasses.AutoHarvest then
-					autoHarvest(player, data)
-				end
+			end
+			-- Auto-Harvest also runs on an empty plot: toggled patches retry their replant.
+			if data and data.ownedPasses.AutoHarvest then
+				autoHarvest(player, data)
 			end
 		end
 	end

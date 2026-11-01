@@ -52,6 +52,12 @@ local function rebirth(player: Player, data: Types.Profile)
 		end
 	end
 	data.slots = {}
+	-- Replant toggles stay on the patches you still own (a rebirth empties them, not your hand).
+	for key in table.clone(data.patches) do
+		if (tonumber(key) or 0) > DataService.totalSlots(data) then
+			data.patches[key] = nil
+		end
+	end
 	data.upgrades = { growthSpeed = 0, mutationOdds = 0 }
 	data.eggs = keptEggs
 	data.wateredUntil = 0

@@ -30,13 +30,14 @@ Remotes.ClientToServer = {
 	"BuyInstantWeather", -- (eventId: string) a 120 s weather event on your own plot, for Gems
 	"RebirthNow", -- () rebirth at 50%+ of the cost, for Gems
 	"BuyGemUpgrade", -- (kind: "penSlots" | "luck" | "offline") Gem upgrade, kept through rebirth
+	"SetReplant", -- (slotIndex: number, on: boolean) Auto-Harvest replant toggle; slotIndex 0 = every owned patch
 }
 
 -- server -> client
 Remotes.ServerToClient = {
 	"State", -- (snapshot: Types.Snapshot)
 	"Notify", -- (message: string, kind: "info" | "error" | "success")
-	"Harvested", -- (item, valueNow, slotIndex, isNewSpecies, auto: boolean) auto = Auto-Harvest pass
+	"Harvested", -- (item, valueNow, slotIndex, isNewSpecies, auto: boolean, sold: boolean) auto = Auto-Harvest pass
 	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string, worthNow: number)
 	"Payout", -- (amount: number) pen income just paid
 	"WelcomeBack", -- ({ away, ready, mutations, capped, earned, autoHarvested })

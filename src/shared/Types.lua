@@ -15,6 +15,12 @@ export type Slot = {
 	lastRollAt: number,
 }
 
+-- An owned patch's Auto-Harvest settings (kept while the patch is empty, unlike its Slot).
+export type Patch = {
+	replant: boolean, -- after a harvest, plant the same egg again (Auto-Harvest pass)
+	egg: string?, -- the last egg planted here: what gets replanted
+}
+
 export type Item = {
 	id: string,
 	tier: string,
@@ -36,6 +42,7 @@ export type Profile = {
 	rebirths: number,
 	slotCount: number,
 	slots: { [string]: Slot }, -- keyed by tostring(slotIndex); missing = empty
+	patches: { [string]: Patch }, -- keyed by tostring(slotIndex); missing = replant off, no egg yet
 	eggs: { [string]: number },
 	inventory: { [string]: Item }, -- keyed by item id
 	pen: { [string]: Item },
@@ -92,6 +99,7 @@ export type Snapshot = {
 	wateredUntil: number,
 	eggs: { [string]: number },
 	slots: { [string]: SlotView },
+	replant: { [string]: boolean }, -- patches with the Auto-Harvest replant toggle on
 	inventory: { [string]: Item },
 	inventoryCap: number,
 	nextSlotCost: number?,
