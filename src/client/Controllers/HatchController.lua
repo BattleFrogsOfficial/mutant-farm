@@ -780,17 +780,27 @@ local function run()
 	end
 end
 
-local function onHarvested(item: any, value: number, slotIndex: number?, isNew: boolean?, auto: boolean?)
+local function onHarvested(
+	item: any,
+	value: number,
+	slotIndex: number?,
+	isNew: boolean?,
+	auto: boolean?,
+	sold: boolean?
+)
 	if auto then
 		-- Auto-Harvest pass: no cutscene (it would interrupt you all the time), just good news.
-		-- The slot was replanted in the same step, so its egg isn't hidden.
+		-- Auto-sold ones are summed up in one server message per pass, unless it's a new species.
+		if sold and not isNew then
+			return
+		end
 		State.toast(
 			string.format(
 				"%s%s %s · %s",
 				if isNew then "NEW! " else "",
 				item.rarity,
 				MutantModel.species(item).name,
-				Format.cash(value)
+				(if sold then "sold " else "") .. Format.cash(value)
 			),
 			"success"
 		)

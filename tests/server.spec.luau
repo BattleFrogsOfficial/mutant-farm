@@ -3,6 +3,7 @@
 return function(t)
 	local Valuation = t.require("src/shared/Valuation")
 	local GameConfig = t.require("src/shared/Config/Game")
+	local Growth = t.require("src/shared/Growth")
 
 	local function count(map): number
 		local n = 0
@@ -10,6 +11,22 @@ return function(t)
 			n += 1
 		end
 		return n
+	end
+
+	-- A fully grown egg on a patch.
+	local function grown(eggId: string, rarity: string)
+		local required = Growth.requiredSeconds(eggId, rarity)
+		return {
+			eggId = eggId,
+			rarity = rarity,
+			mutations = {},
+			size = 1,
+			plantedAt = 0,
+			growth = required,
+			updatedAt = 1_800_000_000,
+			rollsDone = 10,
+			lastRollAt = 1_800_000_000,
+		}
 	end
 
 	local function mutant(id: number, tier: string, rarity: string, extra: { [string]: any }?)
@@ -355,33 +372,56 @@ return function(t)
 			t.ok(DataService.incomePerMinute(data) > income * 1.5, "watered: about 2x")
 		end,
 
-		["Auto-Harvest offline: 3 h of 5-minute eggs fills the bag and spends Cash"] = function()
+		["Auto-Harvest: a Common is sold at once, an Uncommon is kept"] = function()
 			local world = t.server()
 			local player, data = world:join(1, {
-				cash = 1_000_000,
-				slotCount = 10,
-				eggs = { Swamp = 10 },
+				cash = 0,
 				grantedStarterEggs = true,
 				ownedPasses = { AutoHarvest = true },
+				slots = { ["1"] = grown("Starter", "Common"), ["2"] = grown("Swamp", "Uncommon") },
 			})
-			for i = 1, 10 do
-				world:send(player, "Plant", i, "Swamp")
+			local earned = data.stats.totalCashEarned
+			world:advance(GameConfig.growthTickSeconds + 1)
+			t.eq(count(data.inventory), 1, "only the Uncommon kept")
+			local _, kept = next(data.inventory)
+			t.eq(kept.rarity, "Uncommon")
+			t.eq(data.stats.sold, 1, "the Common was sold")
+			t.ok(data.stats.totalCashEarned > earned, "the sale counts as earned")
+			local notes = world:received(player, "Notify")
+			t.ok(#notes > 0 and string.find(notes[#notes][1], "Auto%-sold 1 Common") ~= nil, "one summary toast")
+		end,
+
+		["Auto-Harvest: pinned mutants in the bag are never sold"] = function()
+			local world = t.server()
+			local _, data = world:join(1, {
+				grantedStarterEggs = true,
+				ownedPasses = { AutoHarvest = true },
+				inventory = { ["1"] = mutant(1, "Starter", "Common", { pinned = true }) },
+				nextItemId = 2,
+				slots = { ["1"] = grown("Starter", "Common") },
+			})
+			world:advance(GameConfig.growthTickSeconds + 1)
+			t.ok(data.inventory["1"] ~= nil and data.inventory["1"].pinned, "the pinned Common stays")
+			t.eq(data.stats.sold, 1, "only the new Common was sold")
+		end,
+
+		["Auto-Harvest: with a full bag a Common still sells, an Uncommon waits on its patch"] = function()
+			local world = t.server()
+			local inventory = {}
+			for i = 1, GameConfig.inventoryCap do
+				inventory[tostring(i)] = mutant(i, "Starter", "Rare")
 			end
-			t.eq(count(data.slots), 10)
-			t.eq(data.eggs.Swamp, nil, "all eggs planted")
-			world:leave(player)
-			local cash = data.cash
-			world:advance(3 * 3600)
-			local back, after = world:join(1)
-			t.eq(count(after.inventory), GameConfig.inventoryCap, "bag full")
-			t.ok(after.cash < cash, "Cash spent on replanting")
-			-- Every egg past the first 10 was bought: 190 harvested, minus the 10 owned eggs,
-			-- plus whatever is still growing (bought, planted, not yet harvested).
-			local growing = count(after.slots)
-			t.eq(cash - after.cash, (GameConfig.inventoryCap - 10 + growing) * 500, "Swamp eggs bought")
-			local welcome = world:received(back, "WelcomeBack")
-			t.eq(#welcome, 1)
-			t.eq(welcome[1][1].autoHarvested, GameConfig.inventoryCap)
+			local _, data = world:join(1, {
+				grantedStarterEggs = true,
+				ownedPasses = { AutoHarvest = true },
+				inventory = inventory,
+				nextItemId = GameConfig.inventoryCap + 1,
+				slots = { ["1"] = grown("Starter", "Common"), ["2"] = grown("Swamp", "Uncommon") },
+			})
+			world:advance(GameConfig.growthTickSeconds + 1)
+			t.eq(data.slots["1"], nil, "the Common was hatched and sold")
+			t.ok(data.slots["2"] ~= nil, "the Uncommon waits, mature")
+			t.eq(count(data.inventory), GameConfig.inventoryCap)
 		end,
 
 		["Auto-Harvest offline: rolls stop 2 h after leaving without Offline Mutations"] = function()

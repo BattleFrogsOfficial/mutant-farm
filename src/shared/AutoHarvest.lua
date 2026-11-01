@@ -5,6 +5,7 @@
 -- finds the next maturity and stops when nothing more can happen.
 
 local Growth = require(script.Parent.Growth)
+local GameConfig = require(script.Parent.Config.Game)
 
 local AutoHarvest = {}
 
@@ -13,6 +14,15 @@ local AutoHarvest = {}
 local MAX_CYCLES = 100_000
 
 export type Slot = { eggId: string, rarity: string, growth: number, updatedAt: number }
+
+-- What Auto-Harvest does with a mature egg of `rarity`: "sell" it at once (Game.autoSellRarity,
+-- no bag room needed), "keep" it in the bag, or let it "wait" on its patch (the bag is full).
+function AutoHarvest.decide(rarity: string, bagCount: number, bagCap: number): "sell" | "keep" | "wait"
+	if rarity == GameConfig.autoSellRarity then
+		return "sell"
+	end
+	return if bagCount < bagCap then "keep" else "wait"
+end
 
 -- Earliest server time, at or after `at`, when a slot is (or was) mature. nil when no slots.
 function AutoHarvest.nextMature(slots: { [string]: Slot }, at: number, wateredUntil: number, speed: number): number?

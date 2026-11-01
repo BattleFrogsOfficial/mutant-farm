@@ -228,22 +228,22 @@ local function almanacMilestone(player: Player, data: Types.Profile)
 	end
 end
 
--- Returns the harvested item, or nil (and a reason) if the slot can't be harvested. `at` is the
--- harvest time (default now); `quiet` skips the per-item messages (offline catch-up sends one
--- summary and the full Almanac instead).
-local function harvest(
-	player: Player,
-	data: Types.Profile,
-	key: string,
-	auto: boolean?,
-	at: number?,
-	quiet: boolean?
-): (Types.Item?, string?)
+type HarvestOpts = {
+	auto: boolean?, -- by the Auto-Harvest pass (a toast, no cutscene)
+	at: number?, -- harvest time (default now)
+	quiet: boolean?, -- no per-item messages (offline catch-up sends one summary + the Almanac)
+	sold: boolean?, -- sold the moment it's hatched (Auto-Harvest's autoSellRarity): never needs bag room
+}
+
+-- Returns the harvested item, or nil (and a reason) if the slot can't be harvested.
+local function harvest(player: Player, data: Types.Profile, key: string, opts: HarvestOpts?): (Types.Item?, string?)
+	local o: HarvestOpts = opts or {}
+	local at, quiet = o.at, o.quiet
 	local slot = data.slots[key]
 	if not slot or not isMature(slot) then
 		return nil, nil
 	end
-	if inventoryCount(data) >= GameConfig.inventoryCap then
+	if not o.sold and inventoryCount(data) >= GameConfig.inventoryCap then
 		return nil, "Your bag is full! Sell some at the Sell Pad."
 	end
 	local id = tostring(data.nextItemId)
@@ -287,7 +287,8 @@ local function harvest(
 		Valuation.sellValue(item, DataService.cashMultiplier(data)),
 		tonumber(key),
 		isNew,
-		auto == true
+		o.auto == true,
+		o.sold == true
 	)
 	return item, nil
 end
@@ -329,11 +330,13 @@ local function replant(player: Player, data: Types.Profile, key: string, eggId: 
 	return plant(player, data, key, eggId, at)
 end
 
--- Auto-Harvest pass: hatch every mature egg (no cutscene, just a toast) and replant the same egg
--- (see replant) while the bag has room. Stops quietly when the bag is full. `at`/`quiet` are for
--- the offline catch-up. Returns how many it harvested.
+-- Auto-Harvest pass: hatch every mature egg (no cutscene, just a toast). One of
+-- Game.autoSellRarity is sold at once (EconomyService.sellItem: logged, counted as earned; never a
+-- pinned one), needing no bag room; the rest go to the bag while it has room, else wait mature on
+-- their patch. Then the same egg is replanted (see replant). `at`/`quiet` are for the offline
+-- catch-up. Returns how many it harvested.
 local function autoHarvest(player: Player, data: Types.Profile, at: number?, quiet: boolean?): number
-	local harvested = 0
+	local harvested, soldCount, soldValue = 0, 0, 0
 	local keys = {}
 	for key, slot in data.slots do
 		if isMature(slot) then
@@ -345,14 +348,37 @@ local function autoHarvest(player: Player, data: Types.Profile, at: number?, qui
 	end)
 	for _, key in keys do
 		local eggId = data.slots[key].eggId
-		local item = harvest(player, data, key, true, at, quiet)
+		local sell = AutoHarvest.decide(data.slots[key].rarity, inventoryCount(data), GameConfig.inventoryCap)
+		if sell == "wait" then
+			continue -- bag full: it waits, mature, on its patch
+		end
+		local item = harvest(player, data, key, { auto = true, at = at, quiet = quiet, sold = sell == "sell" })
 		if not item then
-			break
+			continue
 		end
 		harvested += 1
+		if sell == "sell" and not item.pinned then
+			local value = EconomyService.sellItem(player, data, item.id)
+			if value then
+				soldCount += 1
+				soldValue += value
+			end
+		end
 		if inventoryCount(data) < GameConfig.inventoryCap then
 			replant(player, data, key, eggId, at)
 		end
+	end
+	if soldCount > 0 and not quiet then
+		Net.notify(
+			player,
+			string.format(
+				"Auto-sold %d %s for %s",
+				soldCount,
+				if soldCount == 1 then GameConfig.autoSellRarity else GameConfig.autoSellRarity .. "s",
+				Format.cash(soldValue)
+			),
+			"success"
+		)
 	end
 	if harvested > 0 then
 		DataService.changed(player)

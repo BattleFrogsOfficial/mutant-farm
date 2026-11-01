@@ -16,6 +16,11 @@ return {
 	-- Offline: mutation rolls stop this long after the player leaves (unless Offline Mutations is owned).
 	offlineMutationCap = 2 * 60 * 60,
 
+	-- Auto-Harvest pass: a mature egg of this rarity is sold the moment it's hatched (never kept);
+	-- the rest go to the bag. Offline, the pass replays at most this many hours after you leave.
+	autoSellRarity = "Common",
+	autoHarvestOfflineHours = 8,
+
 	-- Inventory / pen
 	inventoryCap = 200,
 	penSlots = 8,
