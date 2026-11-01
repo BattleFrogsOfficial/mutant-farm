@@ -8,6 +8,7 @@ return {
 	-- pixelsPerStud, so every px number below is canvas px (144 px across at 40 px/stud).
 	soil = {
 		pixelsPerStud = 40,
+		patchStuds = 3.6, -- a soil patch's top face (World's slot size)
 		-- The tile as a fraction of the patch: a small "+" on an empty patch, a wider one with the
 		-- price on the patch you can buy next.
 		plusSize = { 0.34, 0.34 }, -- leaves room for the REPLANT toggle along the gate edge

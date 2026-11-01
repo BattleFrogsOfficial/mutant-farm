@@ -632,10 +632,12 @@ local function catchUp(player: Player, data: Types.Profile)
 	if auto then
 		local plot = { slots = data.slots, wateredUntil = data.wateredUntil, speed = DataService.speed(data) }
 		local stop = AutoHarvest.windowEnd(data.lastSeen, now)
+		Analytics.beginBatch(player) -- one economy event per sku, not one per egg
 		AutoHarvest.run(plot, data.lastSeen, stop, function(at)
 			settleTo(at)
 			return autoHarvest(player, data, at, true, summary)
 		end)
+		Analytics.flush(player)
 		-- Where the replay left the plot: toggled patches it couldn't replant (no Cash, or a Gem
 		-- egg it won't buy) and eggs waiting, mature, for bag room.
 		settleTo(stop)
@@ -675,6 +677,7 @@ local function catchUp(player: Player, data: Types.Profile)
 			waitingCash = waitingCash,
 			waitingBag = waitingBag,
 			autoStopped = auto and away > GameConfig.autoHarvestOfflineHours * 3600,
+			capHours = if capAt == math.huge then nil else (capAt - data.lastSeen) / 3600,
 		})
 	end
 end

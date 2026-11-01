@@ -33,6 +33,7 @@ State.welcome = Value(nil :: {
 	waitingCash: number?, -- toggled patches it couldn't replant (no Cash, or a Gem egg it won't buy)
 	waitingBag: number?, -- eggs waiting, mature, for bag room
 	autoStopped: boolean?, -- away longer than Game.autoHarvestOfflineHours
+	capHours: number?, -- offline mutation rolls stopped this many hours after leaving
 }?)
 -- How many Almanac species the player had seen when they last opened it (for the NEW dot).
 State.almanacSeen = Value(-1)

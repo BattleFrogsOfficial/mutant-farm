@@ -201,7 +201,12 @@ return function()
 							else nil
 					end, Theme.colors.muted),
 					line(4, function(w)
-						return if w.capped then "Tip: eggs stop mutating 2 hours after you leave." else nil
+						return if w.capped
+							then string.format(
+								"Tip: eggs stop mutating %s hours after you leave.",
+								tostring(math.floor((w.capHours or 2) * 10 + 0.5) / 10)
+							)
+							else nil
 					end, Theme.colors.muted),
 				},
 			}),

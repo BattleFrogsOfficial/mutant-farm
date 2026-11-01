@@ -575,8 +575,22 @@ return function(t)
 			world:leave(player)
 			local cash = data.cash
 			world:advance(10 * 3600)
+			local logged = #world.economy
 			local back, after = world:join(1)
 			t.ok(after.cash > cash, string.format("Cash up: %d -> %d", cash, after.cash))
+			-- Analytics: one event per sku for the whole replay (Sell_Starter_Common, Egg_Starter, the
+			-- Almanac's Gems), not one per egg, and the Cash ones add up to the Cash that moved.
+			local skus, net = {}, 0
+			for i = logged + 1, #world.economy do
+				local e = world.economy[i]
+				t.ok(not skus[e.flow .. e.sku], "logged once: " .. e.flow .. " " .. e.sku)
+				skus[e.flow .. e.sku] = true
+				if e.currency == "Cash" then
+					net += if e.flow == "Source" then e.amount else -e.amount
+				end
+			end
+			t.ok(#world.economy - logged <= 6, "a handful of events (Almanac Gems too): " .. (#world.economy - logged))
+			t.eq(net, after.cash - cash, "logged totals match the Cash moved")
 			t.ok(count(after.inventory) > 0, "kept some")
 			for _, item in after.inventory do
 				t.ok(item.rarity ~= GameConfig.autoSellRarity, "no Commons in the bag")

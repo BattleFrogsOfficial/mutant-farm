@@ -53,8 +53,8 @@ return function(api)
 		l.Parent = root
 	end
 
-	-- Soil markers: the patch canvas (pixelsPerStud x 3.6 studs) drawn phonePatchPx wide.
-	local canvas = SoilMarker.canvasPx(3.6)
+	-- Soil markers: the patch canvas (pixelsPerStud x patchStuds) drawn phonePatchPx wide.
+	local canvas = SoilMarker.canvasPx(WorldUI.soil.patchStuds)
 	local patchScale = WorldUI.soil.phonePatchPx / canvas
 	local patchStep = math.ceil(WorldUI.soil.phonePatchPx / hudScale) + 60
 	local soilCases = {

@@ -156,7 +156,7 @@ function SoilMarker.newToggle(): Toggle
 	face.Parent = button
 
 	-- Glyph square on the left of the face (sized from the canvas height of the chip).
-	local px = SoilMarker.canvasPx(3.6)
+	local px = SoilMarker.canvasPx(CFG.patchStuds)
 	local h = T.size[2] * px
 	local g = math.floor(h * T.glyph)
 	local check = Icons.new("check", {
