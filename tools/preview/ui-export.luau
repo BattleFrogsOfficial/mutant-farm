@@ -605,6 +605,23 @@ capture("groupOffer")
 set(State.welcome, { away = 3 * 3600 + 720, ready = 6, mutations = 4, capped = true, earned = 128_400 })
 set(State.panel, "welcome")
 capture("welcome")
+-- With Auto-Harvest, away past its window: every line (sold, waiting, stopped, capped).
+set(State.welcome, {
+	away = 10 * 3600,
+	ready = 3,
+	mutations = 12,
+	capped = true,
+	earned = 128_400,
+	autoHarvest = true,
+	autoHarvested = 1_284,
+	autoSold = 1_102,
+	autoSoldValue = 3_480_000,
+	autoKept = 182,
+	waitingCash = 2,
+	waitingBag = 3,
+	autoStopped = true,
+})
+capture("welcome-auto")
 set(State.panel, "store")
 capture("store")
 set(State.panel, "slotOffer")

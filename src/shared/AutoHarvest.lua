@@ -1,16 +1,17 @@
 --!strict
--- Auto-Harvest while you're away: replays the plot's grow cycles in time order (mature -> harvest
--- to bag -> replant the same egg) from when you left to now. GrowthService supplies `cycle`, which
--- settles every slot to a time and harvests/replants whatever is mature then; this module only
--- finds the next maturity and stops when nothing more can happen.
+-- Auto-Harvest while you're away: replays the plot's grow cycles in time order (mature -> hatch ->
+-- sell it if it's Game.autoSellRarity, else keep it in the bag, or let it wait on its patch when
+-- the bag is full -> replant patches whose toggle is on) from when you left, for at most
+-- Game.autoHarvestOfflineHours. GrowthService supplies `cycle`, which settles every slot to a time
+-- and runs one Auto-Harvest pass then; this module only finds the next maturity and the window.
 
 local Growth = require(script.Parent.Growth)
 local GameConfig = require(script.Parent.Config.Game)
 
 local AutoHarvest = {}
 
--- Safety net: 40 slots x 1-minute eggs for a week is ~400K cycles, but the bag (200) fills long
--- before; harvesting stops the loop as soon as a cycle harvests nothing.
+-- Safety net: the window is at most autoHarvestOfflineHours, and each pass moves time forward to
+-- the next maturity (40 patches of 1-minute eggs for 8 h is under 20K passes).
 local MAX_CYCLES = 100_000
 
 export type Slot = { eggId: string, rarity: string, growth: number, updatedAt: number }
@@ -24,39 +25,44 @@ function AutoHarvest.decide(rarity: string, bagCount: number, bagCap: number): "
 	return if bagCount < bagCap then "keep" else "wait"
 end
 
--- Earliest server time, at or after `at`, when a slot is (or was) mature. nil when no slots.
+-- The next time after `at` when a slot that is still growing at `at` matures (mature slots are
+-- skipped: they were harvested at `at`, or wait for bag space). nil when nothing is growing.
 function AutoHarvest.nextMature(slots: { [string]: Slot }, at: number, wateredUntil: number, speed: number): number?
 	local best: number? = nil
 	for _, slot in slots do
 		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
 		local grown = Growth.advance(slot.growth, slot.updatedAt, at, wateredUntil, speed)
-		local when = at + Growth.secondsRemaining(grown, required, at, wateredUntil, speed)
-		if best == nil or when < best then
-			best = when
+		if required - grown > 1e-6 then
+			local when = at + Growth.secondsRemaining(grown, required, at, wateredUntil, speed)
+			if best == nil or when < best then
+				best = when
+			end
 		end
 	end
 	return best
 end
 
--- Runs cycles from `from` to `to`. `cycle(at)` must settle the plot to `at`, harvest every mature
--- slot and replant; it returns how many it harvested. Returns the total harvested.
+-- The end of the offline replay: `to`, or `from` + Game.autoHarvestOfflineHours if that's sooner.
+function AutoHarvest.windowEnd(from: number, to: number): number
+	return math.min(to, from + GameConfig.autoHarvestOfflineHours * 3600)
+end
+
+-- Runs one pass at `from` (eggs that were already mature, empty toggled patches), then one at
+-- every maturity up to `to`. `cycle(at)` must settle the plot to `at` and run an Auto-Harvest
+-- pass; it returns how many it hatched. Returns the total hatched.
 function AutoHarvest.run(
 	plot: { slots: { [string]: Slot }, wateredUntil: number, speed: number },
 	from: number,
 	to: number,
 	cycle: (at: number) -> number
 ): number
-	local total, t = 0, from
+	local total, t = cycle(from), from
 	for _ = 1, MAX_CYCLES do
 		local at = AutoHarvest.nextMature(plot.slots, t, plot.wateredUntil, plot.speed)
 		if at == nil or at > to then
 			break
 		end
-		local harvested = cycle(at)
-		if harvested == 0 then
-			break -- bag full (or nothing could be harvested): nothing more will happen
-		end
-		total += harvested
+		total += cycle(at)
 		t = at
 	end
 	return total

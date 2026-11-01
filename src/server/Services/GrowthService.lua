@@ -354,8 +354,16 @@ end
 -- pinned one), needing no bag room; the rest go to the bag while it has room, else wait mature on
 -- their patch. Then each empty patch with its replant toggle on plants its egg again (see
 -- replant); toggle off leaves it empty. `at`/`quiet` are for the offline catch-up. Returns how
--- many it harvested.
-local function autoHarvest(player: Player, data: Types.Profile, at: number?, quiet: boolean?): number
+-- many it harvested; `summary` (offline catch-up) adds up what it did.
+type AutoSummary = { harvested: number, sold: number, soldValue: number, kept: number }
+
+local function autoHarvest(
+	player: Player,
+	data: Types.Profile,
+	at: number?,
+	quiet: boolean?,
+	summary: AutoSummary?
+): number
 	local harvested, soldCount, soldValue = 0, 0, 0
 	local keys = {}
 	for key, slot in data.slots do
@@ -392,6 +400,12 @@ local function autoHarvest(player: Player, data: Types.Profile, at: number?, qui
 		if patch and patch.replant and patch.egg and not data.slots[key] then
 			replant(player, data, key, patch.egg, at)
 		end
+	end
+	if summary then
+		summary.harvested += harvested
+		summary.sold += soldCount
+		summary.soldValue += soldValue
+		summary.kept += harvested - soldCount
 	end
 	if soldCount > 0 and not quiet then
 		Net.notify(
@@ -579,10 +593,11 @@ local function onWater(player: Player, data: Types.Profile)
 end
 
 -- Offline catch-up, run at join. Pays the offline pen income (from the pen as you left it), then
--- replays the time away: with Auto-Harvest, every grow cycle in order (AutoHarvest.run: harvest
--- to the bag, replant, buying eggs with Cash when out); then grows everything to now. Mutation
--- rolls run only for the first offlineMutationCap seconds away (the whole time with the Offline
--- Mutations pass), including on eggs replanted while away.
+-- replays the time away: with Auto-Harvest, every pass in time order (AutoHarvest.run: hatch, sell
+-- Commons, keep the rest while the bag has room, replant toggled patches from the bag or with Cash)
+-- for at most Game.autoHarvestOfflineHours; then grows everything to now. Mutation rolls run only
+-- for the first offline cap seconds away (the whole time with the Offline Mutations pass; longer
+-- with the Gem upgrade), including on eggs replanted while away.
 local function catchUp(player: Player, data: Types.Profile)
 	local now = DataService.now()
 	local away = if data.lastSeen > 0 then now - data.lastSeen else 0
@@ -611,13 +626,29 @@ local function catchUp(player: Player, data: Types.Profile)
 		table.move(rolled, 1, #rolled, #events + 1, events)
 	end
 
-	local autoHarvested = 0
-	if away > 0 and data.ownedPasses.AutoHarvest then
+	local summary: AutoSummary = { harvested = 0, sold = 0, soldValue = 0, kept = 0 }
+	local waitingCash, waitingBag = 0, 0
+	local auto = away > 0 and data.ownedPasses.AutoHarvest == true
+	if auto then
 		local plot = { slots = data.slots, wateredUntil = data.wateredUntil, speed = DataService.speed(data) }
-		autoHarvested = AutoHarvest.run(plot, data.lastSeen, now, function(at)
+		local stop = AutoHarvest.windowEnd(data.lastSeen, now)
+		AutoHarvest.run(plot, data.lastSeen, stop, function(at)
 			settleTo(at)
-			return autoHarvest(player, data, at, true)
+			return autoHarvest(player, data, at, true, summary)
 		end)
+		-- Where the replay left the plot: toggled patches it couldn't replant (no Cash, or a Gem
+		-- egg it won't buy) and eggs waiting, mature, for bag room.
+		settleTo(stop)
+		local bagFull = inventoryCount(data) >= GameConfig.inventoryCap
+		for i = 1, DataService.totalSlots(data) do
+			local key = tostring(i)
+			local patch, slot = data.patches[key], data.slots[key]
+			if not slot and patch and patch.replant and patch.egg then
+				waitingCash += 1
+			elseif slot and bagFull and isMature(slot) and slot.rarity ~= GameConfig.autoSellRarity then
+				waitingBag += 1
+			end
+		end
 	end
 	settleTo(now)
 	local capped = now > capAt and next(data.slots) ~= nil
@@ -636,7 +667,14 @@ local function catchUp(player: Player, data: Types.Profile)
 			mutations = #events,
 			capped = capped,
 			earned = earned,
-			autoHarvested = autoHarvested,
+			autoHarvest = auto,
+			autoHarvested = summary.harvested,
+			autoSold = summary.sold,
+			autoSoldValue = summary.soldValue,
+			autoKept = summary.kept,
+			waitingCash = waitingCash,
+			waitingBag = waitingBag,
+			autoStopped = auto and away > GameConfig.autoHarvestOfflineHours * 3600,
 		})
 	end
 end
