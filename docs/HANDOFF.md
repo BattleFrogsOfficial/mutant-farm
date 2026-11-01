@@ -31,7 +31,9 @@ early rebirths); Rebirth 10 stays over a week, so `autoHarvestOfflineHours` stay
 bot rebuys with Cash every time (never bagged eggs) and plays online perfectly.
 
 **Checks:** `lune run tools/check` 129 files · `lune run tools/test` 143 passed · stylua clean ·
-UI preview at the end: see "Verified" below the Studio list · **not played in Studio.**
+full UI preview at the end (459 scenes, 10 sizes): Text 0, HUD overlap 0 across 288,
+Shop 0 across 80, Panel 0 across 30, extras 0 across 359 · world checker 0 (2027 parts, decor on
+and off) · relay test passed · **not played in Studio.**
 
 ### Calls made (say if any is wrong)
 
