@@ -91,7 +91,7 @@ Sell values are the Common outcome; rarity multiplies them (Uncommon x3, Rare x1
 
 **Other rules**
 
-- Auto-Harvest replants the same egg, paying from Cash, keeps working offline, and stops when the player cannot afford the next egg. Offline it is replayed at rejoin, cycle by cycle (mature → harvest to the bag → replant if Cash allows and the bag has room); mutation rolls on those cycles obey the 2-hour offline cap unless Offline Mutations is owned.
+- Auto-Harvest (rework 2026-11-01): every mature egg is hatched with a toast (no cutscene). A Common is sold at once (logged and counted as earned; never a pinned mutant) and needs no bag room; anything rarer goes to the bag, or waits, mature, on its patch while the bag is full. Each owned patch has a **replant toggle** (off by default; tap the REPLANT chip on the patch, or REPLANT ALL in the tray): on, the patch plants the same egg again, from the bag first, else bought with Cash at the shop price (Gem and limited eggs are never bought; those patches replant from the bag only); if it can't, it stays empty and retries until it can. Off, the patch is left empty. Harvesting a patch by hand turns its toggle off; planting by hand doesn't change it. Offline the same rules are replayed at rejoin, in time order, for at most 8 hours after leaving; mutation rolls on those eggs obey the usual offline cap (2 h, longer with the Gem upgrade, all of it with Offline Mutations). Welcome back lists what it sold and kept and what is waiting.
 - Size is rolled from bands: 0.8–1.0x (25%), 1.0–1.3x (55%), 1.3–2.0x (17%), 2.0–2.9x (2.5%), 3.0x "Titan" (0.5%). Luck multiplies the top two bands' weights, then weights renormalize.
 - VIP's 1.5x Cash and the rebirth multiplier multiply each other.
 - On rebirth, unsold inventory (everything outside the pen) is sold automatically first, at full value through the economy service so it is logged and counted as Cash earned; then Cash, slots, upgrades and eggs reset. The pen (pinned mutants included), passes, Gems and streak are kept.
@@ -120,7 +120,7 @@ Every product removes a friction the loop deliberately creates. Prices follow th
 | Pass | Price (Robux) | What it does | Why it sells |
 | --- | --- | --- | --- |
 | 2x Luck | 399 | Doubles rarity and mutation odds | The best-converting pass in the genre; promoted on the egg shop itself |
-| Auto-Harvest | 249 | Harvests mature mutants and replants the same egg | Removes the most repetitive click; sells to everyone who plays past day 2 |
+| Auto-Harvest | 249 | Hatches ripe eggs, sells Commons, replants the patches you pick (works 8 h offline) | Removes the most repetitive click; sells to everyone who plays past day 2 |
 | 2x Growth Speed | 299 | Halves all grow timers | Stacks visibly with watering; shown on every timer bar |
 | Offline Mutations | 199 | Mutation rolls continue while offline, no 2-hour cap | Sells at the exact moment the player sees the cap message |
 | +10 Plot Slots | 349 | Ten permanent extra slots | Capacity is the clearest "I'd earn more if" feeling |
