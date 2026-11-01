@@ -8,7 +8,7 @@ return {
 		id = 0,
 		price = 249,
 		name = "Auto-Harvest",
-		description = "Harvests mature mutants and replants the same egg",
+		description = "Hatches ripe eggs, sells Commons, replants the patches you pick",
 	},
 	GrowthSpeed2x = { id = 0, price = 299, name = "2x Growth Speed", description = "Halves all grow timers" },
 	OfflineMutations = {

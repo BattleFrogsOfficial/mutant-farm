@@ -24,7 +24,15 @@ State.welcome = Value(nil :: {
 	mutations: number,
 	capped: boolean,
 	earned: number?,
+	-- Auto-Harvest (pass owners): what the offline replay did and what it left waiting.
+	autoHarvest: boolean?,
 	autoHarvested: number?,
+	autoSold: number?,
+	autoSoldValue: number?,
+	autoKept: number?,
+	waitingCash: number?, -- toggled patches it couldn't replant (no Cash, or a Gem egg it won't buy)
+	waitingBag: number?, -- eggs waiting, mature, for bag room
+	autoStopped: boolean?, -- away longer than Game.autoHarvestOfflineHours
 }?)
 -- How many Almanac species the player had seen when they last opened it (for the NEW dot).
 State.almanacSeen = Value(-1)

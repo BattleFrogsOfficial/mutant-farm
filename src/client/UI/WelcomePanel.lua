@@ -1,7 +1,9 @@
 --!strict
 -- "Welcome back!" card shown after a break: how long you were away, how many eggs are ready to
--- hatch (or, with Auto-Harvest, how many it hatched into your bag), and how many mutations
--- happened while you were gone. One tap goes straight to hatching.
+-- hatch (or, with Auto-Harvest, how many it hatched), and how many mutations happened while you
+-- were gone. With Auto-Harvest, lines under the stats: Commons sold and for how much, how many
+-- were kept, patches waiting for Cash or eggs, eggs waiting for bag room, and that it stops
+-- Game.autoHarvestOfflineHours after you leave. One tap goes straight to hatching.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

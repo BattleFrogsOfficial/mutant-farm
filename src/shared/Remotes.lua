@@ -40,7 +40,7 @@ Remotes.ServerToClient = {
 	"Harvested", -- (item, valueNow, slotIndex, isNewSpecies, auto: boolean, sold: boolean) auto = Auto-Harvest pass
 	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string, worthNow: number)
 	"Payout", -- (amount: number) pen income just paid
-	"WelcomeBack", -- ({ away, ready, mutations, capped, earned, autoHarvested })
+	"WelcomeBack", -- ({ away, ready, mutations, capped, earned, autoHarvest, autoHarvested, autoSold, autoSoldValue, autoKept, waitingCash, waitingBag, autoStopped })
 	"Rebirthed", -- (rebirths: number) celebration after a rebirth
 	"Almanac", -- (entries: { [speciesId]: Types.AlmanacEntry }) full on join, then one entry per change
 	"GroupOffer", -- () first sale: offer the group (once)

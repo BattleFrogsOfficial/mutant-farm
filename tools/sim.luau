@@ -8,8 +8,8 @@
 -- pen's auto-fill, so its pen stays empty), plants the egg with the best expected profit per
 -- minute it can afford, buys the cheapest upgrade whenever it costs under a quarter of its Cash,
 -- and rebirths the moment it can (the bag outside the pen is sold first and counted as earned;
--- the pen stays). Offline it harvests only with Auto-Harvest (replanting from Cash). Weather and
--- Gems are ignored.
+-- the pen stays). Offline nothing is harvested (eggs wait, mature, for the next session). Weather
+-- and Gems are ignored.
 --
 --   --pen keep   a keeper instead: pins its Game.penDisplayCount most valuable mutants (a better
 --                one replaces the worst, which is sold). The pen pays penIncomePerMinute of base
@@ -355,17 +355,6 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 				plant(p, i, id)
 			end
 		end
-	elseif p.passes.AutoHarvest then
-		for i, slot in p.slots do
-			-- The bag holds the pen too.
-			if slot.mature and #p.pending + #p.pen < GameConfig.inventoryCap then
-				table.insert(p.pending, harvestMutant(p, slot))
-				p.slots[i] = nil
-				if p.cash >= Eggs.tiers[slot.tier].cost and #p.pending + #p.pen < GameConfig.inventoryCap then
-					plant(p, i, slot.tier)
-				end
-			end
-		end
 	end
 end
 
@@ -442,7 +431,7 @@ end
 
 local scenarios = {
 	{ name = "Free", passes = {} },
-	{ name = "Payer (2x Luck + Auto-Harvest)", passes = { Luck2x = true, AutoHarvest = true } },
+	{ name = "Paying (2x Luck)", passes = { Luck2x = true } },
 }
 
 if opts.labCost then
