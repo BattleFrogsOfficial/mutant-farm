@@ -1,4 +1,4 @@
-# Handoff — 2026-10-30 (HUD style unification and panel overhaul)
+# Handoff — 2026-11-01 (Auto-Harvest rework, $/min fix) and 2026-10-30 (HUD unification)
 
 Read `CLAUDE.md` first (rules, conventions, live numbers, commands) and `docs/DESIGN.md` (intent; dated
 rule changes at the top). This file is what a fresh session needs on top of them: what changed in the
@@ -10,7 +10,75 @@ Place file: `rojo build default.project.json -o MutantFarm.rbxl`.
 **The Pumpkin Egg window is open now** (2026-10-29 00:00 EDT to 11-05 23:59 EST). The M5 build and
 everything below have still not been published or played in Studio; see "Next tasks".
 
-## What was done this session
+## 2026-11-01: Auto-Harvest rework
+
+| Commit | What |
+|---|---|
+| `184e4ae` | AH 1: Commons sold at once (`Game.autoSellRarity`), the rest kept or waiting on the patch when the bag is full |
+| `f5389a6` | AH 2: replant toggle per patch (`profile.patches`, `SetReplant`, 0 = all), retry every tick, hand harvest turns it off |
+| `1e89837` | AH 3: REPLANT chip on each owned patch, REPLANT ALL under a shorter HATCH |
+| `4a0b909` | AH 4: offline replay for 8 h (`AutoHarvest.run` / `windowEnd`), Welcome back summary |
+| `f2cc896` | AH 5: old always-replant leftovers removed (pass text, sim path) |
+| `68b0d32` | AH 6: harness tests, sim `--autoharvest` |
+| `2d17413` + (this one) | AH 7: DESIGN.md / CLAUDE.md, sim numbers, this handoff |
+| `ff1c5b6` | Review fixes (one reviewer): analytics batched in the replay, real cap in the tip, patch size in config |
+| `f83230d` | Owner's Studio report: $/min counts only growing eggs (cents under $10, HATCH / PLANT hint), WATER drop gap |
+
+**Sim** (60 runs, 1.5 active h/day, 30 days; Rebirth 1 / 4 / 10):
+free day 1 / 3 / 23; paying (2x Luck) day 1 / 2 / 14; paying + Auto-Harvest day 1 / 2 / 12.
+Rebirth 4 doesn't move to day 1 with Auto-Harvest (the bot's online play already decides the
+early rebirths); Rebirth 10 stays over a week, so `autoHarvestOfflineHours` stays 8. The sim's
+bot rebuys with Cash every time (never bagged eggs) and plays online perfectly.
+
+**Checks:** `lune run tools/check` 129 files · `lune run tools/test` 143 passed · stylua clean ·
+UI preview at the end: see "Verified" below the Studio list · **not played in Studio.**
+
+### Calls made (say if any is wrong)
+
+- **Toggle storage**: `profile.patches[index] = { replant, egg }` (an empty patch has no Slot to
+  hold it); `egg` is the last egg planted there, which is what gets replanted.
+- **REPLANT ALL** is `SetReplant(0, on)`: 40 single calls would hit the remote rate limit.
+- **Offline, a patch out of Cash retries** at every later pass (Commons sold elsewhere bring Cash
+  in), rather than stopping for the rest of the replay. Online it retries every tick, as asked.
+- **Sold Commons**: no toast each (one "Auto-sold N Commons for $X" per pass), except a new
+  species. Pen income, Almanac and `totalCashEarned` count them as usual.
+- **The tray**: REPLANT ALL sits under a shorter HATCH in the same column, so the egg cards keep
+  their room. **The patch chip** runs along the gate edge (a true corner chip was too small to
+  read on a phone); the "+" tile shrank 0.38 -> 0.34 of the patch to leave it room.
+- **$/min** (from your Studio screenshots): a ready egg no longer counts (it was the egg's growing
+  rate, never refreshed when it matured), a lone pen mutant shows its cents ("$0.04/min"), and
+  with nothing growing the line says HATCH EGGS or PLANT EGGS.
+
+### Decisions for you
+
+1. **HATCH turns toggles off.** Per the spec, emptying a patch by hand (Harvest or HATCH) turns
+   its toggle off, silently. A pass owner who sells a full bag and then taps HATCH loses the
+   toggles on those patches. Keep, or keep toggles on HATCH / toast "Replant off on N patches"?
+2. **Rebirth keeps the toggles** (on the patches still owned). Right after a rebirth, toggled
+   patches plant the 2 starting eggs and then buy Starters with the starting Cash. Keep, or clear
+   all toggles on rebirth?
+3. **Pen income is tiny** ($0.04/min for a Starter Common): it now reads honestly instead of $0,
+   which may raise the question of its size (an open decision from before).
+
+### Needs a Studio look (Auto-Harvest)
+
+1. **The REPLANT chip on a phone**: legible from the default camera (its label is ~8 px), taps
+   land on it (its SurfaceGui is in PlayerGui with the patch as Adornee) and not on the patch, it
+   reads the right way up from the gate, it shows only with the pass.
+2. **REPLANT ALL** in the tray: ALL ON / SOME ON / ALL OFF, one tap flips every patch.
+3. **Online**: Commons vanish into Cash with one toast per pass, Uncommon+ go to the bag, a full
+   bag leaves them ripe on the patch, toggled patches replant (bag first, then Cash), an
+   unaffordable one plants as soon as Cash arrives; Gem / Pumpkin eggs only from the bag.
+4. **Welcome back** after 10+ min and after 8+ h away: the sold / kept / waiting lines, the
+   "works the first 8 hours" line, the mutation tip with the real cap; join time with a full plot
+   (the review's stress run: 40 patches, 9 h, 0.3 s in Lune).
+5. **$/min** on the Cash panel and the gate: drops to "$0/min · HATCH EGGS" the moment the last
+   egg ripens, shows cents for a lone pen mutant, "· PLANT EGGS" on an empty plot.
+6. **WATER**: the drop clear of "2x GROWTH" at 1.0x on a phone and 1.25x on a monitor.
+
+## 2026-10-30: HUD unification
+
+### What was done that session
 
 The nine-item HUD unification. No balance change except the new Gem upgrades (item 4).
 
