@@ -29,6 +29,7 @@ local Valuation = harness.require(shared .. "/Valuation")
 local Costs = harness.require(shared .. "/Costs")
 local ShopRules = harness.require(shared .. "/ShopRules")
 local Format = harness.require(shared .. "/Format")
+local AutoHarvest = harness.require(shared .. "/AutoHarvest")
 
 ---------------------------------------------------------------------------- options
 
@@ -42,6 +43,7 @@ local opts = {
 	firstCost = nil :: number?,
 	growth = nil :: number?,
 	pen = "sell",
+	autoharvest = false,
 }
 do
 	local args = process.args
@@ -50,6 +52,8 @@ do
 		local a = args[i]
 		if a == "--" then
 			-- separator passed through by `lune run tools/sim -- ...`
+		elseif a == "--autoharvest" then
+			opts.autoharvest = true -- add a paying + Auto-Harvest scenario (toggles on, sells Commons)
 		elseif a == "--first" then
 			opts.first = true -- only the time to Rebirth 1
 		elseif a == "--first-cost" then
@@ -96,7 +100,8 @@ type Player = {
 	slots: { [number]: Slot },
 	growthLevel: number,
 	oddsLevel: number,
-	pending: { Mutant }, -- harvested offline by Auto-Harvest, sold (or penned) on return
+	pending: { Mutant }, -- kept offline by Auto-Harvest (Uncommon+), sold (or penned) on return
+	lastTier: { [number]: string }, -- the last egg planted on each patch (Auto-Harvest replants it)
 	pen: { Mutant }, -- kept mutants: pay pen income, survive rebirth
 	earned: number, -- lifetime Cash earned (unlocks Lab at Rebirth 0)
 	leftAt: number,
@@ -125,6 +130,7 @@ local function newPlayer(seed: number, passes: { [string]: boolean }): Player
 		growthLevel = 0,
 		oddsLevel = 0,
 		pending = {},
+		lastTier = {},
 		pen = {},
 		earned = 0,
 		leftAt = 0,
@@ -158,6 +164,7 @@ end
 
 local function plant(p: Player, index: number, tierId: string)
 	p.cash -= Eggs.tiers[tierId].cost
+	p.lastTier[index] = tierId
 	local rarity = Rolls.rollRarity(p.rng, tierId, luckOf(p))
 	p.slots[index] = {
 		tier = tierId,
@@ -355,6 +362,27 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 				plant(p, i, id)
 			end
 		end
+	elseif opts.autoharvest and p.passes.AutoHarvest and now - p.leftAt < GameConfig.autoHarvestOfflineHours * 3600 then
+		-- Auto-Harvest with every replant toggle on (the server's rules, shared/AutoHarvest):
+		-- Commons sold at once, the rest kept while the bag (pen included) has room, else they wait
+		-- on their patch; each empty patch rebuys its last egg with Cash when it can.
+		for i = 1, p.slotCount do
+			local slot = p.slots[i]
+			if slot and slot.mature then
+				local what = AutoHarvest.decide(slot.rarity, #p.pending + #p.pen, GameConfig.inventoryCap)
+				if what == "sell" then
+					sell(p, harvestMutant(p, slot))
+					p.slots[i] = nil
+				elseif what == "keep" then
+					table.insert(p.pending, harvestMutant(p, slot))
+					p.slots[i] = nil
+				end
+			end
+			local tier = p.lastTier[i]
+			if not p.slots[i] and tier and p.cash >= Eggs.tiers[tier].cost then
+				plant(p, i, tier)
+			end
+		end
 	end
 end
 
@@ -433,6 +461,15 @@ local scenarios = {
 	{ name = "Free", passes = {} },
 	{ name = "Paying (2x Luck)", passes = { Luck2x = true } },
 }
+if opts.autoharvest then
+	table.insert(scenarios, {
+		name = string.format(
+			"Paying + Auto-Harvest (2x Luck, toggles on, Commons sold, %d h offline)",
+			GameConfig.autoHarvestOfflineHours
+		),
+		passes = { Luck2x = true, AutoHarvest = true },
+	})
+end
 
 if opts.labCost then
 	Eggs.tiers.Lab.cost = opts.labCost

@@ -518,6 +518,102 @@ return function(t)
 			t.ok(data.patches["2"].replant, "other patches unchanged")
 		end,
 
+		["Auto-Harvest offline: the replay stops autoHarvestOfflineHours after leaving"] = function()
+			local hours = GameConfig.autoHarvestOfflineHours
+			-- The same plot left for the window and for 4 h longer: the same harvests.
+			local function away(seconds: number)
+				local world = t.server({ seed = 11 })
+				local player, data = world:join(1, {
+					cash = 1_000_000,
+					eggs = { Starter = 2 },
+					grantedStarterEggs = true,
+					ownedPasses = { AutoHarvest = true },
+				})
+				world:send(player, "Plant", 1, "Starter")
+				world:send(player, "Plant", 2, "Starter")
+				world:send(player, "SetReplant", 0, true)
+				world:leave(player)
+				local left = data.lastSeen
+				world:advance(seconds)
+				local back, after = world:join(1)
+				return after, left, world:received(back, "WelcomeBack")[1][1]
+			end
+			local inWindow, left, w1 = away(hours * 3600)
+			local longer, left2, w2 = away((hours + 4) * 3600)
+			t.eq(longer.stats.harvested, inWindow.stats.harvested, "nothing hatched after the window")
+			t.ok(inWindow.stats.harvested > 2 * 60, "it ran for the whole window: " .. inWindow.stats.harvested)
+			for _, item in longer.inventory do
+				t.ok(item.harvestedAt <= left2 + hours * 3600, "kept items hatched inside the window")
+			end
+			t.eq(w1.autoStopped, false)
+			t.eq(w2.autoStopped, true, "Welcome back says it stopped")
+			t.ok(left > 0)
+		end,
+
+		["Auto-Harvest offline: a 6-Starter plot left 10 h with toggles on ends with more Cash and no Commons"] = function()
+			local world = t.server({ seed = 3 })
+			local player, data = world:join(1, {
+				cash = 300,
+				eggs = { Starter = 6 },
+				grantedStarterEggs = true,
+				ownedPasses = { AutoHarvest = true },
+			})
+			for i = 1, 6 do
+				world:send(player, "Plant", i, "Starter")
+			end
+			world:send(player, "SetReplant", 0, true)
+			world:leave(player)
+			local cash = data.cash
+			world:advance(10 * 3600)
+			local back, after = world:join(1)
+			t.ok(after.cash > cash, string.format("Cash up: %d -> %d", cash, after.cash))
+			t.ok(count(after.inventory) > 0, "kept some")
+			for _, item in after.inventory do
+				t.ok(item.rarity ~= GameConfig.autoSellRarity, "no Commons in the bag")
+			end
+			local w = world:received(back, "WelcomeBack")[1][1]
+			t.ok(w.autoHarvest and w.autoHarvested > 0)
+			t.eq(w.autoHarvested, w.autoSold + w.autoKept, "hatched = sold + kept")
+			t.eq(w.autoKept, count(after.inventory))
+			t.ok(w.autoSold > w.autoKept, "mostly Commons sold")
+			t.ok(w.autoSoldValue > 0)
+			t.eq(w.waitingCash, 0, "Cash never ran out")
+			-- ~1,000 hatches in 8 h: the bag (200) fills with Uncommon+, later ones wait on their patch.
+			t.eq(w.autoKept, GameConfig.inventoryCap, "the bag filled")
+			t.ok(w.waitingBag >= 1 and w.waitingBag <= 6, "Uncommon+ waiting for bag room: " .. w.waitingBag)
+			t.eq(w.autoStopped, true)
+		end,
+
+		["Auto-Harvest offline: out of Cash a patch waits; a full bag keeps Uncommon+ on their patches"] = function()
+			local world = t.server({ seed = 5 })
+			local inventory = {}
+			for i = 1, GameConfig.inventoryCap do
+				inventory[tostring(i)] = mutant(i, "Starter", "Rare", { pinned = i <= 1 })
+			end
+			local player, data = world:join(1, {
+				cash = 0,
+				grantedStarterEggs = true,
+				ownedPasses = { AutoHarvest = true },
+				inventory = inventory,
+				nextItemId = GameConfig.inventoryCap + 1,
+				slots = { ["2"] = grown("Swamp", "Epic") },
+				patches = {
+					["1"] = { replant = true, egg = "Lab" }, -- $5K: never affordable here
+					["2"] = { replant = true, egg = "Swamp" },
+				},
+			})
+			world:leave(player)
+			world:advance(3600)
+			local back, after = world:join(1)
+			t.eq(after.slots["1"], nil, "no Cash: patch 1 stays empty")
+			t.ok(after.slots["2"] ~= nil, "bag full: the Epic waits on patch 2")
+			local w = world:received(back, "WelcomeBack")[1][1]
+			t.eq(w.waitingCash, 1)
+			t.eq(w.waitingBag, 1)
+			t.eq(count(after.inventory), GameConfig.inventoryCap, "nothing sold from the bag")
+			t.ok(data.inventory["1"].pinned)
+		end,
+
 		["Auto-Harvest offline: rolls stop 2 h after leaving without Offline Mutations"] = function()
 			local world = t.server({ seed = 7 })
 			local player, data = world:join(1, {
