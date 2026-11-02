@@ -94,13 +94,53 @@ if mode == "hatch" then
 	egg.Parent = workspace
 	fog = { color = "#6d8f8c", near = 40, far = 170, sky = "#7f9c98" }
 end
-local plots = if mode == "hatch"
+-- `zoo` mode: the roster check. A ground plate and two rows, nothing else: in front (z = 0) one
+-- Common and one Legendary from each tier side by side, every one the same height (3.5 studs);
+-- behind (z = 40) the six Legendaries at their true relative scale (size 1). Camera presets:
+--   SHOTS='[["zoo-pairs",[0,7,-30],[0,2,0],40],["zoo-legends",[20,26,-50],[20,8,40],45]]'
+if mode == "zoo" then
+	local M = requireModule(game.ReplicatedStorage.Shared.MutantModel)
+	local Mutants = requireModule(game.ReplicatedStorage.Shared.Config.Mutants)
+	local ground = roblox.Instance.new("Part")
+	ground.Size = roblox.Vector3.new(400, 1, 300)
+	ground.CFrame = roblox.CFrame.new(0, -0.5, 60)
+	ground.Color = roblox.Color3.fromHex("#7FA45A")
+	ground.Material = roblox.Enum.Material.Grass
+	ground.Anchored = true
+	ground.Parent = workspace
+	local tiers = { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" }
+	local pick = tonumber(process.env.ZOO_PICK) or 2 -- which species of each bucket
+	local x = -33
+	for _, tier in tiers do
+		for _, rarity in { "Common", "Legendary" } do
+			local id = Mutants.buckets[tier][rarity][pick]
+			local unit = M.visualScale({ tier = tier, rarity = rarity, species = id, mutations = {}, size = 1 })
+			local size = (1 / unit) ^ (1 / 1.6) -- every one drawn at visual scale 1
+			local model = M.build({ tier = tier, rarity = rarity, species = id, mutations = {}, size = size })
+			pivot(model, roblox.CFrame.new(x, 0, 0))
+			model.Parent = workspace
+			x += if rarity == "Common" then 5 else 7
+		end
+	end
+	x = -30
+	for _, tier in tiers do
+		local id = Mutants.buckets[tier].Legendary[pick]
+		local data = { tier = tier, rarity = "Legendary", species = id, mutations = {}, size = 1 }
+		local w = 3.4 * M.visualScale(data)
+		x += w / 2
+		local model = M.build(data)
+		pivot(model, roblox.CFrame.new(x, 0, 40))
+		model.Parent = workspace
+		x += w / 2 + 2
+	end
+end
+local plots = if mode == "hatch" or mode == "zoo"
 	then {}
 	else requireModule(game.ServerScriptService.Server.Util.World).build(tonumber(process.env.LIMITED_AT))
 
 -- Showcase: a player's plot in mid-game so mutants and eggs show up in screenshots.
 local MutantModel = game.ReplicatedStorage.Shared:FindFirstChild("MutantModel")
-if MutantModel and mode ~= "hatch" then
+if MutantModel and mode ~= "hatch" and mode ~= "zoo" then
 	local M = requireModule(MutantModel)
 	local plot = plots[1]
 	local Mutants = requireModule(game.ReplicatedStorage.Shared.Config.Mutants)
