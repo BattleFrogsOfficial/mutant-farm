@@ -720,7 +720,7 @@ local function buildPiece(ctx: Ctx, piece: any, tint: Color3?, defaultName: stri
 		for i = 0, n - 1 do
 			local cf
 			if ring then
-				local a = i / n * math.pi * 2
+				local a = (i + (ring.phase or 0)) / n * math.pi * 2
 				cf = if ring.axis == "z"
 					then anchor * CFrame.new(pos) * CFrame.Angles(0, 0, a) * CFrame.new(0, ring.r * s, 0) * rot
 					else anchor * CFrame.new(pos) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -ring.r * s) * rot

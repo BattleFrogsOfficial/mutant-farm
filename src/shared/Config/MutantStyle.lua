@@ -16,7 +16,8 @@
 --   color   skin | skin2 (secondary tone) | skinDark | skinLight | accent | prop (a prop's tint)
 --           | dark | white | "#RRGGBB"
 --   rot     { x, y, z } degrees; mirror = true also builds it at -x; ring = { n, r, axis = "y" |
---           "z" } repeats it around the anchor; mat / tr / refl override material, transparency,
+--           "z", phase } repeats it around the anchor (the first copy in front, or `phase` steps
+--           round, 0.5 = a gap in front); mat / tr / refl override material, transparency,
 --           reflectance; neon = true for small glowing details only (the art rules); anim tags it
 --           for the idle animation (orbit | drip | flicker | float); name names the part.
 -- Eye styles (MutantModel): normal | baby | sleepy | angry | bulge (frog eyes on bumps) | frog
@@ -113,7 +114,14 @@ Style.Starter = {
 			text = "a soft cloud of little puffs",
 			parts = {
 				P("ellipsoid", { 2.0, 1.9, 1.9 }, "root", { 0, 1.1, 0 }, "skin"),
-				P("ball", { 1.05, 1.05, 1.05 }, "root", { 0, 0.95, 0 }, "skin", { ring = { n = 5, r = 0.9 } }),
+				P(
+					"ball",
+					{ 1.05, 1.05, 1.05 },
+					"root",
+					{ 0, 0.95, 0 },
+					"skin",
+					{ ring = { n = 5, r = 0.9, phase = 0.5 } }
+				),
 			},
 			head = { pos = { 0, 1.3, 0 }, r = { 1.0, 0.95, 0.95 } },
 		},
