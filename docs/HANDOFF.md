@@ -247,7 +247,8 @@ end first).
   `DailyService` doesn't grant them yet (adding them is a balance change).
 - From before (unchanged): paying Rebirth 4 on day 2 vs the day-1 target; Skip Timer pricing (a
   soft-launch flag); pen income small by design; `#100+` outside the top 100; daily streak and
-  Starter Bundle vs DESIGN.md; all pass/product ids, `Game.groupId` and `Game.gameLink` still unset.
+  Starter Bundle vs DESIGN.md; `Game.groupId` and `Game.gameLink` still unset (pass/product ids linked
+  2026-11-02).
 
 ## Next tasks, in order
 
@@ -255,8 +256,8 @@ end first).
    above on a phone; fix what it shows; publish.
 2. **Relay go-live**: `tools/relay/README.md` steps 1-4, then the relay and MemoryStore checks.
 3. **Studio pass** on the older lists.
-4. **Creator Hub setup**: passes, Gem packs, Starter Bundle, the group; fill the ids
-   (`Config/Passes.lua`, `Config/Products.lua`, `Config/Game.lua` groupId) and the real `gameLink`.
+4. **Creator Hub setup**: passes, Gem packs and Starter Bundle are created and linked (2026-11-02);
+   left: the group (`Config/Game.lua` groupId) and the real `gameLink`. Test-buy each in Studio.
 5. **Next limited egg** (Winter): one `Config/LimitedEggs.lua` entry (with a `glyph`; a new shape goes
    in `UI/Icons.lua`) + 10 species in `tools/gen-mutants.luau` `LIMITED`.
 6. **M5 remaining**: VIP egg, first-session phone check, icon/thumbnail A/B.

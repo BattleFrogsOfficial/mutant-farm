@@ -452,6 +452,15 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 	if opts.relayUrl then
 		self.modules("src/shared/Config/Game").relayUrl = opts.relayUrl
 	end
+	-- unlinked = { passes = { "VIP" }, products = { "Gems100" } }: those ids back to 0.
+	if opts.unlinked then
+		for _, id in opts.unlinked.passes or {} do
+			self.modules("src/shared/Config/Passes")[id].id = 0
+		end
+		for _, id in opts.unlinked.products or {} do
+			self.modules("src/shared/Config/Products").robux[id].id = 0
+		end
+	end
 	self.service = {}
 	for _, name in SERVICES do
 		self.service[name] = self.modules("src/server/Services/" .. name)

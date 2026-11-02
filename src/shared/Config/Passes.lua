@@ -3,23 +3,23 @@
 -- Wired up in M3.
 
 return {
-	Luck2x = { id = 0, price = 399, name = "2x Luck", description = "Doubles rarity and mutation odds" },
+	Luck2x = { id = 2066646427, price = 399, name = "2x Luck", description = "Doubles rarity and mutation odds" },
 	AutoHarvest = {
-		id = 0,
+		id = 2067408399,
 		price = 249,
 		name = "Auto-Harvest",
 		description = "Hatches ripe eggs, sells Commons, replants the patches you pick",
 	},
-	GrowthSpeed2x = { id = 0, price = 299, name = "2x Growth Speed", description = "Halves all grow timers" },
+	GrowthSpeed2x = { id = 2067054408, price = 299, name = "2x Growth Speed", description = "Halves all grow timers" },
 	OfflineMutations = {
-		id = 0,
+		id = 2068452355,
 		price = 199,
 		name = "Offline Mutations",
 		description = "Mutation rolls continue while offline",
 	},
-	PlotSlots10 = { id = 0, price = 349, name = "+10 Plot Slots", description = "Ten permanent extra slots" },
+	PlotSlots10 = { id = 2066616450, price = 349, name = "+10 Plot Slots", description = "Ten permanent extra slots" },
 	VIP = {
-		id = 0,
+		id = 2068044354,
 		price = 499,
 		name = "VIP",
 		-- The VIP egg (exclusive species pool) is M5.

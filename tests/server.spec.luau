@@ -260,18 +260,25 @@ return function(t)
 			t.eq(back.inGroup, false, "left the group: bonus off at next join")
 		end,
 
-		["Studio warns about every pass/product whose id is still 0"] = function()
-			local world = t.server()
-			local found
-			for _, w in world.warnings do
-				if w:find("not linked", 1, true) then
-					found = w
+		["Studio warns about every pass/product whose id is still 0 (and only those)"] = function()
+			local function notLinked(world)
+				for _, w in world.warnings do
+					if w:find("not linked", 1, true) then
+						return w
+					end
 				end
+				return nil
 			end
+			-- Every id is linked in Config: no warning.
+			t.eq(notLinked(t.server()), nil, "all ids linked")
+			local found = notLinked(t.server({
+				unlinked = { passes = { "VIP", "Luck2x" }, products = { "Gems100", "StarterBundle" } },
+			}))
 			t.ok(found, "warning printed")
 			for _, name in { "pass VIP", "pass Luck2x", "product Gems100", "product StarterBundle" } do
 				t.ok(found:find(name, 1, true), name .. " listed")
 			end
+			t.ok(not found:find("pass AutoHarvest", 1, true), "linked ones aren't listed")
 		end,
 
 		["Rebirth Now: sells the bag first, rebirths, then takes 100 Gems"] = function()

@@ -4,12 +4,12 @@
 
 return {
 	robux = {
-		Gems100 = { id = 0, price = 49, gems = 100 },
-		Gems550 = { id = 0, price = 199, gems = 550, tag = "Best value" },
-		Gems1500 = { id = 0, price = 499, gems = 1_500 },
-		Gems4000 = { id = 0, price = 999, gems = 4_000 },
+		Gems100 = { id = 3727404527, price = 49, gems = 100 },
+		Gems550 = { id = 3727404663, price = 199, gems = 550, tag = "Best value" },
+		Gems1500 = { id = 3727404761, price = 499, gems = 1_500 },
+		Gems4000 = { id = 3727404877, price = 999, gems = 4_000 },
 		StarterBundle = {
-			id = 0,
+			id = 3727405002,
 			price = 599,
 			-- Luck Potions arrive with the potion system; until then the bundle grants their Gem value.
 			grants = { passes = { "Luck2x", "AutoHarvest" }, gems = 550 },
