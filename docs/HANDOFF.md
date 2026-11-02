@@ -1,4 +1,4 @@
-# Handoff — 2026-11-01 (Auto-Harvest rework, $/min fix) and 2026-10-30 (HUD unification)
+# Handoff — 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
 
 Read `CLAUDE.md` first (rules, conventions, live numbers, commands) and `docs/DESIGN.md` (intent; dated
 rule changes at the top). This file is what a fresh session needs on top of them: what changed in the
@@ -9,6 +9,66 @@ Place file: `rojo build default.project.json -o MutantFarm.rbxl`.
 
 **The Pumpkin Egg window is open now** (2026-10-29 00:00 EDT to 11-05 23:59 EST). The M5 build and
 everything below have still not been published or played in Studio; see "Next tasks".
+
+## 2026-11-02: Mutant roster regeneration (500 species)
+
+| Commit | What |
+|---|---|
+| `a0015ec` | 1 + 5: `Config/MutantStyle.lua` (per-tier vocabularies as part recipes) and the recipe builder in `MutantModel` (tier eyes, Lab arms, feet, sheen, specks, particles, props, idle poses); pens play the idles |
+| `5d652f1` | 2-4: generator rewrite (budgets, name grammars, 26/20/16/13/8 + 2 = 500, vocabulary asserts), roster, milestone 500 = 100 Gems, Almanac track spacing for 20 milestones |
+| `5d90f20` | 6: Almanac traits / sizes from the vocabulary, 500 marker color, pixel-snapped labels |
+| `e3cb480` | 7: `tests/mutants.spec.luau`, the zoo export mode |
+| (this one) | 8: DESIGN.md note, CLAUDE.md Mutants section, this handoff |
+
+Items 1-4 and 6 are one generator rewrite, so they're split by file rather than one commit each.
+Every old species id (`Tier_Rarity_NN`) still exists (buckets only grew), so saved items, pens and
+Almanac entries keep working; their looks and names change (the 30 originals keep their names).
+
+**The zoo** (look at this first):
+`lune run tools/preview/export -- build/preview.rbxl build/zoo.json zoo`, then
+`SHOTS='[["zoo-pairs",[0,8,-48],[0,2.5,0],44],["zoo-legends",[0,30,-55],[0,9,40],50]]' node tools/preview/render.mjs build/zoo.json build/zoo-shots`
+(`ZOO_PICK=n` for the nth species of each bucket). First pass findings, fixed before committing:
+Void's hood rendered as a black shard (now a rounded cowl), its glowing eye was a huge white ball
+(smaller now), and every tier had the same white googly eyes, which made them read as one family
+(now: frog eyes for Swamp, dark eyes with an acid slit for Toxic, hollow sockets for Void, pale
+starlit eyes for Cosmic). After that, the six Legendaries read as six eggs in the render: pastel
+puff (Starter), wet green frog (Swamp), white capsule with arms (Lab), acid-yellow horned slime
+(Toxic), black floating shapes (Void), star-flecked deep-blue crystal / orbs (Cosmic). The render
+is three.js: Glass, Foil and Neon are approximations; Studio is the real test.
+
+**Checks:** check 130 files · test 149 passed (the roster spec builds all 510 species at size 1
+and Titan in Lune, ~5 s) · stylua clean · world checker 0 issues (2047 parts, decor on and off) ·
+full UI preview (459 scenes, 10 sizes): Text 0, HUD overlap 0 / 288, Shop 0 / 80, Panel 0 / 30,
+extras 0 / 359 · relay test not affected · **Not played in Studio.** No review pass (owner's rule:
+reviews are for the launch build).
+
+### Calls made
+
+- **Props**: 21 per tier (13 Epic + 8 Legendary, each unique in its tier) as 7 kinds x 3 tints
+  ("Cherry balloon", "Sky balloon", "Lemon balloon"): unique ids and colors, shared shapes within
+  a kind. If that's too samey, more kinds is a MutantStyle edit.
+- **Signature counts**: Toxic has 6 signatures (third eye and fourth eye are two), Void 4.
+- **Void floats in motion only**: still models stand on the ground (the world checker wants feet
+  on the pen floor); the hover idle lifts them in the pen.
+- **Legendary scale**: 1.2x is in `species.scale` (0.9-1.15 base x 1.2).
+- **Almanac track**: 20 milestones crowded it; markers now keep their own width (the segment
+  shrinks, and gold markers shrink a little only near 500). Labels for a big milestone hide while
+  the next milestone is 25-50 species before it (no room to center both).
+- **Names**: originals like "Toxic Titan" are exempt from the rude-word filter (you chose them).
+
+### Needs a Studio look (roster)
+
+1. **Materials in real lighting**: Swamp's Glass sheen (too shiny? `skin.overlay.transparency`),
+   Toxic's slime Glass at transparency 0.1 (does it read as slime or as glass?), Void's matte
+   black at night, Cosmic's Foil + star specks; the faint particles (Swamp bubbles, Toxic haze,
+   Void trail) on a phone.
+2. **Idle animations in the pen**: bob (Starter), sag (Swamp), twitch (Lab), drip (Toxic),
+   hover + eye flicker (Void), satellites orbiting (Cosmic); Legendary variants; cost with 12 pens.
+3. **Pen crowding**: wide Swamp frogs, tall Void wisps, Cosmic orbiters and the Epic / Legendary
+   props beside them in an 8-12 mutant pen; giants overflowing is intended.
+4. **Hatch cutscene**: camera framing with the new heights (`Height` is now measured from the
+   parts), Lab arms and Void rings at the reveal.
+5. **Almanac**: the trait lines (Body / Signature / Features / Prop / Dance), the track to 500.
 
 ## 2026-11-01: Auto-Harvest rework
 
