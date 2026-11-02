@@ -356,34 +356,34 @@ return function(t)
 			t.eq(poorData.gems, 10)
 		end,
 
-		["$/min: growing eggs count before the first harvest, in the snapshot and on the gate"] = function()
+		["$/min is the pen's income only: growing eggs earn nothing, a pen mutant does"] = function()
 			local world = t.server()
 			local player, data = world:join(1, { eggs = { Starter = 2 }, grantedStarterEggs = true })
 			local DataService = world.service.DataService
 			t.eq(DataService.incomePerMinute(data), 0, "nothing growing, empty pen")
 			world:send(player, "Plant", 1, "Starter")
 			world:send(player, "Plant", 2, "Starter")
-			world:advance(30) -- half grown (a Starter takes at least 60 s)
-			local income = DataService.incomePerMinute(data)
-			t.ok(income > 0, "2 Starters growing: income > 0")
-			-- Roughly two Starter eggs' expected value per grow time (Starter ~1 min): tens of $/min.
-			t.ok(income >= 2 * 50 and income < 2 * 2000, "plausible: " .. income)
-			local states = world:received(player, "State")
-			local last = states[#states] and states[#states][1]
-			t.ok(last and last.incomePerMinute > 0, "the snapshot carries it")
-			-- Watering doubles the growing part.
+			world:advance(30)
+			t.eq(DataService.incomePerMinute(data), 0, "growing eggs give no $/min")
 			world:send(player, "Water")
-			t.ok(DataService.incomePerMinute(data) > income * 1.5, "watered: about 2x")
-			-- Once both are ready (nothing growing) they stop counting, and a fresh snapshot says so.
+			t.eq(DataService.incomePerMinute(data), 0, "watering changes nothing")
+			-- Ripe eggs: still $0, and a fresh snapshot says they're ready (the HATCH EGGS hint).
 			local sent = #world:received(player, "State")
 			world:advance(10 * 60, GameConfig.growthTickSeconds)
-			t.eq(DataService.incomePerMinute(data), 0, "ready eggs earn nothing until hatched")
 			local after = world:received(player, "State")
 			t.ok(#after > sent, "a snapshot went out when they matured")
 			local snap = after[#after][1]
 			t.eq(snap.incomePerMinute, 0)
 			t.eq(snap.growingCount, 0)
 			t.eq(snap.readyCount, 2)
+			-- Hatched: the mutants stand in the pen and earn its income (cents kept).
+			world:send(player, "HarvestAll")
+			local income = DataService.incomePerMinute(data)
+			t.ok(income > 0, "pen mutants earn: " .. income)
+			t.near(income, math.floor(DataService.penIncome(data) * 100) / 100, 1e-9)
+			world:advance(1) -- snapshots go out batched
+			local last = world:received(player, "State")
+			t.eq(last[#last][1].incomePerMinute, income, "the snapshot carries it")
 		end,
 
 		["Auto-Harvest: a Common is sold at once, an Uncommon is kept"] = function()

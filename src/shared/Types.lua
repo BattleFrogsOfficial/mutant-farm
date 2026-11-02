@@ -104,7 +104,7 @@ export type Snapshot = {
 	inventoryCap: number,
 	nextSlotCost: number?,
 	stats: { [string]: number },
-	incomePerMinute: number, -- eggs still growing (expected) + pen, $/min (cents kept)
+	incomePerMinute: number, -- the pen's income, $/min (cents kept); eggs earn nothing until hatched
 	growingCount: number, -- planted eggs still growing
 	readyCount: number, -- planted eggs mature, waiting to be hatched
 	penPerMinute: number, -- the pen's part (what the payouts pay)

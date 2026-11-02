@@ -12,7 +12,6 @@ local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
 local Eggs = require(Shared.Config.Eggs)
 local Growth = require(Shared.Growth)
-local Expected = require(Shared.Expected)
 local GemUpgrades = require(Shared.GemUpgrades)
 local Valuation = require(Shared.Valuation)
 local Costs = require(Shared.Costs)
@@ -188,10 +187,6 @@ function DataService.oddsBonus(data: Types.Profile): number
 	return Upgrades.mutationOdds.bonusPerLevel * data.upgrades.mutationOdds
 end
 
--- Farm income for the HUD and the gate sign, rounded down: the expected Cash per minute of the
--- eggs growing now (shared/Expected.growingPerMinute, at the plot's speed, doubled while watered)
--- plus the pen's income. Recomputed with every snapshot (plant, harvest, sell, water, passes,
--- rebirth all send one).
 -- Planted eggs now: still growing, and mature (ready to hatch).
 function DataService.eggCounts(data: Types.Profile): (number, number)
 	local now, speed = DataService.now(), DataService.speed(data)
@@ -207,29 +202,10 @@ function DataService.eggCounts(data: Types.Profile): (number, number)
 	return growing, ready
 end
 
--- Expected Cash per minute: the eggs still growing (a mature egg earns nothing until it's
--- hatched) plus the pen. Cents are kept (a lone pen mutant earns a few cents a minute).
+-- Farm income for the HUD and the gate sign: what the pen's mutants earn per minute (eggs earn
+-- nothing until they're hatched and sold). Cents are kept: a lone pen mutant earns a few cents.
 function DataService.incomePerMinute(data: Types.Profile): number
-	local now = DataService.now()
-	local speed = DataService.speed(data)
-	local growingSlots = {}
-	for key, slot in data.slots do
-		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
-		if Growth.secondsRemaining(slot.growth, required, now, data.wateredUntil, speed) > 0 then
-			growingSlots[key] = slot
-		end
-	end
-	if now < data.wateredUntil then
-		speed *= GameConfig.waterMultiplier
-	end
-	local growing = Expected.growingPerMinute(
-		growingSlots,
-		DataService.luck(data),
-		DataService.oddsBonus(data),
-		DataService.cashMultiplier(data),
-		speed
-	)
-	return math.floor((growing + DataService.penIncome(data)) * 100) / 100
+	return math.floor(DataService.penIncome(data) * 100) / 100
 end
 
 -- PolicyService result per online player (MonetizationService fills it on join): true when paid

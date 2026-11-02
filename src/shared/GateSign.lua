@@ -1,9 +1,9 @@
 --!strict
 -- The farm's income line, on the gate sign (PlotService writes it under the "<name>'s Farm" board)
--- and under Cash: the expected Cash per minute (DataService.incomePerMinute: eggs still growing +
--- pen), alone while eggs grow ("$3.4K/min"). Under $10 it keeps its cents, so a lone pen mutant
--- still reads as earning ("$0.04/min"). With nothing growing it says what to do: hatch the ready
--- eggs, or plant some.
+-- and under Cash: what the pen's mutants earn per minute (DataService.incomePerMinute; eggs earn
+-- nothing until they're hatched). Under $10 it keeps its cents, so a lone pen mutant still reads
+-- as earning ("$0.04/min"). With nothing growing it says what to do: hatch the ready eggs, or
+-- plant some.
 
 local Format = require(script.Parent.Format)
 
