@@ -1,7 +1,10 @@
 --!strict
--- Builds mutant and egg models from primitives, driven entirely by Config/Mutants.lua (species looks),
--- Config/Sizes.lua (how big they look) and Config/Eggs.lua (egg designs).
--- Used by the client (plots, pens, hatch reveal) and by tools/preview for screenshots.
+-- Builds mutant and egg models from primitives, driven entirely by config: Config/Mutants.lua
+-- (which look each species has), Config/MutantStyle.lua (each tier's bodies, skins, features,
+-- props and idle animations, as part recipes), Config/Sizes.lua (how big they look) and
+-- Config/Eggs.lua (egg designs). Species with `features` are built from MutantStyle; the
+-- hand-made limited species (Pumpkin) keep the older trait builder (body / eyes / mouth /
+-- accessory). Used by the client (plots, pens, hatch reveal) and by tools/preview.
 -- Models are anchored, non-colliding, face -Z, and have their PrimaryPart at the feet.
 
 local Config = script.Parent.Config
@@ -9,6 +12,7 @@ local Mutants = require(Config.Mutants)
 local Mutations = require(Config.Mutations)
 local Eggs = require(Config.Eggs)
 local Sizes = require(Config.Sizes)
+local Style = require(Config.MutantStyle)
 
 local MutantModel = {}
 
@@ -55,9 +59,15 @@ local function mutationSet(mutations: { string }): { [string]: boolean }
 	return set
 end
 
--- Body color after mutations; the strongest mutation wins the paint job.
-local function paint(base: Color3, set: { [string]: boolean }): (Color3, Enum.Material, number)
-	local color, material, reflectance = base, Enum.Material.SmoothPlastic, 0
+-- Body color after mutations; the strongest mutation wins the paint job. `material` and
+-- `reflectance` are the skin's own (default SmoothPlastic, 0) until a mutation replaces them.
+local function paint(
+	base: Color3,
+	set: { [string]: boolean },
+	material0: Enum.Material?,
+	reflectance0: number?
+): (Color3, Enum.Material, number)
+	local color, material, reflectance = base, material0 or Enum.Material.SmoothPlastic, reflectance0 or 0
 	if set.Shiny then
 		color = color:Lerp(WHITE, 0.3)
 		reflectance = 0.25
@@ -146,12 +156,18 @@ export type Species = {
 	body: string,
 	color: string,
 	accent: string,
-	pattern: string,
-	eyes: number,
-	eyeStyle: string,
-	mouth: string,
-	accessory: string,
 	scale: number,
+	-- MutantStyle species (every egg tier):
+	skin2: string?, -- secondary tone
+	features: { string }?, -- feature ids, the tier's signature first
+	prop: string?, -- Epic / Legendary: a prop no other species in the tier has
+	idleVariant: string?, -- Legendary: a named variant of the tier's idle animation
+	-- Hand-made limited species (Pumpkin):
+	pattern: string?,
+	eyes: number?,
+	eyeStyle: string?,
+	mouth: string?,
+	accessory: string?,
 }
 
 function MutantModel.species(data: MutantData): Species
@@ -528,12 +544,8 @@ local function buildAccessory(model: Model, kind: string, head: Head, s: number,
 	local _ = color
 end
 
--- Builds a mutant. data.size is the size multiplier rolled at harvest (0.8x-3x).
-function MutantModel.build(data: MutantData): Model
-	local info = MutantModel.species(data)
-	local set = mutationSet(data.mutations)
-	local s = MutantModel.visualScale(data)
-
+-- The older trait builder: hand-made limited species (Pumpkin).
+local function buildLegacy(data: MutantData, info: Species, set: { [string]: boolean }, s: number): Model
 	local model = Instance.new("Model")
 	model.Name = info.name
 	model:SetAttribute("Tier", data.tier)
@@ -550,7 +562,14 @@ function MutantModel.build(data: MutantData): Model
 	local color, material, reflectance = paint(base, set)
 	local head, body = buildBody(model, info.body, s, color, material, reflectance)
 
-	buildPattern(model, info.pattern, body, s, if set.Radioactive then Color3.fromHex("#7CFF4A") else accent, color)
+	buildPattern(
+		model,
+		info.pattern or "plain",
+		body,
+		s,
+		if set.Radioactive then Color3.fromHex("#7CFF4A") else accent,
+		color
+	)
 
 	-- Feet
 	for _, side in { -1, 1 } do
@@ -583,11 +602,12 @@ function MutantModel.build(data: MutantData): Model
 
 	-- Face on the front (-Z) of the head.
 	local face = head.cf * CFrame.new(0, head.r.Y * 0.2, -head.r.Z * 0.86)
-	local eyeScale = s * (if info.eyes == 1 then 1.5 else 1)
-	local positions = if info.eyes == 1
+	local eyeCount = info.eyes or 2
+	local eyeScale = s * (if eyeCount == 1 then 1.5 else 1)
+	local positions = if eyeCount == 1
 		then { Vector3.new(0, 0, 0) }
-		elseif info.eyes == 2 then { Vector3.new(-0.42, 0, 0), Vector3.new(0.42, 0, 0) }
-		elseif info.eyes == 3 then {
+		elseif eyeCount == 2 then { Vector3.new(-0.42, 0, 0), Vector3.new(0.42, 0, 0) }
+		elseif eyeCount == 3 then {
 			Vector3.new(-0.55, -0.05, 0.05),
 			Vector3.new(0, 0.3, -0.05),
 			Vector3.new(0.55, -0.05, 0.05),
@@ -599,7 +619,7 @@ function MutantModel.build(data: MutantData): Model
 			Vector3.new(0.62, -0.08, 0.08),
 		}
 	for _, p in positions do
-		buildEye(model, face * CFrame.new(p * s), eyeScale, info.eyeStyle, set.Cosmic == true, color)
+		buildEye(model, face * CFrame.new(p * s), eyeScale, info.eyeStyle or "normal", set.Cosmic == true, color)
 	end
 	if info.accessory == "goggles" then
 		for _, p in positions do
@@ -614,11 +634,665 @@ function MutantModel.build(data: MutantData): Model
 				0.35
 		end
 	end
-	buildMouth(model, info.mouth, face * CFrame.new(0, -0.62 * s, 0.05 * s), s)
-	buildAccessory(model, info.accessory, head, s, accent, color)
+	buildMouth(model, info.mouth or "smile", face * CFrame.new(0, -0.62 * s, 0.05 * s), s)
+	buildAccessory(model, info.accessory or "none", head, s, accent, color)
 
 	addEffects(model, body, set, s)
 	return model
+end
+
+-------------------------------------------------------------------------------- styled mutants
+
+local SHAPES = { ball = "ball", ellipsoid = "ellipsoid", cyl = "cylinder", wedge = "wedge", block = nil }
+local SKIN_ROLES = { skin = true, skin2 = true, skinDark = true, skinLight = true }
+
+-- A tier's feature / body / prop by id (signatures and the pool share one lookup).
+local lookups: { [string]: { features: { [string]: any }, bodies: { [string]: any }, props: { [string]: any } } } = {}
+local function lookup(tier: string)
+	local cached = lookups[tier]
+	if cached then
+		return cached
+	end
+	local st = (Style :: any)[tier]
+	local out = { features = {}, bodies = {}, props = {} }
+	for _, f in st.signatures do
+		out.features[f.id] = f
+	end
+	for _, f in st.features do
+		out.features[f.id] = f
+	end
+	for _, b in st.bodies do
+		out.bodies[b.id] = b
+	end
+	for _, p in st.props do
+		out.props[p.id] = p
+	end
+	lookups[tier] = out
+	return out
+end
+MutantModel.lookup = lookup
+
+type Ctx = {
+	model: Model,
+	s: number,
+	pal: { [string]: Color3 },
+	material: Enum.Material,
+	reflectance: number,
+	transparency: number,
+	anchors: { [string]: CFrame },
+	overlay: any?,
+}
+
+local function roleColor(ctx: Ctx, role: string, tint: Color3?): Color3
+	if role:sub(1, 1) == "#" then
+		return Color3.fromHex(role)
+	elseif role == "prop" then
+		return tint or ctx.pal.accent
+	elseif role == "dark" then
+		return DARK
+	elseif role == "white" then
+		return WHITE
+	end
+	return ctx.pal[role] or ctx.pal.skin
+end
+
+-- Builds one piece (and its mirror / ring copies). Returns the parts.
+local function buildPiece(ctx: Ctx, piece: any, tint: Color3?, defaultName: string): { BasePart }
+	local s = ctx.s
+	local anchor = ctx.anchors[piece.at] or ctx.anchors.root
+	local out = {}
+	local mirrors = if piece.mirror then { 1, -1 } else { 1 }
+	local ring = piece.ring
+	local n = if ring then ring.n else 1
+	local size = Vector3.new(piece.size[1], piece.size[2], piece.size[3]) * s
+	local color = roleColor(ctx, piece.color, tint)
+	local skinRole = SKIN_ROLES[piece.color] == true
+	for _, m in mirrors do
+		local pos = Vector3.new(piece.pos[1] * m, piece.pos[2], piece.pos[3]) * s
+		local rot = if piece.rot
+			then CFrame.Angles(math.rad(piece.rot[1]), math.rad(piece.rot[2]) * m, math.rad(piece.rot[3]) * m)
+			else CFrame.identity
+		for i = 0, n - 1 do
+			local cf
+			if ring then
+				local a = i / n * math.pi * 2
+				cf = if ring.axis == "z"
+					then anchor * CFrame.new(pos) * CFrame.Angles(0, 0, a) * CFrame.new(0, ring.r * s, 0) * rot
+					else anchor * CFrame.new(pos) * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, -ring.r * s) * rot
+			else
+				cf = anchor * CFrame.new(pos) * rot
+			end
+			local p = newPart(ctx.model, piece.name or defaultName, size, cf, color, SHAPES[piece.shape])
+			if piece.mat then
+				p.Material = (Enum.Material :: any)[piece.mat]
+			elseif piece.neon then
+				p.Material = Enum.Material.Neon
+			elseif skinRole then
+				p.Material = ctx.material
+			end
+			p.Reflectance = piece.refl or (if skinRole then ctx.reflectance else 0)
+			p.Transparency = piece.tr or (if skinRole then ctx.transparency else 0)
+			if piece.anim then
+				p:SetAttribute("Idle", piece.anim)
+				if piece.anim == "orbit" then
+					p:SetAttribute("OrbitCenter", Vector3.new(anchor.Position.X, 0, anchor.Position.Z))
+				end
+			end
+			table.insert(out, p)
+		end
+	end
+	return out
+end
+
+-- Slow, faint particles (skin and feature `particles`).
+local function particles(anchor: BasePart, def: any, s: number)
+	local e = Instance.new("ParticleEmitter")
+	e.Color = ColorSequence.new(Color3.fromHex(def.color))
+	e.LightEmission = 0
+	e.Rate = def.rate
+	e.Lifetime = NumberRange.new(def.lifetime * 0.7, def.lifetime)
+	e.Speed = NumberRange.new(def.speed * 0.5 * s, def.speed * s)
+	e.SpreadAngle = Vector2.new(30, 30)
+	e.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, def.transparency),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	e.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, def.size * s),
+		NumberSequenceKeypoint.new(1, def.size * s * 1.6),
+	})
+	e.Parent = anchor
+end
+
+-- Eyes that aren't white: sclera color, pupil size (x, y) and color.
+local TINTED_EYES: { [string]: any } = {
+	frog = { sclera = Color3.fromHex("#E8C84A"), pupil = { 0.5, 0.16 }, pupilColor = DARK },
+	-- Dark eyes with an acid-green glowing slit (reads on the light slime skin).
+	toxic = {
+		sclera = Color3.fromHex("#1E2A0A"),
+		pupil = { 0.12, 0.44 },
+		pupilColor = Color3.fromHex("#C8FF3A"),
+		neon = true,
+	},
+	-- Pale lavender eyes, a deep-blue pupil and a star glint (reads on the dark cosmic skins).
+	starlit = {
+		sclera = Color3.fromHex("#DCD4FF"),
+		reflectance = 0.2,
+		pupil = { 0.36, 0.4 },
+		pupilColor = Color3.fromHex("#2A1A6A"),
+		glint = true,
+	},
+}
+
+-- The face: tier defaults, then each feature's overrides in order (the signature first).
+local function buildStyledFace(ctx: Ctx, face: { [string]: any }, set: { [string]: boolean })
+	local s = ctx.s
+	local head = ctx.anchors.head
+	local hr = ctx.anchors.headR.Position -- head radii (a CFrame only to keep the table typed)
+	local front = ctx.anchors.face
+	local eyes = face.eyes or 2
+	local style = face.eyeStyle or "normal"
+	local eyeScale = s * (if style == "glow" then 1.05 elseif eyes == 1 then 1.5 elseif style == "baby" then 1.3 else 1)
+	local positions = if eyes == 1
+		then { Vector3.new(0, 0, 0) }
+		elseif eyes == 2 then { Vector3.new(-0.42, 0, 0), Vector3.new(0.42, 0, 0) }
+		elseif eyes == 3 then {
+			Vector3.new(-0.55, -0.05, 0.05),
+			Vector3.new(0, 0.3, -0.05),
+			Vector3.new(0.55, -0.05, 0.05),
+		}
+		else {
+			Vector3.new(-0.62, -0.08, 0.08),
+			Vector3.new(-0.22, 0.25, -0.03),
+			Vector3.new(0.22, 0.25, -0.03),
+			Vector3.new(0.62, -0.08, 0.08),
+		}
+	for _, p in positions do
+		local cf = front * CFrame.new(p * s)
+		if style == "bulge" then
+			-- Frog eyes on bumps on top of the head.
+			cf = head * CFrame.new(p.X * s * 1.2, hr.Y * 0.85, -hr.Z * 0.35)
+			newPart(ctx.model, "EyeBump", Vector3.new(0.85, 0.75, 0.85) * s, cf, ctx.pal.skin, "ellipsoid").Material =
+				ctx.material
+			cf = cf * CFrame.new(0, 0.12 * s, -0.3 * s)
+		end
+		-- Tier eyes with their own colors: a sclera, then a pupil shape.
+		local tinted = TINTED_EYES[style]
+		if tinted then
+			local eye =
+				newPart(ctx.model, "Eye", Vector3.new(0.75, 0.8, 0.5) * eyeScale, cf, tinted.sclera, "ellipsoid")
+			eye.Reflectance = tinted.reflectance or 0
+			local pupil = newPart(
+				ctx.model,
+				"Pupil",
+				Vector3.new(tinted.pupil[1], tinted.pupil[2], 0.2) * eyeScale,
+				cf * CFrame.new(0, -0.03 * eyeScale, -0.2 * eyeScale),
+				tinted.pupilColor,
+				"ellipsoid"
+			)
+			if tinted.neon then
+				pupil.Material = Enum.Material.Neon
+			end
+			if tinted.glint then
+				newPart(
+					ctx.model,
+					"Glint",
+					Vector3.new(0.12, 0.12, 0.08) * eyeScale,
+					cf * CFrame.new(0.1 * eyeScale, 0.1 * eyeScale, -0.29 * eyeScale),
+					WHITE,
+					"ball"
+				).Material =
+					Enum.Material.Neon
+			end
+			if style == "toxic" then
+				newPart(
+					ctx.model,
+					"Brow",
+					Vector3.new(0.7, 0.14, 0.15) * eyeScale,
+					cf
+						* CFrame.new(0, 0.45 * eyeScale, -0.15 * eyeScale)
+						* CFrame.Angles(0, 0, math.rad(p.X > 0 and 15 or -15)),
+					DARK
+				)
+			end
+		elseif style == "hollow" then
+			newPart(
+				ctx.model,
+				"Socket",
+				Vector3.new(0.6, 0.7, 0.3) * eyeScale,
+				cf,
+				Color3.fromHex("#06040A"),
+				"ellipsoid"
+			)
+			newPart(
+				ctx.model,
+				"Pupil",
+				Vector3.new(0.14, 0.14, 0.1) * eyeScale,
+				cf * CFrame.new(0, 0, -0.14 * eyeScale),
+				Color3.fromHex("#8A6AD8"),
+				"ball"
+			).Material =
+				Enum.Material.Neon
+		elseif style == "glow" then
+			newPart(ctx.model, "Eye", Vector3.new(0.75, 0.8, 0.5) * eyeScale, cf, WHITE, "ellipsoid")
+			local glow = newPart(
+				ctx.model,
+				"Pupil",
+				Vector3.new(0.3, 0.3, 0.2) * eyeScale,
+				cf * CFrame.new(0, 0, -0.2 * eyeScale),
+				Color3.fromHex("#F0ECFF"),
+				"ball"
+			)
+			glow.Material = Enum.Material.Neon
+			glow:SetAttribute("Idle", "flicker")
+		else
+			local kind = if style == "sleepy" or style == "angry" then style else "normal"
+			buildEye(ctx.model, cf, eyeScale, kind, set.Cosmic == true, ctx.pal.skin)
+			if style == "baby" then
+				newPart(
+					ctx.model,
+					"Shine",
+					Vector3.new(0.18, 0.18, 0.1) * eyeScale,
+					cf * CFrame.new(-0.12 * eyeScale, -0.12 * eyeScale, -0.27 * eyeScale),
+					WHITE,
+					"ellipsoid"
+				)
+			elseif style == "star" then
+				local star = newPart(
+					ctx.model,
+					"StarPupil",
+					Vector3.new(0.16, 0.16, 0.12) * eyeScale,
+					cf * CFrame.new(0, 0, -0.3 * eyeScale),
+					Color3.fromHex("#FFD24A"),
+					"ball"
+				)
+				star.Material = Enum.Material.Neon
+			elseif style == "goggle" then
+				newPart(
+					ctx.model,
+					"Lens",
+					Vector3.new(0.25, 1, 1) * eyeScale,
+					cf * CFrame.new(0, 0, -0.18 * s) * CFrame.Angles(0, math.rad(90), 0),
+					DARK,
+					"cylinder"
+				).Transparency =
+					0.35
+			end
+		end
+	end
+	local mouth = face.mouth or "smile"
+	local mcf = front * CFrame.new(0, -0.62 * s, 0.05 * s)
+	if mouth == "frog" then
+		newPart(
+			ctx.model,
+			"Mouth",
+			Vector3.new(hr.X * 1.6, 0.14 * s, 0.3 * s),
+			mcf * CFrame.new(0, 0.1 * s, 0),
+			MOUTH,
+			"ellipsoid"
+		)
+	elseif mouth == "line" then
+		newPart(ctx.model, "Mouth", Vector3.new(0.5, 0.08, 0.15) * s, mcf, MOUTH)
+	elseif mouth == "whisper" then
+		newPart(ctx.model, "Mouth", Vector3.new(0.45, 0.05, 0.12) * s, mcf, Color3.fromHex("#C8B8F0"))
+	else
+		buildMouth(ctx.model, mouth, mcf, s)
+	end
+end
+
+local function buildStyled(data: MutantData, info: Species, set: { [string]: boolean }, s: number): Model
+	local st = (Style :: any)[data.tier]
+	local look = lookup(data.tier)
+	local bodyDef = look.bodies[info.body]
+	assert(bodyDef, "unknown body " .. tostring(info.body) .. " for " .. data.tier)
+
+	local model = Instance.new("Model")
+	model.Name = info.name
+	model:SetAttribute("Tier", data.tier)
+	model:SetAttribute("Rarity", data.rarity)
+	model:SetAttribute("Idle", st.idle)
+	if info.idleVariant then
+		model:SetAttribute("IdleVariant", info.idleVariant)
+	end
+	local root = newPart(model, "Root", Vector3.new(1, 0.2, 1) * s, CFrame.new(), WHITE)
+	root.Transparency = 1
+	model.PrimaryPart = root
+
+	local skin = st.skin
+	local material0 = (Enum.Material :: any)[skin.material] or Enum.Material.SmoothPlastic
+	local color, material, reflectance = paint(Color3.fromHex(info.color), set, material0, skin.reflectance)
+	local skin2 = paint(Color3.fromHex(info.skin2 or info.color), set)
+	local accent = Color3.fromHex(info.accent)
+	local mutated = material ~= material0
+	local ctx: Ctx = {
+		model = model,
+		s = s,
+		pal = {
+			skin = color,
+			skin2 = skin2,
+			skinDark = color:Lerp(DARK, 0.35),
+			skinLight = color:Lerp(WHITE, 0.4),
+			accent = if set.Radioactive then Color3.fromHex("#7CFF4A") else accent,
+		},
+		material = material,
+		reflectance = reflectance,
+		transparency = if mutated then 0 else skin.transparency or 0,
+		anchors = { root = CFrame.new() },
+	}
+
+	-- Body (anchored at the feet), then every anchor features attach to.
+	local bodyParts = {}
+	for _, piece in bodyDef.parts do
+		for _, p in buildPiece(ctx, piece, nil, "Body") do
+			table.insert(bodyParts, p)
+		end
+	end
+	local main = bodyParts[1]
+	local mainDef = bodyDef.parts[1]
+	local ext = Vector3.new(mainDef.size[1], mainDef.size[2], mainDef.size[3]) / 2 * s
+	if mainDef.shape == "cyl" and mainDef.rot and math.abs(mainDef.rot[3]) == 90 then
+		ext = Vector3.new(ext.Y, ext.X, ext.Z) -- a stood-up cylinder
+	end
+	local bodyCf = CFrame.new(main.CFrame.Position)
+	local hp, hrDef = bodyDef.head.pos, bodyDef.head.r
+	local headCf = CFrame.new(hp[1] * s, hp[2] * s, hp[3] * s)
+	local hr = Vector3.new(hrDef[1], hrDef[2], hrDef[3]) * s
+	local a = ctx.anchors
+	a.body = bodyCf
+	a.head = headCf
+	a.headR = CFrame.new(hr)
+	a.top = headCf * CFrame.new(0, hr.Y * 0.92, 0)
+	a.face = headCf * CFrame.new(0, hr.Y * 0.2, -hr.Z * 0.86)
+	a.neck = headCf * CFrame.new(0, -hr.Y * 0.75, 0)
+	a.front = bodyCf * CFrame.new(0, 0, -ext.Z * 0.92)
+	a.back = bodyCf * CFrame.new(0, 0, ext.Z * 0.92)
+	a.side = bodyCf * CFrame.new(ext.X * 0.95, 0, 0)
+	a.above = headCf * CFrame.new(0, hr.Y + 0.9 * s, 0)
+	a.beside = CFrame.new(ext.X + 0.9 * s, 0, -0.2 * s)
+	a.hand = a.beside
+
+	-- Wet sheen (Swamp): a slightly bigger Glass shell over each body part.
+	local overlay = skin.overlay
+	if overlay and not mutated then
+		for _, p in bodyParts do
+			local o = p:Clone()
+			o.Name = "Sheen"
+			o.Size = p.Size * overlay.grow
+			o.Material = (Enum.Material :: any)[overlay.material]
+			o.Transparency = overlay.transparency
+			o.Reflectance = overlay.reflectance
+			o.Color = color:Lerp(WHITE, 0.25)
+			for _, c in o:GetChildren() do
+				if not c:IsA("SpecialMesh") then
+					c:Destroy()
+				end
+			end
+			o.Parent = model
+		end
+	end
+	-- Starfield (Cosmic): tiny Neon specks on the body.
+	if skin.specks then
+		for i = 1, skin.specks.n do
+			local speck = newPart(
+				model,
+				"Speck",
+				Vector3.one * skin.specks.size * s,
+				surface(bodyCf, ext * 0.98, i * 2.39, 0.5 + (i * 0.618) % 1 * 2.0),
+				Color3.fromHex(skin.specks.color),
+				"ball"
+			)
+			speck.Material = Enum.Material.Neon
+		end
+	end
+
+	-- Arms (Lab): a capsule each side; `hand` is the right one's end.
+	if st.arms and bodyDef.arms then
+		local ax, ay = bodyDef.arms.x * s, bodyDef.arms.y * s
+		for _, side in { -1, 1 } do
+			local arm = newPart(
+				model,
+				"Arm",
+				Vector3.new(0.42, 1.3, 0.42) * s,
+				CFrame.new(side * (ax + 0.2 * s), ay - 0.3 * s, 0) * CFrame.Angles(0, 0, math.rad(side * 25)),
+				color,
+				"ellipsoid"
+			)
+			arm.Material = material
+			newPart(
+				model,
+				"Hand",
+				Vector3.new(0.38, 0.38, 0.38) * s,
+				CFrame.new(side * (ax + 0.45 * s), ay - 0.85 * s, -0.05 * s),
+				ctx.pal.skinLight,
+				"ball"
+			)
+		end
+		a.hand = CFrame.new(ax + 0.45 * s, ay - 0.95 * s, -0.25 * s)
+	end
+
+	-- Features: the face and feet take every override in order; then each feature's parts.
+	local face = table.clone(st.face)
+	local feet = st.feet
+	for _, id in info.features or {} do
+		local f = look.features[id]
+		assert(f, "unknown feature " .. id .. " for " .. data.tier)
+		for k, v in f.face or {} do
+			if k == "feet" then
+				feet = v
+			else
+				face[k] = v
+			end
+		end
+	end
+	if feet == "nub" or feet == "webbed" then
+		for _, side in { -1, 1 } do
+			local x = side * math.max(ext.X * 0.45, 0.45 * s)
+			if feet == "nub" then
+				newPart(
+					model,
+					"Foot",
+					Vector3.new(0.8, 0.45, 1) * s,
+					CFrame.new(x, 0.22 * s, -0.15 * s),
+					ctx.pal.skinDark,
+					"ellipsoid"
+				)
+			else
+				newPart(
+					model,
+					"Foot",
+					Vector3.new(1.2, 0.2, 1.3) * s,
+					CFrame.new(x, 0.1 * s, -0.35 * s),
+					ctx.pal.skinDark,
+					"ellipsoid"
+				)
+				for t = -1, 1 do
+					newPart(
+						model,
+						"Toe",
+						Vector3.new(0.28, 0.18, 0.4) * s,
+						CFrame.new(x + t * 0.35 * s, 0.09 * s, -0.95 * s),
+						ctx.pal.skinDark,
+						"ellipsoid"
+					)
+				end
+			end
+		end
+	end
+	buildStyledFace(ctx, face, set)
+	for _, id in info.features or {} do
+		local f = look.features[id]
+		for _, piece in f.parts do
+			buildPiece(ctx, piece, nil, (f.label:gsub("%s", "")))
+		end
+		if f.particles then
+			particles(main, f.particles, s)
+		end
+	end
+	if info.prop then
+		local prop = look.props[info.prop]
+		assert(prop, "unknown prop " .. info.prop .. " for " .. data.tier)
+		for _, piece in prop.parts do
+			buildPiece(ctx, piece, Color3.fromHex(prop.tint), "Prop")
+		end
+	end
+	if skin.particles and not mutated then
+		particles(main, skin.particles, s)
+	end
+
+	-- Height: the top of the tallest part (the hatch camera frames it).
+	local top = 0
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and d ~= root then
+			top = math.max(top, d.CFrame.Position.Y + d.Size.Y / 2)
+		end
+	end
+	model:SetAttribute("Height", top)
+	addEffects(model, main, set, s)
+	return model
+end
+
+-- Builds a mutant. data.size is the size multiplier rolled at harvest (0.8x-3x).
+function MutantModel.build(data: MutantData): Model
+	local info = MutantModel.species(data)
+	local set = mutationSet(data.mutations)
+	local s = MutantModel.visualScale(data)
+	if info.features and (Style :: any)[data.tier] then
+		return buildStyled(data, info, set, s)
+	end
+	return buildLegacy(data, info, set, s)
+end
+
+-- Height in studs of a mutant standing still: its body recipe's top (head included) for a
+-- styled species, 3.6 units for a hand-made one; times the visual scale.
+function MutantModel.height(data: MutantData): number
+	local info = MutantModel.species(data)
+	local units = 3.6
+	if info.features and (Style :: any)[data.tier] then
+		local def = lookup(data.tier).bodies[info.body]
+		units = def.head.pos[2] + def.head.r[2]
+		for _, piece in def.parts do
+			units = math.max(units, piece.pos[2] + piece.size[2] / 2)
+		end
+	end
+	return units * MutantModel.visualScale(data)
+end
+
+-- The Almanac's trait lines for a species, from the same vocabulary the model is built from:
+-- { { label, value } }. Styled species: body, signature, other features, prop, dance (Legendary).
+local LEGACY_TRAITS = {
+	body = {
+		blob = "Round",
+		tall = "Tall",
+		flat = "Flat",
+		spiky = "Spiky",
+		pear = "Pear",
+		worm = "Wiggly",
+		puff = "Puffy",
+	},
+	mouth = {
+		smile = "Grin",
+		fangs = "Fangs",
+		tooth = "Big tooth",
+		wide = "Huge mouth",
+		tongue = "Tongue out",
+		none = "None",
+	},
+}
+function MutantModel.traits(info: Species): { { string } }
+	if not (info.features and (Style :: any)[info.tier]) then
+		local accessory = info.accessory or "none"
+		return {
+			{ "Body", LEGACY_TRAITS.body[info.body] or info.body },
+			{ "Eyes", tostring(info.eyes or 2) },
+			{ "Mouth", LEGACY_TRAITS.mouth[info.mouth or "smile"] or info.mouth or "" },
+			{ "Wears", if accessory == "none" then "Nothing" else (accessory:gsub("^%l", string.upper)) },
+		}
+	end
+	local look = lookup(info.tier)
+	local features = info.features :: { string }
+	local out = {
+		{ "Body", look.bodies[info.body].label },
+		{ "Signature", look.features[features[1]].label },
+	}
+	if #features > 1 then
+		local rest = {}
+		for i = 2, #features do
+			table.insert(rest, look.features[features[i]].label)
+		end
+		table.insert(out, { "Features", table.concat(rest, ", ") })
+	end
+	if info.prop then
+		table.insert(out, { "Prop", look.props[info.prop].label })
+	end
+	if info.idleVariant then
+		table.insert(out, { "Dance", info.idleVariant })
+	end
+	return out
+end
+
+-------------------------------------------------------------------------------- idle animations
+
+-- The whole model's offset from its feet at time t (seconds): the tier's idle (MutantStyle
+-- `idle`), bigger and faster for a Legendary's named variant (the variant's place in the tier's
+-- idleVariants adds a sway (2nd) or a slow spin (3rd)). `scale` is MutantModel.visualScale.
+function MutantModel.idlePose(tier: string, variant: string?, t: number, scale: number): CFrame
+	local st = (Style :: any)[tier]
+	if not st then
+		return CFrame.identity
+	end
+	local def = Style.idles[st.idle]
+	local amp, speed = def.amp, def.speed
+	local extra = CFrame.identity
+	if variant then
+		amp *= Style.variantBoost.amp
+		speed *= Style.variantBoost.speed
+		local index = table.find(st.idleVariants, variant) or 1
+		if index == 2 then
+			extra = CFrame.Angles(0, 0, math.rad(6) * math.sin(t * speed * 0.5))
+		elseif index == 3 then
+			extra = CFrame.Angles(0, t * 0.6, 0)
+		end
+	end
+	local kind = st.idle
+	local wave = math.sin(t * speed)
+	local pose
+	if kind == "bob" then
+		pose = CFrame.new(0, math.abs(wave) * amp * scale, 0)
+	elseif kind == "sag" then
+		pose = CFrame.new(0, -(wave + 1) / 2 * amp * scale, 0)
+			* CFrame.Angles(0, 0, math.rad(def.tilt) * math.sin(t * speed * 0.5))
+	elseif kind == "twitch" then
+		-- Still most of the time; a quick jerk every couple of seconds.
+		local phase = (t * 0.6) % 1
+		local jerk = if phase < 0.08 then math.sin(phase / 0.08 * math.pi * 3) else 0
+		pose = CFrame.Angles(0, math.rad(amp) * jerk, math.rad(amp * 0.5) * jerk)
+	elseif kind == "drip" then
+		pose = CFrame.new(0, wave * amp * scale, 0)
+	elseif kind == "hover" then
+		pose = CFrame.new(0, (def.lift + wave * def.amp) * scale * (amp / def.amp), 0)
+	else -- orbit
+		pose = CFrame.new(0, wave * amp * scale, 0) * CFrame.Angles(0, t * (def.spin or 0), 0)
+	end
+	return pose * extra
+end
+
+-- A tagged part's offset (from the feet) at time t: "orbit" circles the vertical axis through
+-- `center`, "drip" slides down and starts over, "float" bobs gently. Others stay put.
+function MutantModel.partPose(anim: string, t: number, offset: CFrame, center: Vector3?, scale: number): CFrame
+	if anim == "orbit" then
+		local c = center or Vector3.zero
+		return CFrame.new(c) * CFrame.Angles(0, t * 0.8, 0) * CFrame.new(-c) * offset
+	elseif anim == "drip" then
+		return CFrame.new(0, -((t * 0.5) % 1) * 0.5 * scale, 0) * offset
+	elseif anim == "float" then
+		return CFrame.new(0, math.sin(t * 1.7) * 0.15 * scale, 0) * offset
+	end
+	return offset
+end
+
+-- "flicker" parts (a Void eye, a status light): shown except for brief blinks.
+function MutantModel.flickerVisible(t: number): boolean
+	return (t * 0.9) % 1 > 0.07
 end
 
 -------------------------------------------------------------------------------- eggs

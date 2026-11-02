@@ -46,6 +46,15 @@ type Roamer = {
 	model: Model,
 	parts: { BasePart },
 	offsets: { CFrame },
+	-- Idle animation (MutantModel.idlePose / partPose): the tier, a Legendary's variant, the
+	-- visual scale, and per part its tag ("orbit" / "drip" / "float" / "flicker") and orbit center.
+	tier: string,
+	variant: string?,
+	scale: number,
+	styled: boolean,
+	anims: { [number]: string },
+	centers: { [number]: Vector3 },
+	flickerOn: boolean,
 	pos: Vector3,
 	target: Vector3,
 	speed: number,
@@ -371,17 +380,32 @@ local function rebuildPen(pen: Pen)
 		track(model)
 		-- Cache each part's offset from the feet so moving is one BulkMoveTo per pen.
 		local rootCf = (model.PrimaryPart :: BasePart).CFrame
-		local parts, offsets = {}, {}
+		local parts, offsets, anims, centers = {}, {}, {}, {}
 		for _, d in model:GetDescendants() do
 			if d:IsA("BasePart") then
 				table.insert(parts, d)
 				table.insert(offsets, rootCf:ToObjectSpace(d.CFrame))
+				local anim = d:GetAttribute("Idle")
+				if anim then
+					anims[#parts] = anim
+					local center = d:GetAttribute("OrbitCenter")
+					if center then
+						centers[#parts] = center
+					end
+				end
 			end
 		end
 		table.insert(pen.roamers, {
 			model = model,
 			parts = parts,
 			offsets = offsets,
+			tier = data.tier,
+			variant = model:GetAttribute("IdleVariant") :: string?,
+			scale = MutantModel.visualScale(data),
+			styled = model:GetAttribute("Idle") ~= nil,
+			anims = anims,
+			centers = centers,
+			flickerOn = true,
 			pos = start,
 			target = randomPoint(half, radius),
 			speed = 2.5 / math.sqrt(math.max(1, radius)),
@@ -413,12 +437,37 @@ local function updatePen(pen: Pen, dt: number, t: number, camPos: Vector3)
 			r.pos += delta.Unit * math.min(delta.Magnitude, r.speed * dt)
 		end
 		local dir = if delta.Magnitude > 0.01 then delta.Unit else Vector3.new(0, 0, -1)
-		local hop = math.abs(math.sin(t * 6 + r.phase)) * 0.35 * math.min(r.radius, 4)
-		local world = frame * CFrame.new(r.pos + Vector3.new(0, hop, 0))
+		local world = frame * CFrame.new(r.pos)
 		local rootCf = CFrame.lookAt(world.Position, world.Position + frame:VectorToWorldSpace(dir))
-		for i, part in r.parts do
-			table.insert(parts, part)
-			table.insert(cframes, rootCf * r.offsets[i])
+		local clock = t + r.phase
+		if r.styled then
+			-- The tier's idle (bob, sag, twitch, drip, hover, orbit), tagged parts on top.
+			rootCf *= MutantModel.idlePose(r.tier, r.variant, clock, r.scale)
+			local flickerOn = MutantModel.flickerVisible(clock)
+			for i, part in r.parts do
+				local anim = r.anims[i]
+				table.insert(parts, part)
+				if anim then
+					table.insert(
+						cframes,
+						rootCf * MutantModel.partPose(anim, clock, r.offsets[i], r.centers[i], r.scale)
+					)
+					if anim == "flicker" and flickerOn ~= r.flickerOn then
+						part.LocalTransparencyModifier = if flickerOn then 0 else 1
+					end
+				else
+					table.insert(cframes, rootCf * r.offsets[i])
+				end
+			end
+			r.flickerOn = flickerOn
+		else
+			-- Hand-made limited species: the old walking hop.
+			local hop = math.abs(math.sin(t * 6 + r.phase)) * 0.35 * math.min(r.radius, 4)
+			rootCf = CFrame.new(0, hop, 0) * rootCf
+			for i, part in r.parts do
+				table.insert(parts, part)
+				table.insert(cframes, rootCf * r.offsets[i])
+			end
 		end
 	end
 	if #parts > 0 then
