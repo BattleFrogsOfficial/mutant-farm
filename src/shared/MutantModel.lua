@@ -708,6 +708,11 @@ local function buildPiece(ctx: Ctx, piece: any, tint: Color3?, defaultName: stri
 	local color = roleColor(ctx, piece.color, tint)
 	local skinRole = SKIN_ROLES[piece.color] == true
 	for _, m in mirrors do
+		-- The mirror copy reflects across the body's center line (x = 0), anchor included, so a
+		-- piece on the right side's anchor gets its twin on the left side.
+		local anchor = if m == 1
+			then anchor
+			else CFrame.new(-anchor.Position.X, anchor.Position.Y, anchor.Position.Z) * anchor.Rotation
 		local pos = Vector3.new(piece.pos[1] * m, piece.pos[2], piece.pos[3]) * s
 		local rot = if piece.rot
 			then CFrame.Angles(math.rad(piece.rot[1]), math.rad(piece.rot[2]) * m, math.rad(piece.rot[3]) * m)
