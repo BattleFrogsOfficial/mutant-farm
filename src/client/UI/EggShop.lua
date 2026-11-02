@@ -449,10 +449,19 @@ local function card(spec: { i: number?, limited: string? })
 					Text = Computed(function()
 						return if quantity == 1 then priceText(mode:get(), 1) else "x5"
 					end),
-					-- A Gem price carries the gem glyph after it ("600 [gem]").
-					IconAfter = Computed(function()
-						return if quantity == 1 and currencyOf(mode:get()) == "Gems" then "gem" else nil
-					end),
+					-- A Cash price has the coin glyph before it ("[coin] $50", like the Cash panel); a
+					-- Gem price the gem glyph after it ("600 [gem]").
+					-- (Only the single-egg button: a glyph prop reserves room even when it's empty.)
+					Icon = if quantity == 1
+						then Computed(function()
+							return if currencyOf(mode:get()) == "Cash" then "coin" else nil
+						end)
+						else nil,
+					IconAfter = if quantity == 1
+						then Computed(function()
+							return if currencyOf(mode:get()) == "Gems" then "gem" else nil
+						end)
+						else nil,
 					IconSize = 24,
 					-- Gems: pink, and short on Gems opens the Gem shop. Cash: green, grey when short.
 					Color = Computed(function()

@@ -314,8 +314,10 @@ function Components.button(props: { [string]: any })
 	local text = props.Text
 	local icon = props.Icon
 	local iconSize = props.IconSize or math.min(28, (read(props.MaxTextSize) or 26) + 4)
-	local leftPad = if icon then iconSize + 6 else 0
-	local rightPad = if props.IconAfter then iconSize + 6 else 0
+	-- Room for a glyph only while it's shown (Icon / IconAfter may be states that are nil).
+	local function pad(glyph: any): number
+		return if read(glyph) then iconSize + 6 else 0
+	end
 
 	return New("Frame")({
 		Name = props.Name or "Button",
@@ -431,8 +433,12 @@ function Components.button(props: { [string]: any })
 					Components.label({
 						Name = "Text",
 						Text = text,
-						Size = UDim2.new(1, -(14 + leftPad + rightPad), 1, -10),
-						Position = UDim2.fromOffset(7 + leftPad, 5),
+						Size = Computed(function()
+							return UDim2.new(1, -(14 + pad(icon) + pad(props.IconAfter)), 1, -10)
+						end),
+						Position = Computed(function()
+							return UDim2.fromOffset(7 + pad(icon), 5)
+						end),
 						MaxTextSize = props.MaxTextSize or 26,
 						TextColor3 = props.TextColor3,
 						StrokeThickness = 2.5,

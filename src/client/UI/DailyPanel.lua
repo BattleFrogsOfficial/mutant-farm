@@ -13,6 +13,8 @@ local Shared = ReplicatedStorage.Shared
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
 local Passes = require(ReplicatedStorage.Shared.Config.Passes)
 local Daily = require(Shared.Config.Daily)
+local Eggs = require(Shared.Config.Eggs)
+local Format = require(Shared.Format)
 local Remotes = require(Shared.Remotes)
 local MutantModel = require(Shared.MutantModel)
 local State = require(script.Parent.Parent.State)
@@ -29,7 +31,7 @@ end
 
 -- Card sizes (design px): six 88 wide and the Day 7 card wider, 12 apart (room for the 4 px
 -- borders) = the 728 content width.
-local CARD_W, BIG_W, CARD_H, CARD_GAP = 88, 128, 196, 12
+local CARD_W, BIG_W, CARD_H, CARD_GAP = 88, 128, 212, 12
 
 -- The reward's art: the real egg model, a stack of coins for Cash, the gem glyph for Gems.
 local function art(reward: any, big: boolean)
@@ -68,13 +70,23 @@ local function art(reward: any, big: boolean)
 end
 
 -- The two reward lines under the art: the amount (a number, 16 px) and what it is (14 px).
-local function rewardLines(reward: any): (string, string)
+-- The two reward lines under the art: the amount (16 px) and what it is (14 px, may wrap):
+-- "x4" / "SWAMP EGGS", "x1" / "TOXIC EGG", "x50" / "GEMS", and for Cash the amount you'd get
+-- today, the way DailyService pays it: `minutes` of your pen income, at least `min` ("$1K" /
+-- "CASH"). The Cash amount is read live from the snapshot.
+local function rewardLines(reward: any): (any, string)
 	if reward.kind == "eggs" then
-		return "x" .. reward.count, string.upper(reward.egg)
+		local name = string.upper(Eggs.tiers[reward.egg] and Eggs.tiers[reward.egg].name or reward.egg)
+		return "x" .. reward.count, if reward.count == 1 then name else name .. "S"
 	elseif reward.kind == "gems" then
 		return "x" .. reward.count, "GEMS"
 	end
-	return "$ x" .. reward.minutes, "MINUTES"
+	return Computed(function()
+		local snap = State.snapshot:get()
+		local perMinute = if snap then snap.incomePerMinute or 0 else 0
+		return Format.cash(math.max(reward.min, math.floor(perMinute * reward.minutes)))
+	end),
+		"CASH"
 end
 
 local function card(day: number)
@@ -152,8 +164,10 @@ local function card(day: number)
 						Name = "What",
 						Text = what,
 						Position = UDim2.fromOffset(2, 124),
-						Size = UDim2.new(1, -4, 0, 18),
+						Size = UDim2.new(1, -4, 0, 36), -- "SWAMP" / "EGGS" on two lines
 						TextScaled = false,
+						TextWrapped = true,
+						TextYAlignment = Enum.TextYAlignment.Top,
 						TextSize = 14,
 						TextColor3 = Theme.colors.cream,
 						StrokeThickness = 0,
@@ -252,7 +266,7 @@ return function()
 			New("Frame")({
 				Name = "Cards",
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(0, 34),
+				Position = UDim2.fromOffset(0, 30),
 				Size = UDim2.new(1, 0, 0, CARD_H),
 				ZIndex = 2,
 				[Children] = cards,
@@ -261,8 +275,8 @@ return function()
 			New("Frame")({
 				Name = "Strips",
 				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(0, 244),
-				Size = UDim2.new(1, 0, 0, 78),
+				Position = UDim2.fromOffset(0, 30 + CARD_H + 8),
+				Size = UDim2.new(1, 0, 0, 74),
 				ZIndex = 2,
 				[Children] = {
 					New("UIListLayout")({ SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6) }),
@@ -270,7 +284,7 @@ return function()
 					New("Frame")({
 						Name = "Group",
 						LayoutOrder = 1,
-						Size = UDim2.new(1, 0, 0, 36),
+						Size = UDim2.new(1, 0, 0, 34),
 						BackgroundColor3 = Theme.colors.panelHi,
 						BorderSizePixel = 0,
 						Visible = Computed(function()
@@ -310,7 +324,7 @@ return function()
 							C.button({
 								AnchorPoint = Vector2.new(1, 0.5),
 								Position = UDim2.new(1, -6, 0.5, 0),
-								Size = UDim2.fromOffset(120, 34),
+								Size = UDim2.fromOffset(120, 30),
 								Color = Theme.colors.navy,
 								Text = "CLAIM",
 								MaxTextSize = 16,
@@ -325,7 +339,7 @@ return function()
 					New("Frame")({
 						Name = "Vip",
 						LayoutOrder = 2,
-						Size = UDim2.new(1, 0, 0, 36),
+						Size = UDim2.new(1, 0, 0, 34),
 						BackgroundColor3 = Theme.colors.panelHi,
 						BorderSizePixel = 0,
 						Visible = Computed(function()

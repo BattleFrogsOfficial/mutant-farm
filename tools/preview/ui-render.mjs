@@ -405,6 +405,19 @@ window.checkText = (sizes) => {
   for (const sp of document.querySelectorAll(".gui span")) {
     if (sp.offsetParent === null || !sp.textContent.trim()) continue;
     if (EMOJI.test(sp.textContent.replace(/[·]/g, ""))) problems.push(\`emoji in text "\${sp.textContent.trim()}"\`);
+    // No word broken across lines ("$500" drawn as "$50" / "0"): each word's range is one line box.
+    for (const node of sp.childNodes) {
+      if (node.nodeType !== 3) continue;
+      const re = /\\S+/g;
+      let m;
+      while ((m = re.exec(node.textContent))) {
+        const range = document.createRange();
+        range.setStart(node, m.index);
+        range.setEnd(node, m.index + m[0].length);
+        const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0.5).map((r) => Math.round(r.top)));
+        if (lines.size > 1) problems.push(\`"\${m[0]}" broken across lines\`);
+      }
+    }
     if (!sizes) continue;
     const host = sp.parentElement, holder = host.parentElement;
     const scale = holder && holder.offsetWidth ? holder.getBoundingClientRect().width / holder.offsetWidth : 1;
