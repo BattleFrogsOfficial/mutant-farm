@@ -52,30 +52,9 @@ for _, tier in TABS do
 	byTier[tier] = list
 end
 
-local TRAIT_NAMES = {
-	body = {
-		blob = "Round",
-		tall = "Tall",
-		flat = "Flat",
-		spiky = "Spiky",
-		pear = "Pear",
-		worm = "Wiggly",
-		puff = "Puffy",
-	},
-	mouth = {
-		smile = "Grin",
-		fangs = "Fangs",
-		tooth = "Big tooth",
-		wide = "Huge mouth",
-		tongue = "Tongue out",
-		none = "None",
-	},
-}
-
 -- Height in studs of a species at a given size roll.
 local function height(e, size: number): number
-	return 3.6
-		* MutantModel.visualScale({ tier = e.tier, rarity = e.rarity, species = e.id, mutations = {}, size = size })
+	return MutantModel.height({ tier = e.tier, rarity = e.rarity, species = e.id, mutations = {}, size = size })
 end
 
 local function chip(text: string, color: Color3, order: number)
@@ -126,6 +105,11 @@ local function detailPage(id: string, entry: { n: number, first: number, best: n
 	local minH, maxH = height(e, 0.8), height(e, 3)
 	local first = os.date("%b %d, %Y", math.floor(entry.first))
 	local data = { tier = e.tier, rarity = e.rarity, species = id, mutations = {}, size = entry.best }
+	-- Body, signature, features, prop, dance: from the vocabulary the model is built from.
+	local traitLines = {}
+	for i, trait in MutantModel.traits(e) do
+		table.insert(traitLines, line(trait[1], trait[2], 3 + i))
+	end
 	return {
 		New("Frame")({
 			Name = "Stage",
@@ -206,16 +190,13 @@ local function detailPage(id: string, entry: { n: number, first: number, best: n
 					Text = e.description,
 					ZIndex = 12,
 				}),
-				line("Body", TRAIT_NAMES.body[e.body] or e.body, 4),
-				line("Eyes", tostring(e.eyes), 5),
-				line("Mouth", TRAIT_NAMES.mouth[e.mouth] or e.mouth, 6),
-				line("Wears", if e.accessory == "none" then "Nothing" else (e.accessory:gsub("^%l", string.upper)), 7),
-				line("Size", string.format("%.1f to %.1f studs tall", minH, maxH), 8),
-				line("Your biggest", string.format("x%.2f size (%.1f studs)", entry.best, height(e, entry.best)), 9),
-				line("Hatched", string.format("%d time%s", entry.n, if entry.n == 1 then "" else "s"), 10),
-				line("First found", first, 11),
+				traitLines,
+				line("Size", string.format("%.1f to %.1f studs tall", minH, maxH), 20),
+				line("Your biggest", string.format("x%.2f size (%.1f studs)", entry.best, height(e, entry.best)), 21),
+				line("Hatched", string.format("%d time%s", entry.n, if entry.n == 1 then "" else "s"), 22),
+				line("First found", first, 23),
 				New("Frame")({
-					LayoutOrder = 12,
+					LayoutOrder = 24,
 					Size = UDim2.new(1, -8, 0, 0),
 					AutomaticSize = Enum.AutomaticSize.Y,
 					BackgroundColor3 = Theme.colors.purpleDark,
@@ -374,6 +355,8 @@ local function markerColor(mk: AlmanacTrack.Marker): Color3
 		return Color3.fromHex(Eggs.tiers[m.egg :: string].color):Lerp(Theme.colors.white, AlmanacUI.eggMarkerTint)
 	elseif m.kind == "luck" then
 		return LUCK_COLOR
+	elseif m.kind == "gems" and m.big then
+		return Color3.fromHex(AlmanacUI.gemColor)
 	end
 	return Theme.colors.slateLight
 end

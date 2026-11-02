@@ -262,6 +262,7 @@ function AlmanacTrack.layout(
 			elseif m.big then UIConfig.laterBigSize
 			else UIConfig.laterSize
 		local outline = if role == "later" and not m.big then UIConfig.laterOutline else UIConfig.markerOutline
+		x = math.floor(x + 0.5) -- whole pixels, so a label (even width) centers on it exactly
 		table.insert(markers, {
 			milestone = m,
 			x = x,
@@ -320,7 +321,7 @@ function AlmanacTrack.layout(
 	-- the number alone, else none (the tooltip still tells).
 	local placed: { Label } = {}
 	local function make(p: Parts, center: number, short: boolean): Label
-		local w = AlmanacTrack.partsWidth(p, font)
+		local w = 2 * math.ceil(AlmanacTrack.partsWidth(p, font) / 2) -- even, to center on a whole pixel
 		local text = if p.post ~= "" then p.pre .. " · " .. p.post else p.pre
 		return {
 			text = text,

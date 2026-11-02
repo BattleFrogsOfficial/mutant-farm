@@ -126,13 +126,13 @@ return function(t)
 					if mk.role == "passed" then
 						-- Proportional over the passed stretch; the last passed one at the segment's start.
 						local p = mk.milestone.at / (l.last :: any).at
-						t.near(mk.x, l.barLeft + p * (l.segStart - l.barLeft), 1e-6)
+						t.near(mk.x, l.barLeft + p * (l.segStart - l.barLeft), 0.5) -- snapped to whole pixels
 					elseif mk.role == "next" then
-						t.eq(mk.x, l.segEnd)
+						t.near(mk.x, l.segEnd, 0.5)
 					else
 						-- Proportional over the rest of the bar.
 						local p = (mk.milestone.at - l.next.at) / (lastAt - l.next.at)
-						t.near(mk.x, l.segEnd + p * (l.barRight - l.segEnd), 1e-6)
+						t.near(mk.x, l.segEnd + p * (l.barRight - l.segEnd), 0.5)
 					end
 				end
 				-- The segment takes its fixed fraction; the passed and later stretches share the rest by
