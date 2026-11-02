@@ -13,9 +13,19 @@ return function(t)
 	local WIDTH = UI.panelWidth - 2 * UI.contentPad
 	local every = Game.almanacMilestones.every
 	local lastAt = (TOTAL // every) * every
-	local FOUNDS = { 0, 5, 24, 25, 26, 99, 100, 101, 399, 400, 410 }
+	local FOUNDS = { 0, 5, 24, 25, 26, 99, 100, 101, 399, 400, 499, 500, 510 }
 	-- Desktop label size, and the size small phones need (on-screen scale ~0.56).
 	local FONTS = { UI.labelSize, Track.fontSize(0.559) }
+
+	-- The passed markers' drawn width (they shrink when many crowd the bar).
+	local function passedExtent(l): number
+		for _, mk in l.markers do
+			if mk.role == "passed" then
+				return mk.extent
+			end
+		end
+		return 0
+	end
 
 	local function each(fn)
 		for _, found in FOUNDS do
@@ -55,6 +65,7 @@ return function(t)
 			t.eq(Track.label(byAt[200]), "200 · Void Egg")
 			t.eq(Track.label(byAt[300]), "300 · Cosmic Egg")
 			t.eq(Track.label(byAt[400]), "400 · +10% luck")
+			t.eq(Track.label(byAt[500]), "500 · 100 Gems")
 			t.eq(Track.label(byAt[100], "short"), "100")
 			t.eq(Track.label(byAt[400], "short"), "400")
 			t.eq(Track.parts(byAt[100]).pre, "100")
@@ -76,6 +87,7 @@ return function(t)
 				[100] = { 4, 100, 125, 0 },
 				[101] = { 4, 100, 125, 0.04 },
 				[399] = { 15, 375, 400, 0.96 },
+				[499] = { 19, 475, 500, 0.96 },
 			}
 			for found, w in want do
 				local l = Track.layout(found, TOTAL, WIDTH, UI.labelSize)
@@ -86,7 +98,7 @@ return function(t)
 				t.ok(not l.allPassed, "not all passed at " .. found)
 				t.near(l.fillWidth, w[4] * (l.segEnd - l.segStart), 1e-9)
 			end
-			for _, found in { 400, 410 } do
+			for _, found in { 500, 510 } do
 				local l = Track.layout(found, TOTAL, WIDTH, UI.labelSize)
 				t.ok(l.allPassed, "all passed at " .. found)
 				t.eq(l.next, nil)
@@ -126,10 +138,17 @@ return function(t)
 				-- The segment takes its fixed fraction; the passed and later stretches share the rest by
 				-- the species they cover.
 				local span = l.barRight - l.barLeft
-				t.near(l.segEnd - l.segStart, UI.segmentFraction * span, 1e-6)
+				-- segmentFraction of the bar, less when the markers need the room.
+				t.ok(l.segEnd - l.segStart <= UI.segmentFraction * span + 1e-6, "segment at " .. found)
 				local doneRange, laterRange = l.last and l.last.at or 0, lastAt - l.next.at
 				local other = (1 - UI.segmentFraction) * span
-				t.near(l.segStart - l.barLeft, other * doneRange / (doneRange + laterRange), 1e-6)
+				-- Proportional, unless that would crowd the passed markers (then each gets its width).
+				local proportional = other * doneRange / (doneRange + laterRange)
+				local done = l.segStart - l.barLeft
+				t.ok(
+					math.abs(done - proportional) < 1e-6 or done >= l.passed * (passedExtent(l) + UI.markerGap) - 1e-6,
+					"passed stretch at " .. found
+				)
 			end)
 		end,
 		["no two markers overlap"] = function()
@@ -197,9 +216,10 @@ return function(t)
 				[200] = "200 · Void Egg",
 				[300] = "300 · Cosmic Egg",
 				[400] = "400 · +10% luck",
+				[500] = "500 · 100 Gems",
 			}
-			-- Desktop, the next milestone well clear of every big one: all four in full.
-			for _, found in { 0, 5, 24, 99, 101, 175, 399 } do
+			-- Desktop, the next milestone well clear of every big one: all in full.
+			for _, found in { 0, 5, 24, 99, 101, 175, 399, 480 } do
 				local s = shown(found, UI.labelSize)
 				for at, text in full do
 					if at > found then
@@ -207,18 +227,20 @@ return function(t)
 					end
 				end
 			end
-			-- The next one 50 species before a big one: the big one keeps its number, centered.
-			t.eq(shown(26, UI.labelSize)[100], "100")
-			-- 25 before: not even the number fits beside the next label; the tooltip still tells.
+			-- The next one 25-50 species before a big one: not even the number fits beside it, so
+			-- the big label hides (the tooltip still tells); farther along it's back in full.
+			t.eq(shown(26, UI.labelSize)[100], false)
 			t.eq(shown(60, UI.labelSize)[100], false)
 			t.eq(shown(60, UI.labelSize)[75], "75 · 25 Gems")
-			-- Small phones (bigger font): the rest still in full.
+			-- Crowded by its neighbours, a big label keeps its number, centered.
+			t.eq(shown(200, UI.labelSize)[300], "300")
+			-- Small phones (bigger font): the next one and some big ones in full, the rest numbers.
 			local s = shown(5, Track.fontSize(0.559))
 			t.eq(s[25], "25 · 25 Gems")
 			t.eq(s[100], "100")
 			t.eq(s[200], full[200])
-			t.eq(s[300], full[300])
 			t.eq(s[400], full[400])
+			t.eq(s[500], full[500])
 		end,
 		["tap targets: nearest marker, no overlaps, at least the marker, capped"] = function()
 			for _, hit in { UI.hitWidth, 80 } do

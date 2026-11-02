@@ -84,6 +84,8 @@ function AlmanacTrack.milestones(total: number, cfg: any?): { Milestone }
 		local big = c.big[at]
 		if big and big.luck then
 			table.insert(out, { at = at, kind = "luck", luck = big.luck, big = true } :: Milestone)
+		elseif big and big.gems then
+			table.insert(out, { at = at, kind = "gems", gems = big.gems, big = true } :: Milestone)
 		elseif big and big.eggs then
 			-- One egg tier per big milestone (the first, alphabetically, if a config ever lists more).
 			local ids = {}
@@ -224,10 +226,38 @@ function AlmanacTrack.layout(
 	local barRight = width - endPad(ms[#ms], "full")
 	local span = barRight - barLeft
 
+	local gap = UIConfig.markerGap
+	local function laterExtent(m: Milestone): number
+		return if m.big
+			then AlmanacTrack.extent(UIConfig.laterBigSize)
+			else AlmanacTrack.extent(UIConfig.laterSize, UIConfig.laterOutline)
+	end
+	local nextExtent = AlmanacTrack.extent(UIConfig.nextSize)
+	-- Later milestones are evenly spaced (every `every` species), so one pitch has to fit the
+	-- widest neighbouring pair, the next diamond and the first later marker included.
+	local laterCount = if allPassed then 0 else #ms - passed - 1
+	local laterPitch = 0
+	for i = passed + 2, #ms do
+		local left = if i == passed + 2 then nextExtent else laterExtent(ms[i - 1])
+		laterPitch = math.max(laterPitch, (left + laterExtent(ms[i])) / 2 + gap)
+	end
+	local laterMin = laterCount * laterPitch
+	local segMin = if allPassed then 0 else 2 * nextExtent
+	-- Passed markers are passedSize, shrinking (to laterBigSize at most) only when that many
+	-- of them can't fit beside everything else.
+	local passedSize = UIConfig.passedSize
+	while
+		passed > 0
+		and passedSize > UIConfig.laterBigSize
+		and passed * (AlmanacTrack.extent(passedSize) + gap) > span - segMin - laterMin
+	do
+		passedSize -= 1
+	end
+
 	local markers: { Marker } = {}
 	local function add(m: Milestone, x: number, role: "passed" | "next" | "later")
 		local size = if role == "passed"
-			then UIConfig.passedSize
+			then passedSize
 			elseif role == "next" then UIConfig.nextSize
 			elseif m.big then UIConfig.laterBigSize
 			else UIConfig.laterSize
@@ -256,10 +286,21 @@ function AlmanacTrack.layout(
 		local fromAt = if last then last.at else 0
 		local lastAt = ms[#ms].at
 		-- The passed stretch (0 .. last passed) and the later one (next .. last milestone) share
-		-- what the segment leaves, in proportion to the species they cover.
+		-- what the segment leaves, in proportion to the species they cover, but never so cramped
+		-- that neighbours touch: each passed marker gets at least its own width (plus
+		-- markerGap), each later one its pitch; when both still don't fit, the current segment
+		-- gives up room (down to two big diamonds).
 		local doneRange, laterRange = fromAt, lastAt - next.at
-		local other = if doneRange + laterRange > 0 then (1 - UIConfig.segmentFraction) * span else 0
+		local doneMin = passed * (AlmanacTrack.extent(passedSize) + gap)
+		local segW = UIConfig.segmentFraction * span
+		if span - segW < doneMin + laterMin then
+			segW = math.max(span - doneMin - laterMin, segMin)
+		end
+		local other = if doneRange + laterRange > 0 then span - segW else 0
 		local doneW = if other > 0 then other * doneRange / (doneRange + laterRange) else 0
+		if other > 0 then
+			doneW = math.max(math.min(doneW, other - laterMin), math.min(doneMin, other))
+		end
 		segStart = barLeft + doneW
 		segEnd = barRight - (other - doneW)
 		fraction = math.clamp((found - fromAt) / (next.at - fromAt), 0, 1)

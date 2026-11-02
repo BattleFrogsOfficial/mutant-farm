@@ -65,6 +65,7 @@ return {
 			[200] = { eggs = { Void = 1 } },
 			[300] = { eggs = { Cosmic = 1 } },
 			[400] = { luck = 0.1 },
+			[500] = { gems = 100 }, -- the 500-species roster's top milestone (no more luck)
 		},
 	},
 

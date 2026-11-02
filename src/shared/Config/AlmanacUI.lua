@@ -19,7 +19,10 @@ return {
 	labelTop = 36, -- label row (two lines): from here to trackHeight
 	-- The current segment (last passed milestone .. next one) takes this fraction of the bar; the
 	-- later milestones are spread proportionally over the rest.
-	segmentFraction = 0.28,
+	segmentFraction = 0.22,
+	-- Space between neighbouring markers' outlines when a stretch is crowded (AlmanacTrack gives
+	-- each passed / later marker at least its own width plus this).
+	markerGap = 2,
 	-- Marker sides (squares turned 45 degrees: on screen they're side x 1.41 across).
 	nextSize = 18, -- the big diamond at the end of the fill
 	passedSize = 16, -- gold, with a check
@@ -35,6 +38,7 @@ return {
 	-- milestone has its own teal (Toxic's green is taken by the Toxic egg).
 	eggMarkerTint = 0.4,
 	luckColor = "#4AE0C8",
+	gemColor = "#5CC8FF", -- a big Gem milestone (500)
 	-- Passed markers' check: two ink bars in a square this fraction of the marker's side, each
 	-- { x, y (center, 0..1 of that square), length (0..1), rotation }.
 	checkRatio = 0.7,

@@ -216,7 +216,8 @@ local function almanacMilestone(player: Player, data: Types.Profile)
 		local at = data.almanacRewards * cfg.every
 		local big = cfg.big[at]
 		if big then
-			-- Real goods at the big milestones: eggs from higher tiers, or a permanent luck bonus.
+			-- Real goods at the big milestones: eggs from higher tiers, a permanent luck bonus, or a
+			-- bigger Gem prize.
 			local parts = {}
 			for eggId, count in big.eggs or {} do
 				if Eggs.tiers[eggId] then
@@ -227,6 +228,9 @@ local function almanacMilestone(player: Player, data: Types.Profile)
 			if big.luck then
 				data.almanacLuck += big.luck
 				table.insert(parts, string.format("+%d%% luck forever", math.floor(big.luck * 100 + 0.5)))
+			end
+			if big.gems and EconomyService.addGems(player, data, big.gems, "Gameplay", "Almanac_" .. at) then
+				table.insert(parts, string.format("+%d Gems", big.gems))
 			end
 			Net.notify(player, string.format("%d species! %s", at, table.concat(parts, " + ")), "success")
 		elseif EconomyService.addGems(player, data, cfg.gems, "Gameplay", "Almanac_" .. at) then
