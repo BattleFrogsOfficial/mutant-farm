@@ -4,7 +4,8 @@
 --   lune run tools/sim                         pacing report for the current config
 --   lune run tools/sim -- --runs 50 --hours 1.5 --days 30
 --
--- The bot: waters every 30s while online, sells everything at once (Sell All also sells the
+-- The bot: stands on its water pad while online and taps a share (`--taps`, default every one) of
+-- the growth circle's boosts, sells everything at once (Sell All also sells the
 -- pen's auto-fill, so its pen stays empty), plants the egg with the best expected profit per
 -- minute it can afford, buys the cheapest upgrade whenever it costs under a quarter of its Cash,
 -- and rebirths the moment it can (the bag outside the pen is sold first and counted as earned;
@@ -30,6 +31,7 @@ local Costs = harness.require(shared .. "/Costs")
 local ShopRules = harness.require(shared .. "/ShopRules")
 local Format = harness.require(shared .. "/Format")
 local AutoHarvest = harness.require(shared .. "/AutoHarvest")
+local Watering = harness.require(shared .. "/Watering")
 
 ---------------------------------------------------------------------------- options
 
@@ -44,6 +46,7 @@ local opts = {
 	growth = nil :: number?,
 	pen = "sell",
 	autoharvest = false,
+	taps = 1,
 }
 do
 	local args = process.args
@@ -61,6 +64,11 @@ do
 			i += 1
 		elseif a == "--growth" then
 			opts.growth = tonumber(args[i + 1]) -- try a rebirth cost multiplier without editing Config
+			i += 1
+		elseif a == "--taps" then
+			-- share of online time under a growth boost: 1 = taps every boost (perfect), 0 = only
+			-- stands on the water pad
+			opts.taps = tonumber(args[i + 1]) :: number
 			i += 1
 		elseif a == "--pen" then
 			opts.pen = args[i + 1] -- "sell" (default) or "keep"
@@ -247,6 +255,17 @@ local function bestTier(p: Player, budget: number): string?
 	return best
 end
 
+-- Online watering: the pad all the time, and a growth boost (the higher of the two applies) for
+-- `opts.taps` of it, at the average of max(pad, offer) over the offers' odds.
+local function onlineWater(): number
+	local pad = GameConfig.water.padMultiplier
+	local boosted = 0
+	for mult, chance in Watering.odds() do
+		boosted += math.max(pad, mult) * chance
+	end
+	return opts.taps * boosted + (1 - opts.taps) * pad
+end
+
 -- Expected Cash/min with every slot on the best unlocked tier, actively watered.
 local function fullRate(p: Player): number
 	local id = bestTier(p, math.huge)
@@ -254,7 +273,7 @@ local function fullRate(p: Player): number
 		return 0
 	end
 	local value, time = eggEV(id, luckOf(p), Upgrades.mutationOdds.bonusPerLevel * p.oddsLevel)
-	local speed = Growth.speed(p.growthLevel, p.passes.GrowthSpeed2x == true) * GameConfig.waterMultiplier
+	local speed = Growth.speed(p.growthLevel, p.passes.GrowthSpeed2x == true) * onlineWater()
 	return p.slotCount * (value * cashMultiplier(p) - Eggs.tiers[id].cost) / (time / speed) * 60
 end
 
@@ -320,8 +339,7 @@ end
 local function step(p: Player, now: number, dt: number, online: boolean, rebirthCost: (number) -> number)
 	local luck = luckOf(p)
 	local oddsBonus = Upgrades.mutationOdds.bonusPerLevel * p.oddsLevel
-	local speed = Growth.speed(p.growthLevel, p.passes.GrowthSpeed2x == true)
-		* (if online then GameConfig.waterMultiplier else 1)
+	local speed = Growth.speed(p.growthLevel, p.passes.GrowthSpeed2x == true) * (if online then onlineWater() else 1)
 	local rollsAllowed = online or p.passes.OfflineMutations or (now - p.leftAt) <= GameConfig.offlineMutationCap
 
 	for _, slot in p.slots do
@@ -483,11 +501,13 @@ end
 
 print(
 	string.format(
-		"Mutant Farm pacing — %d runs, %.1f active hours/day, up to %d days, pen: %s\n",
+		"Mutant Farm pacing — %d runs, %.1f active hours/day, up to %d days, pen: %s, online growth x%.2f (water pad + %d%% of boosts tapped)\n",
 		opts.runs,
 		opts.hours,
 		opts.days,
-		if opts.pen == "sell" then "sell everything" else "keep the best " .. GameConfig.penDisplayCount
+		if opts.pen == "sell" then "sell everything" else "keep the best " .. GameConfig.penDisplayCount,
+		onlineWater(),
+		math.floor(opts.taps * 100 + 0.5)
 	)
 )
 

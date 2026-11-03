@@ -1,4 +1,4 @@
-# Handoff — 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
+# Handoff — 2026-11-03 (watering rework), 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
 
 Read `CLAUDE.md` first (rules, conventions, live numbers, commands) and `docs/DESIGN.md` (intent; dated
 rule changes at the top). This file is what a fresh session needs on top of them: what changed in the
@@ -9,6 +9,70 @@ Place file: `rojo build default.project.json -o MutantFarm.rbxl`.
 
 **The Pumpkin Egg window is open now** (2026-10-29 00:00 EDT to 11-05 23:59 EST). The M5 build and
 everything below have still not been published or played in Studio; see "Next tasks".
+
+## 2026-11-03: Watering rework (water pad + growth circle)
+
+Asked for: replace the WATER button (one tap = 2x for 30 s) with a spot to stand on (2x while you
+stand there) plus a circle on screen, "Click for Xx growth for 5s", X from 3x to 10x (lower more
+often); a tap sets the plot to X for 5 s while the circle shows a cooldown, then it respawns
+somewhere else on the screen with a new X. Goal: make passive play pay.
+
+| Commit | What |
+|---|---|
+| `3d9ed95` | Rules + server: `Growth` takes a water state (`Growth.Water`: pad + boost window, the higher applies), `shared/Watering.lua` (weighted offers, cooldown, spot picker), `Config/Game.water`, `WaterService` (`TapBoost`, `setOnPad`), PlotService pad poll, profile fields, tests (growth, watering, server harness). The `Water` intent is gone. |
+| `569cd03` | World: a water pad (blue disc on a stone rim, "2x GROWTH" floor text read from the gate) and a sprinkler in each plot's front corner (x 19, z -19 in the plot frame), surfaces 0.78 / 0.86 |
+| `a5c70c9` | formatting |
+| `5a015ac` | Client: the growth circle (stepped pixel circle, `Icons.disc` / `orb`), SHOP alone at the plot, timer chips with the live multiplier ("2x" / "10x"), sprinkler spray while the owner is on the pad, tutorial steps (circle, then pad), preview scenes + checks; ui-render now streams the scene JSON from a local HTTP server |
+| (this one) | sim `--taps`, DESIGN.md note, CLAUDE.md, this handoff |
+
+Choices I made where the ask left room (say if any is wrong):
+- **Pad and boost don't multiply**: "the multiplier will be set to that level" reads as replace, so
+  the higher of the two applies (a boost is always 3x+, so it wins while it runs). Both still stack
+  with the 2x Growth Speed pass and the Growth Speed upgrade.
+- **Odds** (`Config/Game.water.tapOffers`, weights): 3x 30%, 4x 22%, 5x 16%, 6x 11%, 7x 8%, 8x 6%,
+  9x 4%, 10x 3% (average 4.94x). The server rolls each offer; the client only shows it.
+- **Where the circle shows**: at your plot only, while an egg is growing (or a boost runs). It moves
+  between 4 spots in the band between the toast lane and Next Up; that band is the only free space
+  on a 540-px-tall canvas, so it moves left/right (x -130 / -44 / 44 / 130), not up/down. The outer
+  spots are as far as it can go and still clear the chat on an 800x600 window and the right column.
+- **A circle in a boxy UI**: no UICorner (the house rule), so it's a stepped pixel-art circle built
+  from bars like the other glyphs. Easy to swap for a smooth one if you'd rather.
+- **Text inside it**: "CLICK FOR 7x GROWTH FOR 5s" doesn't fit a 104 px circle at the 14 px minimum,
+  so it reads CLICK (TAP on touch) / 7x / FOR 5s; while running ACTIVE / 7x / 0:04 with the rim grey
+  and a water fill draining.
+- **The pad**: in the plot's front corner beside the gate (the only free lawn big enough), radius
+  2.4; the server checks the owner's root part every 0.25 s with 0.5 studs of slack. Only the owner
+  counts; visitors standing on it do nothing.
+
+**Pacing (open decision, below):** `lune run tools/sim -- --runs 60 [--taps F]`, 1.5 h/day:
+
+| Online play | First rebirth | Free R4 / R10 | Paying R4 / R10 |
+|---|---|---|---|
+| only stands on the pad (`--taps 0`) = the old perfect waterer | 25 sim-min | day 3 / day 23 | day 2 / day 14 |
+| taps half the boosts (`--taps 0.5`) | 15 | day 2 / day 18 | day 1 / day 11 |
+| taps every boost (`--taps 1`, default) | 10 | day 1 / day 13 | day 1 / day 8 |
+
+Raising Rebirth 1's cost doesn't fix it cleanly (`--taps 0.5 --first-cost 2000000`: first rebirth only
+21 sim-min, but free Rebirth 10 drops out of 30 days), because the boost speeds up every rebirth, not
+only the first.
+
+**Checks:** check 133 files · test 156 passed · stylua clean · world checker 0 issues (2095 parts,
+limited decor on and off) · UI preview 0 issues (474 scenes: Text, HUD overlap across 303
+state x size combinations, Shop, Panels, extra checks 374). No review pass (owner's rule: launch
+build only). **Not played in Studio.**
+
+**Studio list for this one:**
+1. Stand on the pad: the sprinkler sprays, timers show "2x", the egg finishes twice as fast; step
+   off, back to normal. Jump on it, die on it, leave while on it, rejoin (not on the pad).
+2. The circle at the plot: CLICK / 7x / FOR 5s, pulsing; tap: the water sound, the toast (first tap
+   only), ACTIVE / 7x / 0:04 with the fill draining, timers show "7x"; after 5 s it moves and shows a
+   new number. Spam-tapping during the cooldown does nothing.
+3. On a phone (TAP, the spots clear of the thumbstick and chat) and an 800x600 window (the outer spots
+   vs the chat).
+4. The tutorial on a fresh profile: plant, tap the circle (gold rim), stand on the pad (arrow to it),
+   hatch.
+5. With the 2x Growth Speed pass: pad 4x, a 7x boost 14x on the timers.
+6. Visitors see the owner's sprinkler; their own circle and pad are unaffected.
 
 ## 2026-11-02: Mutant roster regeneration (500 species)
 
@@ -242,6 +306,14 @@ M5 / reconciliation / Egg Shop lists in `git show 53b4844:docs/HANDOFF.md` (the 
 end first).
 
 ## Open decisions
+
+- **Watering pacing (2026-11-03):** a player tapping every growth boost reaches the first rebirth in
+  10 sim-min (target 35-45 real, ~25 sim) and free Rebirth 10 on day 13 (target ~3 weeks); pad-only
+  play paces exactly as before. Options: (a) keep it (real players tap far less than the bot, and
+  faster active play may be the point); (b) soften the offers (e.g. weights toward 3x-4x, or a
+  shorter boost / a gap between boosts) so a full tapper lands near ~2.5-3x; (c) retune rebirth
+  costs for tappers (the whole curve, not only Rebirth 1). Measure the real tap rate in a soft launch
+  (`stats.waters` per online minute) before choosing.
 
 - Gem rewards in the Daily calendar: the card supports `kind = "gems"`, but the config has none and
   `DailyService` doesn't grant them yet (adding them is a balance change).
