@@ -498,7 +498,7 @@ if opts.passes then
 end
 if opts.all then
 	table.insert(scenarios, {
-		name = "Everything (every pass: 2x Luck, Auto-Harvest, 2x Growth, Offline Mutations, +10 Slots, VIP)",
+		name = "Everything (every pass: 2x Luck, Auto-Harvest, 1.5x Growth, Offline Mutations, +10 Slots, VIP)",
 		passes = {
 			Luck2x = true,
 			AutoHarvest = true,
@@ -587,4 +587,4 @@ for _, scenario in scenarios do
 	end
 	print()
 end
-print("Targets: Rebirth 4 on day 3–4 free / day 1 paying; Rebirth 10 in ~3 weeks free / ~1 week paying.")
+print("Targets (2026-11-03): Rebirth 10 in ~20 h of play with every pass (one long session: --all --hours 30 --days 1); free about 3x the play.")

@@ -1,4 +1,4 @@
-# Handoff — 2026-11-03 (watering rework), 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
+# Handoff — 2026-11-03 (progression: 1.5x pass, x6.5 rebirths, Magma + Quantum tiers; watering rework), 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
 
 Read `CLAUDE.md` first (rules, conventions, live numbers, commands) and `docs/DESIGN.md` (intent; dated
 rule changes at the top). This file is what a fresh session needs on top of them: what changed in the
@@ -9,6 +9,62 @@ Place file: `rojo build default.project.json -o MutantFarm.rbxl`.
 
 **The Pumpkin Egg window is open now** (2026-10-29 00:00 EDT to 11-05 23:59 EST). The M5 build and
 everything below have still not been published or played in Studio; see "Next tasks".
+
+## 2026-11-03: Progression lengthened (1.5x Growth pass, rebirths x6.5, Magma + Quantum tiers)
+
+Reported: with every pass (Studio test purchases, passes only, no Gems) the owner reached
+Rebirth 11 overnight; free reached Rebirth 1 in ~30 minutes. The simulator agreed: every pass +
+tapping every growth boost reached Rebirth 10 in 6 h of play (free 22 h), and nothing new
+unlocked after Rebirth 6. Owner's answers: ~20 h of play to Rebirth 10 with every pass; a ~3x
+gap to free (trim only the Growth pass); new egg tiers.
+
+| Commit | What |
+|---|---|
+| `427ac1a` | 1: Growth Speed pass 1.5x (`Passes.GrowthSpeed2x.multiplier`; the id stays) |
+| `c6e3edf` | 2: Magma (R9: 50M, 10 h, 250M base) + Quantum (R11: 500M, 12 h, 3.2B), Gem variants 5,000 / 12,000, rebirth costs x6.5; sim `--all`, `--passes` |
+| `f01f97a` | 3: their vocabularies (MutantStyle), ember / pixel eyes, rumble / phase idles, magma / pixels egg shells, 166 species (the 510 existing ones byte-identical: new tiers have their own random sequence), Almanac 676 / milestones to 675, panel 876 wide |
+| `5ff77a3` | 4: previews and checks read `Eggs.order`; Magma reworked after the zoo render; Almanac grid 6 x 2 |
+| (this one) | 5: docs |
+
+**Pacing now** (sim, tapping every growth boost; "h" = hours of play):
+
+| | Rebirth 1 | Rebirth 6 | Rebirth 9 (Magma) | Rebirth 10 | Rebirth 12 |
+|---|---|---|---|---|---|
+| every pass, one long session | 0.1 h | 1.9 h | 14 h | **19 h** | 53 h |
+| free, one long session | 0.2 h (10 sim-min) | 4.8 h | 57 h | 74 h | 233 h |
+| every pass, 1.5 h/day | day 1 | day 2 | day 6 | day 7 | day 17 |
+| 2x Luck only, 1.5 h/day | day 1 | day 2 | day 15 | day 21 | day 66 |
+| free, 1.5 h/day | day 1 | day 4 | day 33 | day 45 | not in 90 days |
+
+Notes for whoever tunes next:
+- The gap to free at Rebirth 10 is ~3.9x, not 3x: early on it's ~2.5x, but late the multipliers
+  compound (1.5x Growth x 1.5x VIP Cash x 2x Luck on the rare-heavy late tiers). Trimming VIP to
+  1.25x Cash would bring it to ~3x (not done: the owner chose the Growth trim only).
+- By the calendar, every pass is far ahead of free (day 7 vs day 45) because Auto-Harvest works
+  8 offline hours a day; in hours of play the gap is the ~3.9x above.
+- Free Rebirth 10 is now ~74 h of perfect play (~6-7 weeks at 1.5 h/day), well past the old
+  "~3 weeks". If that's too long, the lever is `Rebirths.costGrowth` (6.2: every pass ~16 h,
+  free ~61 h) or `cashBonusPerRebirth`.
+- First rebirth unchanged (700K): 10 sim-min tapping every boost, 25 on the pad only.
+
+**Checks:** check 133 files · test 156 passed · stylua clean · world checker 0 issues (2095
+parts, limited decor on and off; a Titan Quantum Legendary checked in the pen) · UI preview 0
+issues (474 scenes). Zoo render looked at (Magma reworked once: it read as a dark crate). No
+review pass (owner's rule). **Not played in Studio.**
+
+**Studio list for this one:**
+1. The Growth Speed pass: timers 1.5x faster with it (not 2x); the Store card reads "1.5x Growth
+   Speed". **Rename the pass in Creator Hub** to match ("1.5x Growth Speed", description "Every egg
+   grows 1.5x faster").
+2. Rebirth costs on the Altar sign and Rebirth panel (4.55M for Rebirth 2), the Rebirth strip.
+3. With a profile at Rebirth 9 and 11 (set `rebirths` in a test profile): the Egg Shop shows Magma
+   and Quantum (cards, odds, the Gem switch), the "NEW" flash when one unlocks, planting and
+   hatching one (the cutscene camera frames a big Magma / Quantum Legendary), pens with them.
+4. Magma in Studio: the CrackedLava material (the preview can't draw it), the embers, lava veins,
+   the rumble idle. Quantum: the Glass cubes, pixel eyes, the phase idle's sideways glitch.
+5. Almanac: 9 tabs on a phone (names at 14 px), the 27-marker track, the 6 x 2 grid at 134 px.
+6. The Almanac 600 milestone grants a Magma egg before Rebirth 9 (like the Cosmic egg at 300
+   before Rebirth 6): plant it and check it works.
 
 ## 2026-11-03: Watering rework (water pad + growth circle)
 
@@ -306,6 +362,10 @@ M5 / reconciliation / Egg Shop lists in `git show 53b4844:docs/HANDOFF.md` (the 
 end first).
 
 ## Open decisions
+
+- **Progression (2026-11-03):** free Rebirth 10 ~74 h of play (was ~23); the every-pass gap ~3.9x
+  at Rebirth 10 (VIP 1.25x would make it ~3x); Quantum at Rebirth 11 (offered as 12; moved so
+  Rebirth 12 stays reachable). See the 2026-11-03 progression section.
 
 - **Watering pacing (2026-11-03):** a player tapping every growth boost reaches the first rebirth in
   10 sim-min (target 35-45 real, ~25 sim) and free Rebirth 10 on day 13 (target ~3 weeks); pad-only
