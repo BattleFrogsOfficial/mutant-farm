@@ -13,6 +13,8 @@ export type Slot = {
 	updatedAt: number,
 	rollsDone: number,
 	lastRollAt: number,
+	baseGrow: number?, -- onboarding grow ramp: seconds as a Common instead of the tier's
+	scripted: string?, -- "firstHatch": the scripted first hatch (no rolls; fixed outcome)
 }
 
 -- An owned patch's Auto-Harvest settings (kept while the patch is empty, unlike its Slot).
@@ -31,9 +33,11 @@ export type Item = {
 	harvestedAt: number,
 	egg: string?, -- the egg it hatched from (a Gem variant's id; tier is always the base tier)
 	pinned: boolean?, -- always stands in the pen; skipped by Sell All and kept on rebirth
+	valueScale: number?, -- multiplies its value after everything else (the scripted first hatch)
+	scripted: string?, -- "firstHatch": a scripted outcome (no odds, analytics or Top Pens)
 }
 
-export type AlmanacEntry = { n: number, first: number, best: number }
+export type AlmanacEntry = { n: number, first: number, best: number, firstHatch: boolean? }
 
 export type Profile = {
 	version: number,
@@ -82,6 +86,15 @@ export type Profile = {
 	groupOffered: boolean, -- the group offer was shown (once, at the first sale)
 	vipGemsDay: number, -- UTC day of the last VIP daily Gems claim
 	seenLimited: { [string]: boolean }, -- limited egg id -> the shop has opened on it once
+	onboarding: {
+		active: boolean, -- created with the scripted opening (Config/Onboarding)
+		preplanted: boolean, -- its first egg was planted for it
+		firstHatch: boolean, -- the scripted first hatch happened
+		shopOpened: boolean, -- the Egg Shop was opened once (the tray's BUY button goes)
+		weather: boolean, -- the free solo Solar Flare happened
+		bundle: boolean, -- the Starter Bundle window started (on the first Rare's reveal)
+		playSeconds: number, -- online seconds so far (the solo weather waits for 2:30)
+	},
 }
 
 export type SlotView = {
@@ -135,6 +148,7 @@ export type Snapshot = {
 	almanacLuck: number,
 	vipGemsReady: boolean, -- VIP pass: today's Gems can be claimed
 	seenLimited: { [string]: boolean },
+	onboarding: { active: boolean, shopOpened: boolean, weather: boolean }?,
 }
 
 return {}

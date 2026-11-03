@@ -30,7 +30,7 @@ end
 function AutoHarvest.nextMature(slots: { [string]: Slot }, at: number, water: Growth.Water, speed: number): number?
 	local best: number? = nil
 	for _, slot in slots do
-		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+		local required = Growth.slotRequired(slot)
 		local grown = Growth.advance(slot.growth, slot.updatedAt, at, water, speed)
 		if required - grown > 1e-6 then
 			local when = at + Growth.secondsRemaining(grown, required, at, water, speed)

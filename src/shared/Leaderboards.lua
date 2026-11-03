@@ -20,7 +20,10 @@ local MAX_VALUE = 2 ^ 53
 function Leaderboards.penValue(penItems: { Valuation.Mutant }): number
 	local total = 0
 	for _, item in penItems do
-		total += Valuation.sellValue(item, 1)
+		-- Scripted outcomes (the onboarding's first hatch) never count toward Top Pens.
+		if (item :: any).scripted == nil then
+			total += Valuation.sellValue(item, 1)
+		end
 	end
 	return math.floor(math.min(total, MAX_VALUE))
 end

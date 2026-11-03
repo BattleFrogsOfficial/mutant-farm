@@ -25,6 +25,8 @@ local AutoHarvest = require(Shared.AutoHarvest)
 local WeatherRules = require(Shared.WeatherRules)
 local Weather = require(Shared.Config.Weather)
 local Rolls = require(Shared.Rolls)
+local Onboarding = require(Shared.Onboarding)
+local OnboardingConfig = require(Shared.Config.Onboarding)
 local Rng = require(Shared.Rng)
 local Valuation = require(Shared.Valuation)
 local Format = require(Shared.Format)
@@ -65,11 +67,12 @@ function GrowthService.settle(data: Types.Profile, now: number, rollsAllowed: bo
 	local speed = DataService.speed(data)
 	for key, slot in data.slots do
 		if now > slot.updatedAt then
-			local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+			local required = Growth.slotRequired(slot)
 			local grown =
 				math.min(Growth.advance(slot.growth, slot.updatedAt, now, DataService.water(data), speed), required)
 			local rolls = Growth.rollsCrossed(slot.growth, grown, required)
-			if rollsAllowed ~= false then
+			-- The scripted first hatch has a fixed outcome: no rolls.
+			if rollsAllowed ~= false and not slot.scripted then
 				for _ = 1, rolls do
 					for _, id in Rolls.rollMutations(rng, slot.mutations, luck(data), oddsBonus(data)) do
 						table.insert(slot.mutations, id)
@@ -102,7 +105,7 @@ local function announce(player: Player, data: Types.Profile, events: { MutationE
 end
 
 local function isMature(slot: Types.Slot): boolean
-	return slot.growth >= Growth.requiredSeconds(slot.eggId, slot.rarity) - 1e-6
+	return slot.growth >= Growth.slotRequired(slot) - 1e-6
 end
 
 local function inventoryCount(data: Types.Profile): number
@@ -135,7 +138,7 @@ function GrowthService.weatherRoll(player: Player, data: Types.Profile, eventId:
 	announce(player, data, events)
 	local any = #events > 0
 	for key, slot in data.slots do
-		if not isMature(slot) and not table.find(slot.mutations, mutation) then
+		if not isMature(slot) and not slot.scripted and not table.find(slot.mutations, mutation) then
 			if rng:next() < chance then
 				table.insert(slot.mutations, mutation)
 				any = true
@@ -190,6 +193,42 @@ local function plant(player: Player, data: Types.Profile, key: string, eggId: st
 	Analytics.funnel(player, data, "FirstPlant")
 	DataService.changed(player)
 	return true
+end
+
+-- The scripted opening: a new profile's first egg, already growing on its patch, a few seconds
+-- from hatching (Config/Onboarding.preplant). Its hatch is the scripted one (harvest below).
+-- Counts as the first egg planted, so the player's own first plant is the guaranteed Rare.
+function GrowthService.preplant(player: Player, data: Types.Profile)
+	local o = data.onboarding
+	if not o.active or o.preplanted then
+		return
+	end
+	o.preplanted = true
+	local cfg = OnboardingConfig.preplant
+	local key = tostring(cfg.slot)
+	if data.slots[key] or not Eggs.tiers[cfg.egg] then
+		return
+	end
+	local now = DataService.now()
+	local rarity = OnboardingConfig.firstHatch.rarity
+	local slot: Types.Slot = {
+		eggId = cfg.egg,
+		rarity = rarity,
+		species = rollSpecies(cfg.egg, rarity),
+		mutations = {},
+		size = 1,
+		plantedAt = now,
+		growth = 0,
+		updatedAt = now,
+		rollsDone = 0,
+		lastRollAt = now,
+		scripted = "firstHatch",
+	}
+	slot.growth = math.max(0, Growth.slotRequired(slot) - cfg.secondsLeft)
+	data.slots[key] = slot
+	data.patches[key] = { replant = false, egg = cfg.egg }
+	data.stats.eggsPlanted += 1
+	DataService.changed(player)
 end
 
 local function onPlant(player: Player, data: Types.Profile, slotIndex: any, eggId: any)
@@ -270,6 +309,16 @@ local function harvest(player: Player, data: Types.Profile, key: string, opts: H
 		size = Rolls.rollSize(rng, luck(data)),
 		harvestedAt = at or DataService.now(),
 	}
+	-- The scripted first hatch (Config/Onboarding.firstHatch): a fixed outcome, its value scaled.
+	if slot.scripted == "firstHatch" and not data.onboarding.firstHatch then
+		local fixed = Onboarding.firstHatchFields()
+		item.rarity = fixed.rarity
+		item.mutations = fixed.mutations
+		item.size = fixed.size
+		item.valueScale = fixed.valueScale
+		item.scripted = "firstHatch"
+		data.onboarding.firstHatch = true
+	end
 	data.inventory[id] = item
 	data.slots[key] = nil
 	data.stats.harvested += 1
@@ -285,6 +334,10 @@ local function harvest(player: Player, data: Types.Profile, key: string, opts: H
 	end
 	entry.n += 1
 	entry.best = math.max(entry.best, item.size)
+	if item.scripted == "firstHatch" then
+		entry.firstHatch = true -- the Almanac card wears the FIRST HATCH BONUS ribbon
+	end
+	Analytics.hatch(player, item)
 	if isNew then
 		almanacMilestone(player, data)
 	end
@@ -496,7 +549,7 @@ function GrowthService.skipCost(data: Types.Profile): number
 	local speed = DataService.speed(data)
 	local total = 0
 	for _, slot in data.slots do
-		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+		local required = Growth.slotRequired(slot)
 		local left = Growth.secondsRemaining(slot.growth, required, now, DataService.water(data), speed)
 		total += Costs.skip(left, Products.gems.SkipTimer.costPer10Minutes)
 	end
@@ -518,7 +571,7 @@ local function onSkipTimers(player: Player, data: Types.Profile)
 	local now = DataService.now()
 	local events = {}
 	for key, slot in data.slots do
-		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+		local required = Growth.slotRequired(slot)
 		if slot.growth < required then
 			local rolls = Growth.rollsCrossed(slot.growth, required, required)
 			for _ = 1, rolls do

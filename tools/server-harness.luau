@@ -31,6 +31,7 @@ local SERVICES = {
 	"MonetizationService",
 	"RebirthService",
 	"WeatherService",
+	"OnboardingService",
 	"LeaderboardService",
 }
 

@@ -51,10 +51,65 @@ return function(t)
 	end
 
 	return {
-		["a new player joins with starting Cash and eggs"] = function()
+		["a new player joins with starting Cash, one egg in the bag and one ready in 10 s"] = function()
 			local world = t.server()
 			local _, data = world:join(1)
 			t.eq(data.cash, 100)
+			t.eq(data.eggs.Starter, 1)
+			t.eq(data.onboarding.active, true)
+			local slot = data.slots["1"]
+			t.ok(slot ~= nil and slot.eggId == "Starter" and slot.scripted == "firstHatch", "pre-planted on patch 1")
+			local Growth = world:modulesRequire("src/shared/Growth")
+			t.near(Growth.slotRequired(slot) - slot.growth, 10, 1e-6, "10 s from hatching")
+			t.eq(data.stats.eggsPlanted, 1, "counts as the first egg, so the next plant is the Rare")
+		end,
+
+		["the scripted first hatch: Starter Common, Glitched, 0.8, sells for ~$320, exactly once"] = function()
+			local world = t.server()
+			local player, data = world:join(1)
+			local seen = {}
+			world:modulesRequire("src/server/Util/Analytics").observer = function(_, name)
+				table.insert(seen, name)
+			end
+			world:advance(11, 1)
+			world:send(player, "Harvest", 1)
+			local item
+			for _, it in data.inventory do
+				item = it
+			end
+			t.ok(item ~= nil, "hatched")
+			t.eq(item.rarity, "Common")
+			t.eq(table.concat(item.mutations, ","), "Glitched")
+			t.eq(item.size, 0.8)
+			t.eq(item.valueScale, 0.2)
+			t.eq(item.scripted, "firstHatch")
+			t.eq(data.almanac[item.species].firstHatch, true, "the Almanac entry wears the ribbon")
+			t.eq(#seen, 0, "no hatch / mutation analytics for a scripted outcome")
+			-- Top Pens never counts it.
+			local Leaderboards = world:modulesRequire("src/shared/Leaderboards")
+			t.eq(Leaderboards.penValue({ item }), 0)
+			local before = data.cash
+			world:send(player, "Sell", item.id)
+			local got = data.cash - before
+			t.ok(got >= 300 and got <= 340, "sold for " .. got)
+			-- The next hatch is a normal one (the guaranteed Rare: the 2nd egg planted).
+			world:send(player, "Plant", 1, "Starter")
+			world:advance(3600, 5)
+			world:send(player, "Harvest", 1)
+			local second
+			for _, it in data.inventory do
+				second = it
+			end
+			t.ok(second ~= nil and second.scripted == nil and second.valueScale == nil, "a real hatch")
+			t.eq(second.rarity, "Rare")
+			t.ok(table.find(seen, "Hatch_Rare") ~= nil, "real hatches are logged")
+		end,
+
+		["a returning profile gets none of the opening"] = function()
+			local world = t.server()
+			local _, data = world:join(1, { grantedStarterEggs = true, eggs = { Starter = 2 } })
+			t.eq(data.onboarding.active, false)
+			t.eq(next(data.slots), nil, "nothing pre-planted")
 			t.eq(data.eggs.Starter, 2)
 		end,
 

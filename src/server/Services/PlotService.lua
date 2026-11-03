@@ -98,7 +98,7 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 			part:SetAttribute("Mutations", table.concat(slot.mutations, ","))
 			part:SetAttribute("Growth", slot.growth)
 			part:SetAttribute("UpdatedAt", slot.updatedAt)
-			part:SetAttribute("Required", Growth.requiredSeconds(slot.eggId, slot.rarity))
+			part:SetAttribute("Required", Growth.slotRequired(slot))
 		else
 			part:SetAttribute("EggId", "")
 			part:SetAttribute("Mutations", "")

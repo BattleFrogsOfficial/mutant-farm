@@ -45,6 +45,15 @@ function Growth.requiredSeconds(tierId: string, rarity: string): number
 	return Eggs.tiers[tierId].growTime * Rarities.info[rarity].growMultiplier
 end
 
+-- A planted slot's grow time: the tier's, or the onboarding ramp's `baseGrow` (seconds as a
+-- Common) when the slot carries one; rarity stretches either.
+function Growth.slotRequired(slot: { eggId: string, rarity: string, baseGrow: number? }): number
+	if slot.baseGrow then
+		return slot.baseGrow * Rarities.info[slot.rarity].growMultiplier
+	end
+	return Growth.requiredSeconds(slot.eggId, slot.rarity)
+end
+
 -- Multiplier from everything except watering (the pass and the Growth Speed upgrade).
 function Growth.speed(growthUpgradeLevel: number, hasSpeedPass: boolean): number
 	local upgrade = 1 + Upgrades.growthSpeed.bonusPerLevel * growthUpgradeLevel

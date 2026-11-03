@@ -472,10 +472,41 @@ local function setRevealVisible(visible: boolean)
 	screen.hint.Visible = visible
 	if not visible then
 		screen.newRibbon.Visible = false
+		screen.bonusRibbon.Visible = false
 	end
 end
 
 ---------------------------------------------------------------------------- the cutscene
+
+-- Glitched colors (the pens use the same pair).
+local GLITCH_A = Color3.fromHex("#FF3CF0")
+local GLITCH_B = Color3.fromHex("#00F0FF")
+
+-- A beam of light rising from the stump for a mutation's beat (rank 3 = Radioactive .. 5 =
+-- Cosmic), fading out; part of the set, so it's cleared with it.
+local function stageBeam(color: Color3, rank: number, id: number)
+	local scale = 1 + (rank - 1) * 0.6
+	local beam = Instance.new("Part")
+	beam.Anchored = true
+	beam.CanCollide = false
+	beam.CanQuery = false
+	beam.CastShadow = false
+	beam.Material = Enum.Material.SmoothPlastic -- art rule: no Neon on big surfaces
+	beam.Color = color
+	beam.Transparency = 0.5
+	beam.Size = Vector3.new(1.2 * scale, 60, 1.2 * scale)
+	beam.CFrame = STAGE * CFrame.new(0, 30, 0)
+	beam.Parent = stage
+	local t0 = os.clock()
+	local duration = 0.7 + rank * 0.15
+	while os.clock() - t0 < duration and hatchId == id do
+		local k = (os.clock() - t0) / duration
+		beam.Transparency = 0.5 + 0.5 * k
+		beam.Size = Vector3.new(1.2 * scale * (1 - k * 0.7), 60, 1.2 * scale * (1 - k * 0.7))
+		task.wait()
+	end
+	beam:Destroy()
+end
 
 local function play(h: Hatch)
 	local item = h.item
@@ -489,7 +520,9 @@ local function play(h: Hatch)
 	fastHatchOn = snap ~= nil and snap.fastHatch == true
 	local fast = fastHatchOn
 	-- Short version: Commons/Uncommons in a long Hatch All, or anything below Epic with Fast Hatch on.
-	local quick = (#queue > 0 and rank <= 2) or (fast and rank <= 3)
+	-- Never for the scripted first hatch (Config/Onboarding): it gets the whole show.
+	local scripted = item.scripted == "firstHatch"
+	local quick = not scripted and ((#queue > 0 and rank <= 2) or (fast and rank <= 3))
 	skip = false
 	advance = false
 	revealedAt = math.huge
@@ -498,7 +531,9 @@ local function play(h: Hatch)
 
 	clearStage()
 	setRevealVisible(false)
-	screen.fast.Visible = snap ~= nil and (snap.stats.harvested or 0) >= FAST_HATCH_AFTER
+	screen.fast.Visible = snap ~= nil and (snap.stats.harvested or 0) >= FAST_HATCH_AFTER and not scripted
+	-- The scripted first hatch plays in full: no Skip (tapping after the reveal still continues).
+	screen.skip.Visible = not scripted
 	setFastLabel(fast)
 
 	-- The egg drops onto the stump while the camera settles in front of it.
@@ -616,6 +651,7 @@ local function play(h: Hatch)
 	screen.valueScale.Scale = 1
 	setRevealVisible(true)
 	screen.newRibbon.Visible = h.isNew
+	screen.bonusRibbon.Visible = scripted
 	screen.titleScale.Scale = 1.8
 	task.spawn(tween, 0.3, function(k)
 		if hatchId == myId then
@@ -642,6 +678,12 @@ local function play(h: Hatch)
 				HatchScreen.setChips(screen, chips)
 				Sfx.play("mutate", 0.7, 1.1 + i * 0.1)
 				task.spawn(flash, myId, Color3.fromHex(info.color), 0.35, 0.04, 0.25)
+				-- Radioactive and up: a beam of light on the stump (the scripted first hatch's at
+				-- full strength, the size a Cosmic gets).
+				local mRank = table.find(Mutations.order, m) or 1
+				if mRank >= 3 then
+					task.spawn(stageBeam, Color3.fromHex(info.color), if scripted then 5 else mRank, myId)
+				end
 				local from = current
 				task.spawn(tween, 0.35, function(k)
 					if hatchId == myId then
@@ -683,8 +725,24 @@ local function play(h: Hatch)
 	local t0 = os.clock()
 	local auto = if quick then 1.3 else 9
 	local focus = STAGE.Position + Vector3.new(0, fullSize.Y * fit * 0.48, 0)
+	-- Glitched: the body flickers magenta / cyan, like in the pens (every frame on the scripted
+	-- first hatch, so the x25 can't be missed).
+	local glitchChance = if not table.find(item.mutations, "Glitched") then 0 elseif scripted then 0.7 else 0.3
+	local glitchParts = {}
+	for _, name in { "Body", "Head", "Shell", "ShellTop" } do
+		local part = mutant:FindFirstChild(name)
+		if part and part:IsA("BasePart") then
+			table.insert(glitchParts, part)
+		end
+	end
 	while not advance and not skip and not skipAll and os.clock() - t0 < auto do
 		local t = os.clock() - t0
+		if glitchChance > 0 and math.random() < glitchChance then
+			local color = if math.random() < 0.5 then GLITCH_A else GLITCH_B
+			for _, part in glitchParts do
+				part.Color = color
+			end
+		end
 		if t > 0.65 then
 			if mutant.Parent then
 				mutant:PivotTo(STAGE * CFrame.Angles(0, math.sin(t * 0.9) * 0.55, 0))

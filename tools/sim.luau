@@ -587,4 +587,6 @@ for _, scenario in scenarios do
 	end
 	print()
 end
-print("Targets (2026-11-03): Rebirth 10 in ~20 h of play with every pass (one long session: --all --hours 30 --days 1); free about 3x the play.")
+print(
+	"Targets (2026-11-03): Rebirth 10 in ~20 h of play with every pass (one long session: --all --hours 30 --days 1); free about 3x the play."
+)

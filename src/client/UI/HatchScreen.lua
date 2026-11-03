@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Theme = require(script.Parent.Theme)
 local Icons = require(script.Parent.Icons)
+local OnboardingConfig = require(ReplicatedStorage.Shared.Config.Onboarding)
 
 local HatchScreen = {}
 
@@ -24,6 +25,7 @@ export type Screen = {
 	potion: TextButton,
 	pin: TextButton,
 	newRibbon: Frame,
+	bonusRibbon: Frame,
 	name: TextLabel,
 	chips: Frame,
 	hint: TextLabel,
@@ -226,6 +228,29 @@ function HatchScreen.new(): Screen
 		Parent = newRibbon,
 	})
 
+	-- The scripted first hatch's ribbon (Config/Onboarding.firstHatchRibbon): gold, tilted the
+	-- other way from NEW!.
+	local bonusRibbon = frame({
+		Name = "Bonus",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 170, 0.5, -120),
+		Size = UDim2.fromOffset(230, 40),
+		BackgroundColor3 = Theme.colors.gold,
+		Rotation = 10,
+		Visible = false,
+		ZIndex = 8,
+		Parent = root,
+	})
+	stroke(bonusRibbon, Theme.colors.ink, 3, true)
+	text({
+		Text = OnboardingConfig.firstHatchRibbon,
+		Size = UDim2.new(1, -12, 1, -8),
+		Position = UDim2.fromOffset(6, 4),
+		Max = 22,
+		ZIndex = 9,
+		Parent = bonusRibbon,
+	})
+
 	local name = text({
 		Name = "Name",
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -357,6 +382,7 @@ function HatchScreen.new(): Screen
 		potion = potion,
 		pin = pin,
 		newRibbon = newRibbon,
+		bonusRibbon = bonusRibbon,
 		name = name,
 		chips = chips,
 		hint = hint,

@@ -710,6 +710,26 @@ do
 	})
 	root = screen.root
 	capture("hatch")
+
+	-- The scripted first hatch (Config/Onboarding): the second beat, FIRST HATCH BONUS ribbon.
+	local first = HatchScreen.new()
+	first.titleGradient.Color =
+		roblox.ColorSequence.new(roblox.Color3.fromHex("#FFFFFF"), roblox.Color3.fromHex("#C8C8D8"))
+	first.title.Text = "COMMON!"
+	first.value.Text = "GLITCHED x25 = $320"
+	first.name.Text = "Wimpip"
+	first.bonusRibbon.Visible = true
+	first.newRibbon.Visible = true
+	HatchScreen.setChips(first, {
+		{ text = "x0.80 size", color = Theme.colors.slateLight },
+		{ text = "2 studs tall", color = Theme.colors.slateLight },
+		{
+			text = "GLITCHED x25",
+			color = roblox.Color3.fromHex(Mutations.info.Glitched.color):Lerp(Theme.colors.slate, 0.35),
+		},
+	})
+	root = first.root
+	capture("hatch-first")
 	root = mainRoot
 end
 

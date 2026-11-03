@@ -19,6 +19,7 @@ local Pen = require(Shared.Pen)
 local Streak = require(Shared.Streak)
 local Daily = require(Shared.Config.Daily)
 local Products = require(Shared.Config.Products)
+local OnboardingConfig = require(Shared.Config.Onboarding)
 local Signal = require(Shared.Signal)
 local Types = require(Shared.Types)
 local Remotes = require(Shared.Remotes)
@@ -87,6 +88,17 @@ local TEMPLATE: Types.Profile = {
 	groupOffered = false, -- the group offer was shown (once, at the first sale)
 	vipGemsDay = 0, -- UTC day of the last VIP daily Gems claim
 	seenLimited = {}, -- limited egg id -> true once the shop has opened on it
+	-- The scripted opening (Config/Onboarding, OnboardingService). `active` only on profiles
+	-- created with it on; the rest are once-per-profile flags. playSeconds: online seconds so far.
+	onboarding = {
+		active = false,
+		preplanted = false,
+		firstHatch = false,
+		shopOpened = false,
+		weather = false,
+		bundle = false,
+		playSeconds = 0,
+	},
 }
 
 local store = ProfileStore.New("PlayerData_v1", TEMPLATE)
@@ -204,7 +216,7 @@ function DataService.eggCounts(data: Types.Profile): (number, number)
 	local now, speed = DataService.now(), DataService.speed(data)
 	local growing, ready = 0, 0
 	for _, slot in data.slots do
-		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
+		local required = Growth.slotRequired(slot)
 		if Growth.secondsRemaining(slot.growth, required, now, DataService.water(data), speed) > 0 then
 			growing += 1
 		else
@@ -223,6 +235,9 @@ end
 -- PolicyService result per online player (MonetizationService fills it on join): true when paid
 -- random items / paid odds boosts aren't allowed for them. Unknown counts as restricted.
 DataService.paidRandomRestricted = {} :: { [Player]: boolean }
+
+-- Server time each online player's session started (funnel steps carry seconds since it).
+DataService.joinedAt = {} :: { [Player]: number }
 
 -- Server time of each online player's next pen payout (not saved; restarts on join).
 DataService.nextPayoutAt = {} :: { [Player]: number }
@@ -250,7 +265,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 			eggId = slot.eggId,
 			growth = slot.growth,
 			updatedAt = slot.updatedAt,
-			required = Growth.requiredSeconds(slot.eggId, slot.rarity),
+			required = Growth.slotRequired(slot),
 		}
 	end
 	local growingCount, readyCount = DataService.eggCounts(data)
@@ -308,6 +323,11 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt
 			then 0
 			else data.bundleOfferEndsAt,
+		onboarding = {
+			active = data.onboarding.active,
+			shopOpened = data.onboarding.shopOpened,
+			weather = data.onboarding.weather,
+		},
 	}
 end
 
@@ -334,6 +354,7 @@ local function release(player: Player)
 	end
 	releasing[player] = true
 	profiles[player] = nil
+	DataService.joinedAt[player] = nil
 	dirty[player] = nil
 	finalize(player, profile)
 	profile:EndSession()
@@ -360,15 +381,26 @@ local function onPlayerAdded(player: Player)
 		stats.totalCashEarned = stats.cashEarned
 	end
 	stats.cashEarned = nil
+	-- A brand-new profile gets the scripted opening (Config/Onboarding): OnboardingService plants
+	-- its first egg; the bag gets Onboarding.bag instead of Game.startingEggs.
+	local isNew = not profile.Data.grantedStarterEggs
+	if isNew and OnboardingConfig.enabled then
+		profile.Data.onboarding.active = true
+	end
 	-- The Starter Bundle is for new players: profiles from before it existed never get the window.
-	if profile.Data.bundleOfferEndsAt == 0 and profile.Data.grantedStarterEggs then
+	-- Onboarding profiles get it on the reveal of their first Rare (OnboardingService), not on join.
+	local waitsForRare = profile.Data.onboarding.active and not profile.Data.onboarding.bundle
+	if profile.Data.bundleOfferEndsAt == 0 and waitsForRare then
+		-- stays 0 until the first Rare's reveal
+	elseif profile.Data.bundleOfferEndsAt == 0 and profile.Data.grantedStarterEggs then
 		profile.Data.bundleOfferEndsAt = -1
 	elseif profile.Data.bundleOfferEndsAt == 0 then
 		profile.Data.bundleOfferEndsAt = DataService.now() + Products.robux.StarterBundle.offerSeconds
 	end
-	if not profile.Data.grantedStarterEggs then
+	if isNew then
 		profile.Data.grantedStarterEggs = true
-		for eggId, count in GameConfig.startingEggs do
+		local bag = if profile.Data.onboarding.active then OnboardingConfig.bag else GameConfig.startingEggs
+		for eggId, count in bag do
 			profile.Data.eggs[eggId] = (profile.Data.eggs[eggId] or 0) + count
 		end
 	end
@@ -387,6 +419,7 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	profiles[player] = profile
+	DataService.joinedAt[player] = DataService.now()
 	DataService.Loaded:Fire(player, profile.Data)
 	DataService.changed(player)
 end

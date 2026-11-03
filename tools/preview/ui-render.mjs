@@ -221,7 +221,7 @@ window.render = (sceneIndex, W, H) => {
   document.getElementById("topbar").style.height = ${TOPBAR} + "px";
   for (const old of screen.querySelectorAll(".gui")) old.remove();
   // The HUD sits below Roblox's top bar (IgnoreGuiInset off); only the hatch cutscene is full screen.
-  const full = data.scenes[sceneIndex].name === "hatch";
+  const full = data.scenes[sceneIndex].name.startsWith("hatch");
   const inset = full ? 0 : ${TOPBAR};
   const usableH = H - inset;
   // The game's scale (shared/HudScale, numbers from Config/Hud): the shorter edge against the design

@@ -130,7 +130,9 @@ function EconomyService.sellItem(player: Player, data: Types.Profile, itemId: st
 		return nil
 	end
 	local value = itemValue(data, item)
-	if not EconomyService.addCash(player, data, value, "Gameplay", "Sell_" .. item.tier .. "_" .. item.rarity) then
+	-- A scripted outcome sells under its own sku, so it never skews the real Sell_<tier>_<rarity>.
+	local sku = if item.scripted then "Sell_Scripted_" .. item.scripted else "Sell_" .. item.tier .. "_" .. item.rarity
+	if not EconomyService.addCash(player, data, value, "Gameplay", sku) then
 		return nil
 	end
 	data.inventory[itemId] = nil

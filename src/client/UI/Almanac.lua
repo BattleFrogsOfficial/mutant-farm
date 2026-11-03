@@ -14,6 +14,7 @@ local Shared = ReplicatedStorage.Shared
 local Eggs = require(Shared.Config.Eggs)
 local Rarities = require(Shared.Config.Rarities)
 local Mutants = require(Shared.Config.Mutants)
+local OnboardingConfig = require(ReplicatedStorage.Shared.Config.Onboarding)
 local MutantModel = require(Shared.MutantModel)
 local AlmanacUI = require(Shared.Config.AlmanacUI)
 local AlmanacTrack = require(Shared.AlmanacTrack)
@@ -194,6 +195,7 @@ local function detailPage(id: string, entry: { n: number, first: number, best: n
 				line("Size", string.format("%.1f to %.1f studs tall", minH, maxH), 20),
 				line("Your biggest", string.format("x%.2f size (%.1f studs)", entry.best, height(e, entry.best)), 21),
 				line("Hatched", string.format("%d time%s", entry.n, if entry.n == 1 then "" else "s"), 22),
+				if (entry :: any).firstHatch then line("Ribbon", OnboardingConfig.firstHatchRibbon, 23) else nil,
 				line("First found", first, 23),
 				New("Frame")({
 					LayoutOrder = 24,
@@ -291,6 +293,31 @@ local function card(id: string, order: number, entry: any, onOpen: (string) -> (
 						ZIndex = 4,
 					})
 					else nil,
+				-- The scripted first hatch's species wears the FIRST HATCH BONUS ribbon (two lines).
+				found and entry.firstHatch and New("Frame")({
+					Name = "BonusRibbon",
+					Position = UDim2.fromOffset(4, 22),
+					Size = UDim2.new(1, -8, 0, 38),
+					BackgroundColor3 = Theme.colors.gold,
+					BorderSizePixel = 0,
+					ZIndex = 5,
+					[Children] = {
+						New("UIStroke")({
+							Color = Theme.colors.ink,
+							Thickness = 2,
+							ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+						}),
+						C.label({
+							Text = OnboardingConfig.firstHatchRibbon,
+							Position = UDim2.fromOffset(2, 2),
+							Size = UDim2.new(1, -4, 1, -4),
+							TextScaled = false,
+							TextSize = 14,
+							TextWrapped = true,
+							ZIndex = 6,
+						}),
+					},
+				}) or nil,
 				found and C.label({
 					Text = "x" .. entry.n,
 					AnchorPoint = Vector2.new(1, 0),

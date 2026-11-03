@@ -37,6 +37,30 @@ function Analytics.funnel(player: Player, data: any, stepName: string)
 	end)
 end
 
+-- Tests: called with (player, eventName, value) for every custom event (nil in the game).
+Analytics.observer = nil :: ((Player, string, number) -> ())?
+
+local function custom(player: Player, eventName: string, value: number)
+	if Analytics.observer then
+		Analytics.observer(player, eventName, value)
+	end
+	pcall(function()
+		AnalyticsService:LogCustomEvent(player, eventName, value)
+	end)
+end
+
+-- Hatch outcomes: one event per rarity hatched and one per mutation on it (the odds players
+-- actually see). Scripted outcomes (the onboarding's first hatch) never count.
+function Analytics.hatch(player: Player, item: { rarity: string, mutations: { string }, scripted: string? })
+	if item.scripted then
+		return
+	end
+	custom(player, "Hatch_" .. item.rarity, 1)
+	for _, m in item.mutations do
+		custom(player, "Mutation_" .. m, 1)
+	end
+end
+
 -- Batching (the offline Auto-Harvest replay can sell and rebuy thousands of eggs in one frame,
 -- far past AnalyticsService's rate limit): between beginBatch and flush, a player's economy
 -- events are summed per (flow, currency, type, sku) and logged once each by flush, with the

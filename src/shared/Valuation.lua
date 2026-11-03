@@ -1,5 +1,6 @@
 --!strict
--- What a mutant is worth. Order: tier base value x rarity x mutations x size x cash multiplier.
+-- What a mutant is worth. Order: tier base value x rarity x mutations x size x cash multiplier,
+-- then an item's valueScale (only the scripted first hatch has one).
 
 local Config = script.Parent.Config
 local Eggs = require(Config.Eggs)
@@ -14,6 +15,7 @@ export type Mutant = {
 	rarity: string,
 	mutations: { string },
 	size: number,
+	valueScale: number?, -- applied after everything else (the scripted first hatch: 0.2)
 }
 
 function Valuation.mutationMultiplier(mutations: { string }): number
@@ -26,7 +28,7 @@ end
 
 -- Tier x rarity only. Pen income is computed from this so mutations can't inflate income.
 function Valuation.baseValue(mutant: Mutant): number
-	return Eggs.tiers[mutant.tier].baseValue * Rarities.info[mutant.rarity].valueMultiplier
+	return Eggs.tiers[mutant.tier].baseValue * Rarities.info[mutant.rarity].valueMultiplier * (mutant.valueScale or 1)
 end
 
 -- +0.5x per rebirth: 1, 1.5, 2, ...
