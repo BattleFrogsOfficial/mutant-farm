@@ -11,7 +11,9 @@ local Shared = ReplicatedStorage.Shared
 local Growth = require(Shared.Growth)
 local GateSign = require(Shared.GateSign)
 local Types = require(Shared.Types)
+local GameConfig = require(Shared.Config.Game)
 local DataService = require(script.Parent.DataService)
+local WaterService = require(script.Parent.WaterService)
 local World = require(script.Parent.Parent.Util.World)
 
 local PlotService = {}
@@ -56,6 +58,8 @@ function PlotService.refresh(player: Player, data: Types.Profile)
 		return
 	end
 	plot.model:SetAttribute("WateredUntil", data.wateredUntil)
+	plot.model:SetAttribute("WaterMult", data.waterMult)
+	plot.model:SetAttribute("OnPad", data.onPad)
 	plot.model:SetAttribute("Speed", DataService.speed(data))
 	-- The gate's second line: the farm's income ("$3.4K/min"; "· HATCH EGGS" / "· PLANT EGGS"
 	-- when nothing is growing).
@@ -105,6 +109,8 @@ end
 local function clear(plot: World.Plot)
 	plot.model:SetAttribute("OwnerUserId", 0)
 	plot.model:SetAttribute("WateredUntil", 0)
+	plot.model:SetAttribute("WaterMult", 1)
+	plot.model:SetAttribute("OnPad", false)
 	plot.model:SetAttribute("Pen", "[]")
 	plot.sign.Text = "Empty Plot"
 	plot.income.Text = ""
@@ -156,6 +162,21 @@ local function watchDeaths(player: Player)
 	end)
 end
 
+-- Is the owner standing on their plot's water pad (alive, feet on or just above it)?
+local function onWaterPad(player: Player, plot: World.Plot): boolean
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid or humanoid.Health <= 0 then
+		return false
+	end
+	local pad = plot.waterPad
+	local offset = root.Position - pad.Position
+	local flat = Vector3.new(offset.X, 0, offset.Z).Magnitude
+	local radius = (pad:GetAttribute("Radius") or 0) :: number
+	return flat <= radius + GameConfig.water.padTolerance and offset.Y >= 0 and offset.Y <= 6
+end
+
 function PlotService.Init()
 	plots = World.build()
 	Players.CharacterAutoLoads = false
@@ -168,6 +189,16 @@ function PlotService.Start()
 	for _, player in Players:GetPlayers() do
 		watchDeaths(player)
 	end
+	-- The water pads: who stands on their own (a few checks a second; WaterService settles the
+	-- plot and switches its growth rate only when that changes).
+	task.spawn(function()
+		while true do
+			task.wait(GameConfig.water.padPollSeconds)
+			for player, plot in owners do
+				WaterService.setOnPad(player, onWaterPad(player, plot))
+			end
+		end
+	end)
 	Players.PlayerRemoving:Connect(function(player)
 		local plot = owners[player]
 		owners[player] = nil

@@ -3,9 +3,11 @@
 -- and the client can run the exact same math to draw timers between server updates.
 --
 -- A slot stores `growth` (effective seconds grown) as of `updatedAt`. Speed is constant
--- between events except for watering, which is a plot-wide window ending at `wateredUntil`.
--- Every plot-wide speed change settles all slots first, so a window always starts after
--- the slot's `updatedAt`.
+-- between events except for watering (`Water`): standing on your plot's water pad grows at
+-- `padMultiplier` for as long as you stand there, and a tapped boost grows at its multiplier
+-- until `boostUntil`; the higher of the two applies (they don't stack with each other). Every
+-- plot-wide speed change (stepping on or off the pad, a tap) settles all slots first, so a window
+-- always starts after the slot's `updatedAt`.
 
 local Config = script.Parent.Config
 local Eggs = require(Config.Eggs)
@@ -16,43 +18,62 @@ local Upgrades = require(Config.Upgrades)
 
 local Growth = {}
 
+-- The plot's watering state: the tap boost (multiplier, until when) and whether the owner is
+-- standing on the water pad. Offline nothing is watered (the pad is off and the boost ended).
+export type Water = { boostUntil: number, boostMult: number, onPad: boolean }
+
+Growth.DRY = table.freeze({ boostUntil = 0, boostMult = 1, onPad = false }) :: Water
+
+function Growth.water(boostUntil: number?, boostMult: number?, onPad: boolean?): Water
+	return { boostUntil = boostUntil or 0, boostMult = boostMult or 1, onPad = onPad == true }
+end
+
+-- Watering multipliers: `low` outside the boost window (the pad's, or 1), `high` inside it.
+local function rates(water: Water): (number, number)
+	local low = if water.onPad then GameConfig.water.padMultiplier else 1
+	return low, math.max(low, water.boostMult)
+end
+
+-- The watering multiplier at time `t` (1 when dry).
+function Growth.waterRate(water: Water, t: number): number
+	local low, high = rates(water)
+	return if t < water.boostUntil then high else low
+end
+
 function Growth.requiredSeconds(tierId: string, rarity: string): number
 	return Eggs.tiers[tierId].growTime * Rarities.info[rarity].growMultiplier
 end
 
--- Multiplier from everything except watering.
+-- Multiplier from everything except watering (the pass and the Growth Speed upgrade).
 function Growth.speed(growthUpgradeLevel: number, hasSpeedPass: boolean): number
 	local upgrade = 1 + Upgrades.growthSpeed.bonusPerLevel * growthUpgradeLevel
 	return upgrade * (if hasSpeedPass then 2 else 1)
 end
 
--- Growth after advancing from `from` to `to`.
-function Growth.advance(growth: number, from: number, to: number, wateredUntil: number, speed: number): number
+-- Growth after advancing from `from` to `to` (the pad state held over the whole span: it
+-- settles on every change).
+function Growth.advance(growth: number, from: number, to: number, water: Water, speed: number): number
 	if to <= from then
 		return growth
 	end
-	local watered = math.max(0, math.min(to, wateredUntil) - from)
-	return growth + speed * ((to - from) + (GameConfig.waterMultiplier - 1) * watered)
+	local low, high = rates(water)
+	local boosted = math.max(0, math.min(to, water.boostUntil) - from)
+	return growth + speed * (low * (to - from) + (high - low) * boosted)
 end
 
--- Seconds of real time until `growth` reaches `required`.
-function Growth.secondsRemaining(
-	growth: number,
-	required: number,
-	now: number,
-	wateredUntil: number,
-	speed: number
-): number
+-- Seconds of real time until `growth` reaches `required`, if the pad state stays as it is.
+function Growth.secondsRemaining(growth: number, required: number, now: number, water: Water, speed: number): number
 	local remaining = required - growth
 	if remaining <= 0 then
 		return 0
 	end
-	local wateredLeft = math.max(0, wateredUntil - now)
-	local wateredRate = speed * GameConfig.waterMultiplier
-	if remaining <= wateredRate * wateredLeft then
-		return remaining / wateredRate
+	local low, high = rates(water)
+	local boostLeft = math.max(0, water.boostUntil - now)
+	local boostRate = speed * high
+	if remaining <= boostRate * boostLeft then
+		return remaining / boostRate
 	end
-	return wateredLeft + (remaining - wateredRate * wateredLeft) / speed
+	return boostLeft + (remaining - boostRate * boostLeft) / (speed * low)
 end
 
 -- Number of mutation rolls whose growth threshold lies in (oldGrowth, newGrowth].

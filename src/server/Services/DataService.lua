@@ -51,7 +51,13 @@ local TEMPLATE: Types.Profile = {
 	gemUpgrades = { penSlots = 0, luck = 0, offline = 0 }, -- kept through rebirth
 	ownedPasses = {},
 	processedPurchases = {},
+	-- Watering (shared/Watering.lua): the tap boost runs at `waterMult` until `wateredUntil`;
+	-- `waterOffer` is the next tap's multiplier (rolled by WaterService; 0 = not rolled yet);
+	-- `onPad` = standing on the plot's water pad right now (reset on join, never true offline).
 	wateredUntil = 0,
+	waterMult = 1,
+	waterOffer = 0,
+	onPad = false,
 	lastSeen = 0,
 	streak = { day = 0, lastClaimDay = 0, count = 0 }, -- day = position in the 7-day cycle, count = days in a row
 	redeemedCodes = {},
@@ -128,6 +134,11 @@ function DataService.speed(data: Types.Profile): number
 	return Growth.speed(data.upgrades.growthSpeed, data.ownedPasses.GrowthSpeed2x == true)
 end
 
+-- The plot's watering state for the growth math (the water pad + the tap boost).
+function DataService.water(data: Types.Profile): Growth.Water
+	return Growth.water(data.wateredUntil, data.waterMult, data.onPad)
+end
+
 function DataService.cashMultiplier(data: Types.Profile): number
 	return Valuation.cashMultiplier(
 		data.rebirths,
@@ -193,7 +204,7 @@ function DataService.eggCounts(data: Types.Profile): (number, number)
 	local growing, ready = 0, 0
 	for _, slot in data.slots do
 		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
-		if Growth.secondsRemaining(slot.growth, required, now, data.wateredUntil, speed) > 0 then
+		if Growth.secondsRemaining(slot.growth, required, now, DataService.water(data), speed) > 0 then
 			growing += 1
 		else
 			ready += 1
@@ -257,6 +268,9 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		cashMultiplier = DataService.cashMultiplier(data),
 		speed = DataService.speed(data),
 		wateredUntil = data.wateredUntil,
+		waterMult = data.waterMult,
+		waterOffer = data.waterOffer,
+		onPad = data.onPad,
 		eggs = data.eggs,
 		slots = slots,
 		replant = replant,
@@ -337,6 +351,8 @@ local function onPlayerAdded(player: Player)
 	end
 	profile:AddUserId(player.UserId)
 	profile:Reconcile()
+	-- Nobody is standing on a pad when they join (and the growth since leaving was dry).
+	profile.Data.onPad = false
 	-- Renamed stat: carry the old lifetime total over once.
 	local stats = profile.Data.stats :: any
 	if stats.cashEarned and stats.totalCashEarned == 0 then

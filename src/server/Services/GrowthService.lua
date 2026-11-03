@@ -66,7 +66,8 @@ function GrowthService.settle(data: Types.Profile, now: number, rollsAllowed: bo
 	for key, slot in data.slots do
 		if now > slot.updatedAt then
 			local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
-			local grown = math.min(Growth.advance(slot.growth, slot.updatedAt, now, data.wateredUntil, speed), required)
+			local grown =
+				math.min(Growth.advance(slot.growth, slot.updatedAt, now, DataService.water(data), speed), required)
 			local rolls = Growth.rollsCrossed(slot.growth, grown, required)
 			if rollsAllowed ~= false then
 				for _ = 1, rolls do
@@ -496,7 +497,7 @@ function GrowthService.skipCost(data: Types.Profile): number
 	local total = 0
 	for _, slot in data.slots do
 		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
-		local left = Growth.secondsRemaining(slot.growth, required, now, data.wateredUntil, speed)
+		local left = Growth.secondsRemaining(slot.growth, required, now, DataService.water(data), speed)
 		total += Costs.skip(left, Products.gems.SkipTimer.costPer10Minutes)
 	end
 	return total
@@ -584,18 +585,6 @@ local function onBuyGemUpgrade(player: Player, data: Types.Profile, kind: any)
 	DataService.changed(player)
 end
 
-local function onWater(player: Player, data: Types.Profile)
-	local now = DataService.now()
-	if now < data.wateredUntil then
-		return
-	end
-	-- Settle at the old speed before the watering window starts.
-	settleNow(player, data)
-	data.wateredUntil = now + GameConfig.waterDuration
-	data.stats.waters += 1
-	DataService.changed(player)
-end
-
 -- Offline catch-up, run at join. Pays the offline pen income (from the pen as you left it), then
 -- replays the time away: with Auto-Harvest, every pass in time order (AutoHarvest.run: hatch, sell
 -- Commons, keep the rest while the bag has room, replant toggled patches from the bag or with Cash)
@@ -634,7 +623,7 @@ local function catchUp(player: Player, data: Types.Profile)
 	local waitingCash, waitingBag = 0, 0
 	local auto = away > 0 and data.ownedPasses.AutoHarvest == true
 	if auto then
-		local plot = { slots = data.slots, wateredUntil = data.wateredUntil, speed = DataService.speed(data) }
+		local plot = { slots = data.slots, water = DataService.water(data), speed = DataService.speed(data) }
 		local stop = AutoHarvest.windowEnd(data.lastSeen, now)
 		Analytics.beginBatch(player) -- one economy event per sku, not one per egg
 		AutoHarvest.run(plot, data.lastSeen, stop, function(at)
@@ -687,11 +676,13 @@ local function catchUp(player: Player, data: Types.Profile)
 end
 
 function GrowthService.Init()
-	-- Settle before release so the saved growth and lastSeen line up; watering never runs offline.
+	-- Settle before release so the saved growth and lastSeen line up; watering never runs offline
+	-- (the boost ends and nobody stands on the pad).
 	DataService.onRelease(function(_player, data)
 		local now = DataService.now()
 		GrowthService.settle(data, now)
 		data.wateredUntil = math.min(data.wateredUntil, now)
+		data.onPad = false
 	end)
 end
 
@@ -706,7 +697,6 @@ function GrowthService.Start()
 	Net.on("Plant", onPlant)
 	Net.on("Harvest", onHarvest)
 	Net.on("HarvestAll", onHarvestAll)
-	Net.on("Water", onWater)
 	Net.on("BuyPotion", onBuyPotion)
 	Net.on("SkipTimers", onSkipTimers)
 	Net.on("BuyUpgrade", onBuyUpgrade)

@@ -50,7 +50,10 @@ export type Profile = {
 	gemUpgrades: { penSlots: number, luck: number, offline: number }, -- Gem upgrades, kept through rebirth
 	ownedPasses: { [string]: boolean },
 	processedPurchases: { [string]: number },
-	wateredUntil: number,
+	wateredUntil: number, -- the tap boost runs until then...
+	waterMult: number, -- ...at this multiplier
+	waterOffer: number, -- the next tap's multiplier (0 = not rolled yet)
+	onPad: boolean, -- standing on the plot's water pad right now (false on join and offline)
 	lastSeen: number,
 	streak: { day: number, lastClaimDay: number, count: number },
 	redeemedCodes: { [string]: boolean },
@@ -63,7 +66,7 @@ export type Profile = {
 		harvested: number,
 		sold: number,
 		totalCashEarned: number, -- lifetime Cash earned (every source); never reduced by spending
-		waters: number,
+		waters: number, -- growth circle taps
 		slotsBought: number,
 	},
 	nextItemId: number,
@@ -97,6 +100,9 @@ export type Snapshot = {
 	cashMultiplier: number,
 	speed: number,
 	wateredUntil: number,
+	waterMult: number,
+	waterOffer: number,
+	onPad: boolean,
 	eggs: { [string]: number },
 	slots: { [string]: SlotView },
 	replant: { [string]: boolean }, -- patches with the Auto-Harvest replant toggle on

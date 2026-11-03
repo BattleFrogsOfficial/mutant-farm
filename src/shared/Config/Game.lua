@@ -6,9 +6,32 @@ return {
 	startingCash = 100,
 	startingEggs = { Starter = 2 },
 
-	-- Watering: one tap waters the whole plot for `waterDuration` seconds at `waterMultiplier` speed.
-	waterDuration = 30,
-	waterMultiplier = 2,
+	-- Watering (shared/Watering.lua, WaterService). Standing on your plot's water pad grows the
+	-- whole plot at `padMultiplier` for as long as you stand there (the server checks your
+	-- position every `padPollSeconds`; `padTolerance` studs past the pad's edge still count). The
+	-- growth circle on the HUD offers a boost: tap it and the plot grows at the offered multiplier
+	-- for `tapSeconds` (the higher of the boost and the pad applies, they don't multiply), then a
+	-- new offer appears somewhere else on the screen. Offers are rolled by the server from
+	-- `tapOffers` ({ multiplier, weight }; lower is likelier: 3x 30%, 4x 22%, 5x 16%, 6x 11%, 7x 8%,
+	-- 8x 6%, 9x 4%, 10x 3%, 4.94x on average). A tap up to `tapGrace` s early (latency) still counts.
+	-- Both stack with the 2x Growth Speed pass and the Growth Speed upgrade. Nothing runs offline.
+	water = {
+		padMultiplier = 2,
+		padPollSeconds = 0.25,
+		padTolerance = 0.5,
+		tapSeconds = 5,
+		tapGrace = 0.3,
+		tapOffers = {
+			{ 3, 30 },
+			{ 4, 22 },
+			{ 5, 16 },
+			{ 6, 11 },
+			{ 7, 8 },
+			{ 8, 6 },
+			{ 9, 4 },
+			{ 10, 3 },
+		},
+	},
 
 	-- Luck (pass x potion) is capped here before it touches any roll.
 	maxLuck = 6,

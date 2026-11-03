@@ -25,6 +25,7 @@ local SERVICES = {
 	"GroupRewardService",
 	"EconomyService",
 	"GrowthService",
+	"WaterService",
 	"DailyService",
 	"IncomeService",
 	"MonetizationService",

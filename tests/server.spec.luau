@@ -363,6 +363,63 @@ return function(t)
 			t.eq(poorData.gems, 10)
 		end,
 
+		["watering: the pad grows 2x while you stand on it, a tap boosts at the server's offer for 5 s"] = function()
+			local world = t.server()
+			local player, data = world:join(1, { eggs = { Swamp = 1 }, grantedStarterEggs = true })
+			local WaterService = world.service.WaterService
+			local water = GameConfig.water
+			t.ok(data.waterOffer >= 3 and data.waterOffer <= 10, "an offer is rolled on join")
+			t.eq(data.onPad, false)
+			world:send(player, "Plant", 1, "Swamp")
+			local slot = data.slots["1"]
+
+			-- On the pad for 10 s: 20 s of growth.
+			WaterService.setOnPad(player, true)
+			t.eq(data.onPad, true)
+			world:advance(10)
+			WaterService.setOnPad(player, false)
+			t.near(slot.growth, 20, 1e-6)
+
+			-- Tap: the offered multiplier for 5 s, then a fresh offer.
+			local offer = data.waterOffer
+			local tappedAt = world.now
+			world:send(player, "TapBoost")
+			t.eq(data.waterMult, offer)
+			t.near(data.wateredUntil, tappedAt + water.tapSeconds, 1e-9)
+			t.ok(data.waterOffer >= 3 and data.waterOffer <= 10, "a new offer")
+			t.eq(data.stats.waters, 1)
+			-- Tapping again on the cooldown does nothing.
+			local next = data.waterOffer
+			world:advance(1)
+			world:send(player, "TapBoost")
+			t.eq(data.stats.waters, 1, "ignored on the cooldown")
+			t.eq(data.waterOffer, next)
+			-- After the boost: 5 s at the offer + 5 s dry.
+			world:advance(9)
+			world.service.GrowthService.settle(data, world.now)
+			t.near(slot.growth, 20 + offer * water.tapSeconds + 5, 1e-6)
+			world:send(player, "TapBoost")
+			t.eq(data.stats.waters, 2, "a tap after the boost runs out counts")
+
+			-- The pad and the boost don't multiply: the higher applies.
+			local g0 = slot.growth
+			WaterService.setOnPad(player, true)
+			world:advance(water.tapSeconds)
+			world.service.GrowthService.settle(data, world.now)
+			t.near(slot.growth - g0, data.waterMult * water.tapSeconds, 1e-6)
+
+			-- Leaving: nobody's on the pad and nothing is watered while away.
+			world:leave(player)
+			local saved = world.saved["1"]
+			t.eq(saved.onPad, false)
+			t.ok(saved.wateredUntil <= world.now, "the boost ends when you leave")
+			local g1 = saved.slots["1"].growth
+			world:advance(60)
+			local _, back = world:join(1)
+			t.near(back.slots["1"].growth - g1, 60, 1e-6, "dry while away")
+			t.eq(back.onPad, false)
+		end,
+
 		["$/min is the pen's income only: growing eggs earn nothing, a pen mutant does"] = function()
 			local world = t.server()
 			local player, data = world:join(1, { eggs = { Starter = 2 }, grantedStarterEggs = true })
@@ -372,8 +429,8 @@ return function(t)
 			world:send(player, "Plant", 2, "Starter")
 			world:advance(30)
 			t.eq(DataService.incomePerMinute(data), 0, "growing eggs give no $/min")
-			world:send(player, "Water")
-			t.eq(DataService.incomePerMinute(data), 0, "watering changes nothing")
+			world:send(player, "TapBoost")
+			t.eq(DataService.incomePerMinute(data), 0, "a growth boost changes nothing")
 			-- Ripe eggs: still $0, and a fresh snapshot says they're ready (the HATCH EGGS hint).
 			local sent = #world:received(player, "State")
 			world:advance(10 * 60, GameConfig.growthTickSeconds)

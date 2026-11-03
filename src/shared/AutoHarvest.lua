@@ -27,13 +27,13 @@ end
 
 -- The next time after `at` when a slot that is still growing at `at` matures (mature slots are
 -- skipped: they were harvested at `at`, or wait for bag space). nil when nothing is growing.
-function AutoHarvest.nextMature(slots: { [string]: Slot }, at: number, wateredUntil: number, speed: number): number?
+function AutoHarvest.nextMature(slots: { [string]: Slot }, at: number, water: Growth.Water, speed: number): number?
 	local best: number? = nil
 	for _, slot in slots do
 		local required = Growth.requiredSeconds(slot.eggId, slot.rarity)
-		local grown = Growth.advance(slot.growth, slot.updatedAt, at, wateredUntil, speed)
+		local grown = Growth.advance(slot.growth, slot.updatedAt, at, water, speed)
 		if required - grown > 1e-6 then
-			local when = at + Growth.secondsRemaining(grown, required, at, wateredUntil, speed)
+			local when = at + Growth.secondsRemaining(grown, required, at, water, speed)
 			if best == nil or when < best then
 				best = when
 			end
@@ -51,14 +51,14 @@ end
 -- every maturity up to `to`. `cycle(at)` must settle the plot to `at` and run an Auto-Harvest
 -- pass; it returns how many it hatched. Returns the total hatched.
 function AutoHarvest.run(
-	plot: { slots: { [string]: Slot }, wateredUntil: number, speed: number },
+	plot: { slots: { [string]: Slot }, water: Growth.Water, speed: number },
 	from: number,
 	to: number,
 	cycle: (at: number) -> number
 ): number
 	local total, t = cycle(from), from
 	for _ = 1, MAX_CYCLES do
-		local at = AutoHarvest.nextMature(plot.slots, t, plot.wateredUntil, plot.speed)
+		local at = AutoHarvest.nextMature(plot.slots, t, plot.water, plot.speed)
 		if at == nil or at > to then
 			break
 		end
