@@ -152,6 +152,7 @@ return function(t)
 			t.eq(data.onboarding.shopOpened, false)
 			world:send(player, "OpenedShop")
 			t.eq(data.onboarding.shopOpened, true)
+			world:advance(1) -- snapshots go out batched
 			local snaps = world:received(player, "State")
 			t.eq(snaps[#snaps][1].onboarding.shopOpened, true, "the HUD hears it")
 		end,
