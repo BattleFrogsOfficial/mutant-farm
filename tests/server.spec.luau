@@ -107,6 +107,35 @@ return function(t)
 			t.ok(table.find(seen, "Hatch_Rare") ~= nil, "real hatches are logged")
 		end,
 
+		["the grow ramp: Starter only, 10 / 20 / 30 s by hatches so far, gone from hatch 30"] = function()
+			local world = t.server()
+			local player, data = world:join(1)
+			local Growth = world:modulesRequire("src/shared/Growth")
+			data.slots = {}
+			data.eggs = { Starter = 10, Swamp = 2 }
+			local function plantAt(hatches, eggId)
+				data.stats.harvested = hatches
+				data.stats.eggsPlanted = 5 -- past the guaranteed Rare
+				world:send(player, "Plant", 1, eggId)
+				local slot = data.slots["1"]
+				data.slots["1"] = nil
+				return slot.baseGrow, Growth.slotRequired(slot), slot.rarity
+			end
+			t.eq((plantAt(1, "Starter")), 10)
+			t.eq((plantAt(9, "Starter")), 10)
+			t.eq((plantAt(10, "Starter")), 20)
+			t.eq((plantAt(29, "Starter")), 30)
+			local base, required, rarity = plantAt(30, "Starter")
+			t.eq(base, nil, "no ramp from hatch 30")
+			t.eq(required, Growth.requiredSeconds("Starter", rarity))
+			t.eq((plantAt(1, "Swamp")), nil, "Starter only")
+			-- A returning profile's Starter eggs never ramp.
+			local p2, d2 = world:join(2, { grantedStarterEggs = true, eggs = { Starter = 1 } })
+			d2.stats.eggsPlanted = 5
+			world:send(p2, "Plant", 1, "Starter")
+			t.eq(d2.slots["1"].baseGrow, nil)
+		end,
+
 		["a returning profile gets none of the opening"] = function()
 			local world = t.server()
 			local _, data = world:join(1, { grantedStarterEggs = true, eggs = { Starter = 2 } })

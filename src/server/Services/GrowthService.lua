@@ -189,6 +189,8 @@ local function plant(player: Player, data: Types.Profile, key: string, eggId: st
 		updatedAt = now,
 		rollsDone = 0,
 		lastRollAt = now,
+		-- Onboarding's grow ramp (Config/Onboarding.growRamp): early Starter eggs grow faster.
+		baseGrow = if data.onboarding.active then Onboarding.rampSeconds(eggId, data.stats.harvested) else nil,
 	}
 	Analytics.funnel(player, data, "FirstPlant")
 	DataService.changed(player)
