@@ -8,8 +8,8 @@ return function(t)
 		end,
 		["speed stacks pass and upgrade"] = function()
 			t.eq(Growth.speed(0, false), 1)
-			t.eq(Growth.speed(0, true), 2)
-			t.near(Growth.speed(5, true), 3, 1e-9)
+			t.eq(Growth.speed(0, true), 1.5) -- the Growth Speed pass (Passes.GrowthSpeed2x.multiplier)
+			t.near(Growth.speed(5, true), 2.25, 1e-9)
 		end,
 		["dry growth is real time x speed"] = function()
 			t.eq(Growth.advance(0, 100, 160, Growth.DRY, 1), 60)
@@ -19,7 +19,7 @@ return function(t)
 		["the water pad grows 2x while you stand on it"] = function()
 			local pad = Growth.water(0, 1, true)
 			t.eq(Growth.advance(0, 100, 160, pad, 1), 120)
-			-- the pad and the 2x pass stack to 4x
+			-- the pad and the speed multiplier stack (a speed of 2 -> 4x)
 			t.eq(Growth.advance(0, 100, 110, pad, 2), 40)
 			t.eq(Growth.waterRate(pad, 100), 2)
 		end,

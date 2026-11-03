@@ -10,7 +10,15 @@ return {
 		name = "Auto-Harvest",
 		description = "Hatches ripe eggs, sells Commons, replants the patches you pick",
 	},
-	GrowthSpeed2x = { id = 2067054408, price = 299, name = "2x Growth Speed", description = "Halves all grow timers" },
+	-- Id kept as "GrowthSpeed2x" (owned passes are saved under it); the effect is `multiplier`
+	-- (1.5x since 2026-11-03: the passes together made a player 4x faster than a free one).
+	GrowthSpeed2x = {
+		id = 2067054408,
+		price = 299,
+		name = "1.5x Growth Speed",
+		description = "Every egg grows 1.5x faster",
+		multiplier = 1.5,
+	},
 	OfflineMutations = {
 		id = 2068452355,
 		price = 199,

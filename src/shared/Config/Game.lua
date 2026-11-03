@@ -14,7 +14,7 @@ return {
 	-- new offer appears somewhere else on the screen. Offers are rolled by the server from
 	-- `tapOffers` ({ multiplier, weight }; lower is likelier: 3x 30%, 4x 22%, 5x 16%, 6x 11%, 7x 8%,
 	-- 8x 6%, 9x 4%, 10x 3%, 4.94x on average). A tap up to `tapGrace` s early (latency) still counts.
-	-- Both stack with the 2x Growth Speed pass and the Growth Speed upgrade. Nothing runs offline.
+	-- Both stack with the Growth Speed pass (1.5x) and the Growth Speed upgrade. Nothing runs offline.
 	water = {
 		padMultiplier = 2,
 		padPollSeconds = 0.25,

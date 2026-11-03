@@ -15,6 +15,7 @@ local Rarities = require(Config.Rarities)
 local Mutations = require(Config.Mutations)
 local GameConfig = require(Config.Game)
 local Upgrades = require(Config.Upgrades)
+local Passes = require(Config.Passes)
 
 local Growth = {}
 
@@ -47,7 +48,7 @@ end
 -- Multiplier from everything except watering (the pass and the Growth Speed upgrade).
 function Growth.speed(growthUpgradeLevel: number, hasSpeedPass: boolean): number
 	local upgrade = 1 + Upgrades.growthSpeed.bonusPerLevel * growthUpgradeLevel
-	return upgrade * (if hasSpeedPass then 2 else 1)
+	return upgrade * (if hasSpeedPass then Passes.GrowthSpeed2x.multiplier else 1)
 end
 
 -- Growth after advancing from `from` to `to` (the pad state held over the whole span: it
