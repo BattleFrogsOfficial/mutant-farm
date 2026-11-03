@@ -37,6 +37,7 @@ local Costs = require(Shared.Costs)
 local Products = require(Shared.Config.Products)
 local ShopRules = require(Shared.ShopRules)
 local Watering = require(Shared.Watering)
+local OnboardingConfig = require(Shared.Config.Onboarding)
 local State = require(script.Parent.Parent.State)
 local Purchase = require(script.Parent.Parent.Purchase)
 local Sfx = require(script.Parent.Parent.Sfx)
@@ -965,6 +966,35 @@ end
 -- On two lines, so the next egg tile stays as narrow as an owned one.
 local NEXT_EGG_SUB = "AT THE\nEGG SHOP"
 
+-- Onboarding's buy step (Config/Onboarding.trayBuy): "BUY 5" / "STARTER" with the price, a BuyEgg
+-- intent from the tray, shown during that step until the player has opened the Egg Shop once.
+local TRAY_BUY = OnboardingConfig.trayBuy
+local function trayBuyCard()
+	local eggId, qty = TRAY_BUY.egg, TRAY_BUY.quantity
+	local price = Format.cash(Eggs.tiers[eggId].cost * qty)
+	local label = "BUY " .. qty
+	return trayTile({
+		Name = "TrayBuy",
+		LayoutOrder = 99,
+		EggId = eggId,
+		Width = tileWidthFor(TRAY.tileWidth, {
+			{ label, TRAY.labelText, TRAY.labelInset },
+			{ shortName(eggId), TRAY.nextShopText, TRAY.nextShopInset },
+		}),
+		Badge = price,
+		BadgeColor = Theme.colors.gold,
+		BadgeWidth = badgeWidthFor(TRAY.nextBadgeWidth, price),
+		Label = label,
+		LabelBottom = TRAY.nextNameBottom,
+		LabelHeight = TRAY.nextNameHeight,
+		Sub = shortName(eggId),
+		OnClick = function()
+			Remotes.get("BuyEgg"):FireServer(eggId, qty)
+			Sfx.play("buy")
+		end,
+	})
+end
+
 -- The one "next egg" tile after the owned eggs: the cheapest unlocked Cash egg you have none of
 -- (ShopRules.nextTrayEgg), with its name, its price and "AT THE" / "EGG SHOP". Tap: Egg Shop.
 -- Gated tiers never show here; Lab's $25K progress lives in the shop carousel and Next Up.
@@ -1249,10 +1279,16 @@ local function eggTray()
 		return next(eggs:get()) ~= nil
 	end)
 	-- { [eggId] = true } for the one next-egg tile (a map so the tile rebuilds when it changes).
+	-- Onboarding's buy step: the BUY button, until the Egg Shop has been opened once.
+	local trayBuy = Computed(function()
+		local snap, objective = State.snapshot:get(), State.objective:get()
+		local o = snap and snap.onboarding
+		return if o and o.active and not o.shopOpened and objective.ui == "TrayBuy" then { buy = true } else {}
+	end)
 	local nextEgg = Computed(function()
-		local snap = State.snapshot:get()
-		if not snap then
-			return {}
+		local snap, buying = State.snapshot:get(), trayBuy:get()
+		if not snap or next(buying) then
+			return {} -- the BUY button stands in for it
 		end
 		local id = ShopRules.nextTrayEgg(snap.eggs, snap.rebirths, snap.stats.totalCashEarned or 0)
 		return if id then { [id] = true } else {}
@@ -1328,6 +1364,9 @@ local function eggTray()
 					end, Fusion.cleanup),
 					ForPairs(nextEgg, function(eggId: string)
 						return eggId, nextEggCard(eggId)
+					end, Fusion.cleanup),
+					ForPairs(trayBuy, function(key: string)
+						return key, trayBuyCard()
 					end, Fusion.cleanup),
 				},
 			}),

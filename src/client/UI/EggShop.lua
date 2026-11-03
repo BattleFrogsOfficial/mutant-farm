@@ -255,6 +255,14 @@ do
 					end)
 				end
 			end
+			-- Onboarding: the first open retires the tray's BUY button for good (OpenedShop).
+			if sn and sn.onboarding and sn.onboarding.active and not sn.onboarding.shopOpened then
+				task.spawn(function()
+					pcall(function()
+						Remotes.get("OpenedShop"):FireServer()
+					end)
+				end)
+			end
 			goTo(unseen or bestFocus(), true)
 			-- First visit after an unlock that happened while the shop was closed: flash now.
 			local f = table.clone(flashes:get(false))

@@ -239,7 +239,7 @@ registerCheck({
         "hud-plot-watered-touch": { owned: ["Starter", "Swamp"], next: null },
       };
       const want = EXPECT[kind];
-      const owned = tiles.filter((t) => t !== "NextEgg");
+      const owned = tiles.filter((t) => t !== "NextEgg" && t !== "TrayBuy");
       for (const gated of ["Toxic", "Void", "Cosmic", "Magma", "Quantum"]) if (owned.includes(gated) && !(want && want.owned.includes(gated))) problems.push(`gated tier ${gated} in the tray`);
       if (want) {
         if ([...owned].sort().join(",") !== [...want.owned].sort().join(",")) problems.push(`tray shows ${owned.join("+") || "nothing"} (want ${want.owned.join("+") || "nothing"})`);

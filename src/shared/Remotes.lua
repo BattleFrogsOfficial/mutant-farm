@@ -31,6 +31,7 @@ Remotes.ClientToServer = {
 	"RebirthNow", -- () rebirth at 50%+ of the cost, for Gems
 	"BuyGemUpgrade", -- (kind: "penSlots" | "luck" | "offline") Gem upgrade, kept through rebirth
 	"SetReplant", -- (slotIndex: number, on: boolean) Auto-Harvest replant toggle; slotIndex 0 = every owned patch
+	"OpenedShop", -- () onboarding: the Egg Shop was opened once (the tray's BUY button goes)
 }
 
 -- server -> client

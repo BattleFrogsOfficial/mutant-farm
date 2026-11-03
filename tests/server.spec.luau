@@ -138,10 +138,22 @@ return function(t)
 
 		["a returning profile gets none of the opening"] = function()
 			local world = t.server()
-			local _, data = world:join(1, { grantedStarterEggs = true, eggs = { Starter = 2 } })
+			local player, data = world:join(1, { grantedStarterEggs = true, eggs = { Starter = 2 } })
 			t.eq(data.onboarding.active, false)
 			t.eq(next(data.slots), nil, "nothing pre-planted")
 			t.eq(data.eggs.Starter, 2)
+			world:send(player, "OpenedShop")
+			t.eq(data.onboarding.shopOpened, false, "nothing to retire")
+		end,
+
+		["opening the Egg Shop once retires the tray's BUY button for good"] = function()
+			local world = t.server()
+			local player, data = world:join(1)
+			t.eq(data.onboarding.shopOpened, false)
+			world:send(player, "OpenedShop")
+			t.eq(data.onboarding.shopOpened, true)
+			local snaps = world:received(player, "State")
+			t.eq(snaps[#snaps][1].onboarding.shopOpened, true, "the HUD hears it")
 		end,
 
 		["pen income pays every minute online, carrying fractions"] = function()
