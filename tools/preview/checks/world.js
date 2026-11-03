@@ -1,7 +1,7 @@
 // World UI on your own plot (scene tools/preview/scenes/world.luau): soil markers at a phone's
 // patch size, egg timers at their real pixel size, the gate's income line at canvas size.
 //   * nothing inside a timer overlaps (the "2x" chip vs the bar and its time text);
-//   * the "2x" chip shows exactly on the watered timers;
+//   * the multiplier chip shows exactly on the watered timers ("2x" on the pad, "10x" boosted);
 //   * a soil tile (even mid-pulse, shadow included) stays on its patch;
 //   * on-screen text sizes stay readable.
 registerCheck({
@@ -107,7 +107,8 @@ registerCheck({
         const ot = cr && tr && overlap(cr, tr);
         if (ot) problems.push(`${name}: 2x chip overlaps the time text`);
         const chipText = q(chip, "Text");
-        if (!chipText || chipText.textContent.trim() !== "2x") problems.push(`${name}: chip text "${chipText && chipText.textContent}"`);
+        const wantChip = name.includes("Boost") ? "10x" : "2x";
+        if (!chipText || chipText.textContent.trim() !== wantChip) problems.push(`${name}: chip text "${chipText && chipText.textContent}" (want ${wantChip})`);
         const cf = font(chipText);
         if (cf < 11) problems.push(`${name}: chip text only ${cf.toFixed(1)}px (< 11)`);
       }

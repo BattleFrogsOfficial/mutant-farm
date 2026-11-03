@@ -65,6 +65,8 @@ State.zone = Value("hub")
 State.screen = Value({ width = 1280, height = 720, scale = 1 })
 -- Touch screen (phones/tablets): the thumbstick and jump button own the bottom corners.
 State.touch = Value(false)
+-- Which of Config/Hud.boost.spots the growth circle sits at (it moves when a boost runs out).
+State.boostSpot = Value(1)
 -- Egg Shop carousel: Cash/Gems switch (session only), focused tier (1..#Eggs.order) and the strip
 -- offset in design px (card i is centered at (i - 1) * EggShopUI.pitch).
 State.shopMode = Value("Cash")
@@ -100,7 +102,7 @@ State.nextReadyIn = Computed(function()
 			State.slotGrowth(snap, slot, now),
 			slot.required,
 			now,
-			snap.wateredUntil,
+			State.water(snap),
 			snap.speed
 		)
 		if left > 0 and (best == nil or left < best) then
@@ -110,9 +112,14 @@ State.nextReadyIn = Computed(function()
 	return best
 end)
 
+-- The plot's watering state from a snapshot (the water pad + the growth boost).
+function State.water(snap: Types.Snapshot): Growth.Water
+	return Growth.water(snap.wateredUntil, snap.waterMult, snap.onPad)
+end
+
 -- Growth of a slot right now, using the same math as the server.
 function State.slotGrowth(snap: Types.Snapshot, slot: Types.SlotView, now: number): number
-	return Growth.advance(slot.growth, slot.updatedAt, now, snap.wateredUntil, snap.speed)
+	return Growth.advance(slot.growth, slot.updatedAt, now, State.water(snap), snap.speed)
 end
 
 State.readyCount = Computed(function()

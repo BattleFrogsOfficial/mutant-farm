@@ -1,20 +1,33 @@
 -- HUD scenes (tools/preview/checks/hud.js checks them): the egg tray with 0 / 1 / 2 / 6 owned egg
--- types (the "next egg" tile and gated tiers; two-egg trays with Gem / limited eggs), the 6-egg tray on a touch screen, the watered
--- state (drain ring running, WATER dimmed), every red dot lit (hud-dots, hud-plot-dots), and the
--- right column at its tallest over a touch layout's mid-right SHOP / WATER (phone and hybrid
--- device). Every scene is captured at every preview size through captureHud, so it also runs
+-- types (the "next egg" tile and gated tiers; two-egg trays with Gem / limited eggs), the 6-egg tray on a touch screen, the growth
+-- circle at each of its spots (offering, and on its cooldown while a boost runs), every red dot
+-- lit (hud-dots, hud-plot-dots), and the right column at its tallest over a touch layout's
+-- mid-right SHOP (phone and hybrid device). Every scene is captured at every preview size through captureHud, so it also runs
 -- through the HUD overlap check. The hub at every size is the built-in hud@WxH set.
 return function(api)
 	local State = api.State
 	local set = api.set
 	local NOW = 1_800_000_000
 
+	local Eggs = api.requireModule(api.Shared.Config.Eggs)
+	-- One Swamp egg growing, so the growth circle shows (it hides with nothing to grow).
+	local growing = {
+		["1"] = {
+			index = 1,
+			eggId = "Swamp",
+			growth = 40,
+			required = Eggs.tiers.Swamp.growTime,
+			updatedAt = NOW,
+			mutations = {},
+		},
+	}
 	local function snapWith(eggs, earned, extra)
 		local s = table.clone(api.snapshot)
 		s.eggs = eggs
 		s.stats = table.clone(api.snapshot.stats)
 		s.stats.totalCashEarned = earned
-		s.wateredUntil = 0 -- not watered (the label reads "WATER · 2x 30s")
+		s.wateredUntil = 0 -- no boost running: the circle offers the next one ("CLICK" / "4x" / "FOR 5s")
+		s.slots = growing
 		for k, v in extra or {} do
 			s[k] = v
 		end
@@ -66,25 +79,31 @@ return function(api)
 	api.captureHud("hud-plot-replant-some-touch", { { 844, 390 }, { 667, 375 } })
 	set(State.touch, false)
 
-	-- Watered: the ring runs (a growing egg), WATER is dimmed and shows the countdown.
-	local Eggs = api.requireModule(api.Shared.Config.Eggs)
-	local watered = snapWith({ Starter = 3, Swamp = 2 }, 12_400, {
-		wateredUntil = NOW + 18,
-		slots = {
-			["1"] = {
-				index = 1,
-				eggId = "Swamp",
-				growth = 40,
-				required = Eggs.tiers.Swamp.growTime,
-				updatedAt = NOW,
-				mutations = {},
-			},
-		},
+	-- The growth circle at each of its spots (offering), then on its cooldown (a 7x boost running:
+	-- "ACTIVE" / "7x" / "0:04" under the shade), on mouse and touch screens.
+	local GameConfig = api.requireModule(api.Shared.Config.Game)
+	local Hud = api.requireModule(api.Shared.Config.Hud)
+	-- (Spots at the sizes that squeeze them: the 900-wide canvases where the chat and the right
+	-- column come closest, a tall screen, and the phones; the scene JSON stays small.)
+	local MOUSE = { { 800, 600 }, { 1000, 658 }, { 960, 720 }, { 1280, 720 }, { 1920, 1080 } }
+	local PHONES = { { 844, 390 }, { 667, 375 }, { 800, 360 } }
+	for spot = 1, #Hud.boost.spots do
+		set(State.boostSpot, spot)
+		set(State.snapshot, snapWith({ Starter = 3, Swamp = 2 }, 12_400, { waterOffer = 10 }))
+		api.captureHud("hud-plot-boost" .. spot, MOUSE)
+		set(State.touch, true)
+		api.captureHud("hud-plot-boost" .. spot .. "-touch", PHONES)
+		set(State.touch, false)
+	end
+	set(State.boostSpot, 1)
+	local boosted = snapWith({ Starter = 3, Swamp = 2 }, 12_400, {
+		wateredUntil = NOW + GameConfig.water.tapSeconds - 1,
+		waterMult = 7,
 	})
-	set(State.snapshot, watered)
-	api.captureHud("hud-plot-watered")
+	set(State.snapshot, boosted)
+	api.captureHud("hud-plot-boosted", { { 1280, 720 }, { 800, 600 } })
 	set(State.touch, true)
-	api.captureHud("hud-plot-watered-touch")
+	api.captureHud("hud-plot-boosted-touch", { { 844, 390 } })
 	set(State.touch, false)
 
 	-- Icon sheet (not a "hud" scene): every UI/Icons glyph large and at a HUD size, on navy, 10 per row.

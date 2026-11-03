@@ -46,21 +46,21 @@ return {
 		},
 	},
 	-- Timer over a growing egg on your own plot: a BillboardGui of fixed pixel size (the same on
-	-- every screen). The "2x" chip sits above the bar's right end while the plot is watered. Every
+	-- every screen). The multiplier chip ("2x" on the water pad, up to "10x" during a growth boost)
+	-- sits above the bar's right end while the plot is watered. Every
 	-- ink outline is drawn outside its face, so the gui keeps `outline` px of room on each side
 	-- (a BillboardGui clips its descendants).
 	timer = {
 		width = 84, -- the bar's face
 		barHeight = 22,
-		chipWidth = 34, -- chip face + its hard shadow
+		chipWidth = 40, -- chip face + its hard shadow (room for "10x")
 		chipHeight = 22, -- chip face + its hard shadow
 		chipShadow = 4, -- the chip's hard shadow offset (the HUD's Theme.shadow)
 		chipGap = 3, -- between the chip (shadow included) and the bar's outline
-		chipTextInset = { 2, 1 }, -- the "2x" text's inset inside the chip face (x, y)
+		chipTextInset = { 2, 1 }, -- the multiplier text's inset inside the chip face (x, y)
 		outline = 2,
 		textStroke = 1.5, -- ink stroke around the time and "2x" text
 		studsAbove = 4.2, -- the bar's center above the patch (the gui is shifted up for the chip)
 		maxDistance = 45,
-		chipText = "2x",
 	},
 }

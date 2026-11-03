@@ -67,6 +67,7 @@ export type Profile = {
 		sold: number,
 		totalCashEarned: number, -- lifetime Cash earned (every source); never reduced by spending
 		waters: number, -- growth circle taps
+		padVisits: number, -- times stepped onto the water pad
 		slotsBought: number,
 	},
 	nextItemId: number,

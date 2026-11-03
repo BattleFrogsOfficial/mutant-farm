@@ -277,6 +277,31 @@ Icons.shapes = {
 		{ 0.22, 0.54, 0.1, 0.22, Theme.colors.white, detail = true },
 	},
 }
+-- A stepped (pixel-art) disc in the unit box: `rows` horizontal bars, `inset` from the box's edges.
+-- The boxy UI's circle (no UICorner): the growth circle is one (`orb`), and the HUD reuses the rows
+-- for its cooldown shade.
+function Icons.disc(rows: number, inset: number, color: Color3, detail: boolean?): { Rect }
+	local out = {}
+	local d = 1 - 2 * inset
+	local h = d / rows
+	for i = 0, rows - 1 do
+		-- Each bar reaches the circle at its edge nearer the middle, so the outline reads round.
+		local near = math.min(math.abs(i * h - d / 2), math.abs((i + 1) * h - d / 2))
+		local half = math.sqrt(math.max(0, (d / 2) ^ 2 - near ^ 2))
+		-- Bars overlap the next one a little, so no seam shows between them at any HUD scale.
+		local overlap = if i < rows - 1 then h * 0.1 else 0
+		table.insert(out, { 0.5 - half, inset + i * h, 2 * half, h + overlap, color, detail = detail })
+	end
+	return out
+end
+
+-- The growth circle (HUD): a water-blue rim around a navy face.
+Icons.ORB_ROWS = 13
+Icons.ORB_FACE_INSET = 0.055 -- the navy face inside the rim
+Icons.shapes.orb = Icons.disc(Icons.ORB_ROWS, 0, c.water)
+for _, r in Icons.disc(Icons.ORB_ROWS - 1, Icons.ORB_FACE_INSET, c.navy, true) do
+	table.insert(Icons.shapes.orb, r)
+end
 
 local function rectFrame(r: Rect, grow: number, offset: number, color: Color3, z: number)
 	return New("Frame")({

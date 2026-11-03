@@ -86,7 +86,7 @@ function UIController.Start()
 	-- Scale from the area the GUI actually covers (below the top bar): the shorter edge against
 	-- the design height, capped lower on touch devices (shared/HudScale, Config/Hud). The cap is
 	-- chosen once per device, not per input: a hybrid laptop switching between taps and the mouse
-	-- would otherwise rescale the whole HUD mid-tap (State.touch still moves SHOP/WATER).
+	-- would otherwise rescale the whole HUD mid-tap (State.touch still moves SHOP).
 	local touchDevice = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 	local function updateScale()
 		local size = gui.AbsoluteSize

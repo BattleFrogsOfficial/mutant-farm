@@ -1,7 +1,7 @@
 --!strict
 -- The timer over a growing egg on your own plot (PlotController puts it in a BillboardGui): a
--- progress bar with the time left, gold "HATCH!" when ready, and a water-blue "2x" chip above the
--- bar's right end while the plot is watered. Plain Instances (updated 20x a second, no Fusion),
+-- progress bar with the time left, gold "HATCH!" when ready, and a water-blue chip with the
+-- watering multiplier ("2x" on the water pad, "7x" during a growth boost) above the bar's right end. Plain Instances (updated 20x a second, no Fusion),
 -- built here so the UI preview can draw it. Numbers in Config/WorldUI.timer.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -83,7 +83,7 @@ function SlotTimer.new(): Timer
 	fill.Parent = bar
 	local text = label("Time", bar)
 
-	-- "2x" chip: boxy water-blue tile with an ink outline and a hard shadow, above the bar's end.
+	-- Multiplier chip ("2x", "10x"): boxy water-blue tile with an ink outline and a hard shadow, above the bar's end.
 	-- The frame is the face; its outline (top/left) and shadow (right/bottom) end at the gui's edge.
 	local chip = Instance.new("Frame")
 	chip.Name = "Chip"
@@ -109,7 +109,7 @@ function SlotTimer.new(): Timer
 	stroke(face, CFG.outline, true)
 	face.Parent = chip
 	local chipText = label("Text", face)
-	chipText.Text = CFG.chipText
+	chipText.Text = "2x"
 	local inset = CFG.chipTextInset
 	chipText.Size = UDim2.new(1, -2 * inset[1], 1, -2 * inset[2])
 	chipText.Position = UDim2.fromOffset(inset[1], inset[2])
@@ -118,8 +118,10 @@ function SlotTimer.new(): Timer
 	return { root = root, bar = bar, fill = fill, text = text, chip = chip }
 end
 
--- progress 0..1; ready = gold "HATCH!"; watered = the 2x chip and a water-blue fill.
-function SlotTimer.set(timer: Timer, progress: number, ready: boolean, watered: boolean, timeText: string)
+-- progress 0..1; ready = gold "HATCH!"; a watering `multiplier` above 1 = its chip ("2x", "7x")
+-- and a water-blue fill.
+function SlotTimer.set(timer: Timer, progress: number, ready: boolean, multiplier: number, timeText: string)
+	local watered = multiplier > 1
 	timer.fill.Size = UDim2.fromScale(math.clamp(progress, 0, 1), 1)
 	if ready then
 		timer.fill.BackgroundColor3 = Theme.colors.gold
@@ -129,6 +131,14 @@ function SlotTimer.set(timer: Timer, progress: number, ready: boolean, watered: 
 		timer.text.Text = timeText
 	end
 	timer.chip.Visible = watered and not ready
+	if watered then
+		local text = (timer.chip :: any).Face.Text :: TextLabel
+		text.Text = (
+			if multiplier == math.floor(multiplier)
+				then tostring(math.floor(multiplier))
+				else string.format("%.1f", multiplier)
+		) .. "x"
+	end
 end
 
 return SlotTimer

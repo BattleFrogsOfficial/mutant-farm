@@ -15,7 +15,7 @@ return {
 	-- at the 1.25x cap) shrinks to fit, keeping this much space to the canvas edge.
 	panelMargin = 12,
 
-	-- Distance from the screen edges (right column, Shop, Water).
+	-- Distance from the screen edges (right column, Shop).
 	edge = 14,
 	-- Buttons and pills draw a 3 px ink outline outside their frame and a hard shadow (Theme.shadow)
 	-- below-right of it. Gaps below are what you SEE between those drawn edges, so frames are spaced
@@ -86,10 +86,10 @@ return {
 	-- The toast lane: centered under the weather line, `width` wide, its top `y` down.
 	toast = { y = 118, width = 360, height = 48 },
 
-	-- SHOP: the biggest button in the hub. At the plot it is the WATER button's size, beside it.
-	-- Mid-right (touch screens; at the plot also narrow windows) SHOP and WATER sit `column.gap`
-	-- under the right column at its tallest in that zone, and the hub SHOP must still clear the
-	-- jump button on the smallest phones (800x360): hubHeight <= 84.
+	-- SHOP: the biggest button in the hub; at the plot `plotButtons` size, where the egg tray and
+	-- the growth circle are the priority. Mid-right (touch screens; at the plot also narrow windows)
+	-- it sits `column.gap` under the right column at its tallest in that zone, and the hub SHOP must
+	-- still clear the jump button on the smallest phones (800x360): hubHeight <= 84.
 	shop = {
 		hubWidth = 230,
 		hubHeight = 80,
@@ -97,24 +97,32 @@ return {
 		plotText = 22,
 	},
 
-	-- WATER and SHOP at the plot (same size), always side by side, Water on the left. Desktop:
-	-- bottom-right when that clears the egg tray by `trayClearance`, else (a narrow window) mid-right
-	-- like touch screens, where the jump button owns the corner.
+	-- SHOP at the plot: bottom-right when that clears the egg tray by `trayClearance`, else (a
+	-- narrow window) mid-right like touch screens, where the jump button owns the corner.
 	plotButtons = {
 		width = 132,
 		height = 64,
+		trayClearance = 11, -- frame edge to the tray's shadow: 8 px as drawn + SHOP's 3 px outline
+	},
+
+	-- The growth circle (plot; shared/Watering, WaterService): a stepped circle `size` px across in
+	-- the band between the toast lane and Next Up, `gap` px clear of both as drawn (its 3 px glyph
+	-- outline, its shadow), centered in it. It sits at one of `spots` (center x, design px from the
+	-- canvas middle; the outer ones stay clear of the chat on an 800x600 window and of the right
+	-- column) and moves to another one each time a boost runs out. Three lines inside the face:
+	-- "CLICK" / "TAP", the multiplier ("7x"), "FOR 5s"; while a boost runs "ACTIVE" / "7x" / "0:04"
+	-- over a water fill that drains with the time left, the rim grey. It
+	-- pulses `pulse` (scale, around its center) while it waits.
+	boost = {
+		size = 104,
 		gap = 8,
-		glyph = 20,
-		glyphInset = 6, -- the drop's left edge from the button's left edge
-		trayClearance = 11, -- frame edge to the tray's shadow: 8 px as drawn + WATER's 3 px outline
-		-- WATER's two lines ("2x GROWTH" / "FOR 30s"; while watered "2x ACTIVE" / "0:18"), right of
-		-- the glyph: x = glyphInset + glyph + `textGap`.
-		-- 132 - (6 + 20 + 9) - 4 = 93 px for "2x GROWTH" at 14 px (~92 px in GothamBlack); the
-		-- gap keeps the drop clear of the words.
-		textGap = 9,
-		textRight = 4,
-		line1 = { y = 10, height = 20, text = 14 },
-		line2 = { y = 32, height = 20, text = 16 },
+		spots = { -130, -44, 44, 130 },
+		line1 = { y = 20, height = 16, text = 14 },
+		mult = { y = 36, height = 34, text = 32 },
+		line3 = { y = 70, height = 17, text = 16 },
+		shadeTransparency = 0, -- opaque: the bars overlap a little (no seams)
+		pulse = 0.04,
+		pulsePeriod = 1.2,
 	},
 
 	-- Egg tray (plot, bottom center): owned eggs + one "next egg" tile, HATCH on the right.

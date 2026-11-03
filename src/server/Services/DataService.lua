@@ -72,6 +72,7 @@ local TEMPLATE: Types.Profile = {
 		sold = 0,
 		totalCashEarned = 0,
 		waters = 0,
+		padVisits = 0,
 		slotsBought = 0,
 	},
 	nextItemId = 1,

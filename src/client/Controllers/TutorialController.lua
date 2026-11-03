@@ -23,7 +23,7 @@ local player = Players.LocalPlayer
 type Step = {
 	text: string,
 	target: (() -> BasePart?)?,
-	ui: string?, -- name of a HUD element to pulse ("Water", "Harvest")
+	ui: string?, -- name of a HUD element to pulse ("Boost", "Harvest")
 	hub: boolean?, -- the step happens in the hub, so Next Up shows there too
 	soil: boolean?, -- a plant step: the "+" markers on your empty soil pulse (PlotController)
 	progress: number?,
@@ -72,6 +72,13 @@ local function buySlot(): BasePart?
 	end)
 end
 
+-- Your plot's water pad (its top disc).
+local function waterPad(): BasePart?
+	local plot = PlotController.myPlot()
+	local pad = plot and plot:FindFirstChild("WaterPad")
+	return if pad and pad:IsA("Model") then pad.PrimaryPart else nil
+end
+
 local function eggCount(snap: Types.Snapshot): number
 	local n = 0
 	for _, c in snap.eggs do
@@ -85,8 +92,10 @@ local function currentStep(snap: Types.Snapshot): Step
 	local planted = next(snap.slots) ~= nil
 	if st.eggsPlanted == 0 then
 		return { text = "Tap a soil patch to plant your egg", target = emptySlot, soil = true }
-	elseif st.waters == 0 and planted then
-		return { text = "Tap WATER to grow 2x faster", ui = "Water" }
+	elseif st.waters == 0 and planted and snap.readyCount == 0 then
+		return { text = "Tap the circle to boost your egg's growth!", ui = "Boost" }
+	elseif (st.padVisits or 0) == 0 and planted and snap.readyCount == 0 then
+		return { text = "Stand on the blue water pad: 2x growth", target = waterPad }
 	elseif st.harvested == 0 then
 		return { text = "Tap your egg when it says HATCH!", target = plantedSlot }
 	elseif st.eggsPlanted < 2 and eggCount(snap) > 0 then

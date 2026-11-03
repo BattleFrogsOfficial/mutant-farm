@@ -39,6 +39,9 @@ function WaterService.setOnPad(player: Player, on: boolean)
 	end
 	GrowthService.settleAndAnnounce(player, data)
 	data.onPad = on
+	if on then
+		data.stats.padVisits += 1
+	end
 	DataService.changed(player)
 end
 

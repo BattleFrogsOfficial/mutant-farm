@@ -2,7 +2,7 @@
 --   * the soil marker (UI/SoilMarker) on a patch: "+" still, "+" mid-pulse, and the price, each at
 --     the size a patch has on a phone (Config/WorldUI.soil.phonePatchPx) and as read from the gate;
 --   * the egg timer (UI/SlotTimer) at its real pixel size (a BillboardGui is fixed px on every
---     screen): ready, growing, growing + watered (the "2x" chip);
+--     screen): ready, growing, growing + watered (the "2x" pad chip, the "10x" boost chip);
 --   * the gate's income line (shared/GateSign) on a board like World's IncomeBoard, at its
 --     SurfaceGui canvas size (40 px per stud), before the first harvest and after.
 -- Rendered only at the phone size (844x390): the scene name ends in @844x390.
@@ -106,19 +106,19 @@ return function(api)
 	local timerStep = math.ceil(SlotTimer.SIZE.X / hudScale) + 60
 	label("TIMERS (real px)", 40, timerY - 40)
 	local timerCases = {
-		{ "Ready", 1, true, false, "" },
-		{ "Growing", 0.4, false, false, "2m 05s" },
-		{ "Watered", 0.6, false, true, "1m 02s" },
-		{ "WateredLong", 0.1, false, true, "7h 59m" },
+		{ "Ready", 1, true, 2, "" },
+		{ "Growing", 0.4, false, 1, "2m 05s" },
+		{ "Watered", 0.6, false, 2, "1m 02s" }, -- on the water pad
+		{ "WateredBoost", 0.1, false, 10, "7h 59m" }, -- the widest boost chip
 	}
 	for i, case in timerCases do
-		local name, progress, ready, watered, text = table.unpack(case)
+		local name, progress, ready, multiplier, text = table.unpack(case)
 		local holder =
 			box("Timer" .. name, root, 40 + (i - 1) * timerStep, timerY, SlotTimer.SIZE.X, SlotTimer.SIZE.Y, 1)
 		-- Like the BillboardGui, which clips its descendants (world.js checks outlines stay inside).
 		holder.ClipsDescendants = true
 		local timer = SlotTimer.new()
-		SlotTimer.set(timer, progress, ready, watered, text)
+		SlotTimer.set(timer, progress, ready, multiplier, text)
 		timer.root.Parent = holder
 	end
 

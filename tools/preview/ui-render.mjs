@@ -2,6 +2,7 @@
 // Roblox's rules (UDim2 + AnchorPoint, UIListLayout/UIGridLayout, UIPadding, UICorner, UIStroke,
 // UIScale, TextScaled), over a world screenshot, at desktop and phone sizes, with the Roblox top bar.
 //   node tools/preview/ui-render.mjs build/ui.json build/ui-shots [background.png]
+import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -28,7 +29,7 @@ const checkSizes = [
   ["canvas900", 1000, 658],
 ];
 // HUD zones that must never overlap each other, Roblox's top-left buttons, or the screen edge.
-const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "InstantWeather", "Bundle", "Toast", "EggTray", "Water", "NextUp", "BagChip"];
+const ZONES = ["Cash", "RebirthStrip", "GroupBadge", "Gems", "Daily", "Almanac", "Upgrades", "Shop", "Weather", "InstantWeather", "Bundle", "Toast", "EggTray", "Boost", "NextUp", "BagChip"];
 
 const html = `<!doctype html><html><head><style>
 /* Roblox draws Enum.Font.GothamBlack / GothamBold with Montserrat Black / Bold (since Gotham's
@@ -50,8 +51,8 @@ body { margin: 0; overflow: hidden; font-family: "Fredoka", "Arial Rounded MT Bo
 <script>
 // The scene JSON is ~100 MB: it's fetched after the page loads (window.loadData), not inlined.
 var data = null;
-window.loadData = async () => {
-  data = await (await fetch("/ui.json")).json();
+window.loadData = async (url) => {
+  data = await (await fetch(url)).json();
   window.data = data;
   window.sceneCount = data.scenes.length;
 };
@@ -493,20 +494,29 @@ const fontsDir = path.join(path.dirname(new URL(import.meta.url).pathname), "nod
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 page.on("pageerror", (e) => console.error("page error:", e.message));
-// Serve the page and the scene JSON from a fake origin (inlining ~100 MB of JSON crashes Chromium).
-await page.route("http://preview.local/**", (route) => {
-  const url = new URL(route.request().url());
-  if (url.pathname === "/ui.json") return route.fulfill({ status: 200, contentType: "application/json", body: fs.readFileSync(uiPath) });
-  if (url.pathname.startsWith("/fonts/")) {
-    const file = path.join(fontsDir, path.basename(url.pathname));
-    return route.fulfill({ status: 200, contentType: "font/woff2", body: fs.readFileSync(file) });
+// The scene JSON (~100 MB) comes from a small local HTTP server, streamed: inlining it crashes
+// Chromium, and a route.fulfill body that big goes over the browser protocol's message limit. The
+// page and its fonts come from the same server (one origin: no private-network fetch blocking).
+const dataServer = http.createServer((req, res) => {
+  const url = new URL(req.url, "http://127.0.0.1");
+  if (url.pathname === "/ui.json") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    fs.createReadStream(uiPath).pipe(res);
+  } else if (url.pathname.startsWith("/fonts/")) {
+    res.writeHead(200, { "Content-Type": "font/woff2" });
+    fs.createReadStream(path.join(fontsDir, path.basename(url.pathname))).pipe(res);
+  } else {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(html);
   }
-  return route.fulfill({ status: 200, contentType: "text/html", body: html });
 });
-await page.goto("http://preview.local/", { timeout: 300_000 });
+await new Promise((resolve) => dataServer.listen(0, "127.0.0.1", resolve));
+const origin = `http://127.0.0.1:${dataServer.address().port}`;
+const dataUrl = `${origin}/ui.json`;
+await page.goto(`${origin}/`, { timeout: 300_000 });
 // Text is measured (TextScaled fitting, checks), so the fonts must be in before the first render.
 await page.evaluate(() => Promise.all(["900 16px Montserrat", "700 16px Montserrat"].map((f) => document.fonts.load(f))));
-await page.evaluate(() => window.loadData());
+await page.evaluate((url) => window.loadData(url), dataUrl);
 const checksDir = path.join(path.dirname(new URL(import.meta.url).pathname), "checks");
 for (const f of (fs.existsSync(checksDir) ? fs.readdirSync(checksDir) : []).filter((f) => f.endsWith(".js")).sort()) {
   await page.addScriptTag({ content: fs.readFileSync(path.join(checksDir, f), "utf8") });
@@ -665,3 +675,4 @@ console.log(`Panel check: ${panelIssues} issue(s) across ${panelChecked} scenes`
   console.log(`Extra checks: ${extraIssues} issue(s) across ${extraRuns} scene renders`);
 }
 await browser.close();
+dataServer.close();

@@ -290,7 +290,10 @@ local snapshot = {
 	slotCount = 8,
 	cashMultiplier = 1,
 	speed = 1,
-	wateredUntil = 1_800_000_012,
+	wateredUntil = 1_800_000_012, -- a 7x growth boost running (the circle's cooldown shade)
+	waterMult = 7,
+	waterOffer = 4,
+	onPad = false,
 	eggs = { Starter = 3, Swamp = 2, Pumpkin = 1 },
 	slots = {},
 	inventory = inventory,

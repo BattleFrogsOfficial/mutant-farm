@@ -7,11 +7,11 @@
 //   the tiles' shadows); Instant Weather as wide as the bundle ribbon
 //   weather line centered under the Cash / Gems row in every zone: plain text far from an event, a
 //   chip in the event's color from 5 min before it (hud-weather-idle, hud-weather-soon, hud-plot-weather-active)
-//   plot: SHOP the same size as WATER and right beside it (same row, WATER on the left; never
-//   stacked); WATER reads "2x GROWTH" / "FOR 30s", and while watered "2x ACTIVE" / the seconds
-//   left, dimmed (never pink), no drain ring
+//   plot: SHOP at Config/Hud plotButtons size, no WATER button; the growth circle reads "CLICK" /
+//   "TAP", "<3-10>x", "FOR 5s" (or "ACTIVE", the multiplier, the seconds left under its cooldown
+//   shade), never pink, at its configured spot inside the band between the toast lane and Next Up
 //   hub: SHOP is the biggest button on screen
-//   no ImageLabel/ImageButton in the HUD; the tile/Cash/Gems/HATCH/bag/WATER icons are vector glyphs
+//   no ImageLabel/ImageButton in the HUD; the tile/Cash/Gems/HATCH/bag/growth circle icons are vector glyphs
 //   egg tray: owned eggs + at most one "next egg" tile (name, price, "AT THE" / "EGG SHOP"); in
 //   EVERY tray tile each text is at its full size (its MaxTextSize, i.e. not squeezed by
 //   TextScaled because the tile is too narrow), at least MIN_FONT px on screen, and only breaks
@@ -135,19 +135,16 @@ registerCheck({
     if (vis(iw) && vis(bundle) && !near(rect(iw).width, rect(bundle).width, 0.5))
       problems.push(`Instant Weather ${rect(iw).width.toFixed(0)} px wide, bundle ${rect(bundle).width.toFixed(0)} px`);
 
-    // SHOP vs WATER at the plot; SHOP the biggest button in the hub.
-    const shop = el("Shop"), water = el("Water");
+    // SHOP at the plot (Config/Hud plotButtons size); SHOP the biggest button in the hub.
+    const shop = el("Shop");
     if (plot) {
-      if (!vis(shop) || !vis(water)) problems.push("Shop or Water missing at the plot");
+      if (!vis(shop)) problems.push("Shop missing at the plot");
       else {
-        const a = rect(shop), b = rect(water), s = scaleOf(shop);
-        if (!near(a.width, b.width) || !near(a.height, b.height))
-          problems.push(`Shop ${a.width.toFixed(0)}x${a.height.toFixed(0)} != Water ${b.width.toFixed(0)}x${b.height.toFixed(0)}`);
-        const gx = Math.max(a.left, b.left) - Math.min(a.right, b.right);
-        const gy = Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom);
-        const sideBySide = near(a.top, b.top) && b.right <= a.left + 0.5 && gx >= 0 && gx / s <= 16;
-        if (!sideBySide) problems.push(`Shop isn't right beside Water (Water ${b.left.toFixed(0)},${b.top.toFixed(0)} Shop ${a.left.toFixed(0)},${a.top.toFixed(0)}${gy >= 0 ? ", stacked" : ""})`);
+        const a = rect(shop), s = scaleOf(shop), want = data.hud.plotButtons;
+        if (!near(a.width / s, want.width, 1) || !near(a.height / s, want.height, 1))
+          problems.push(`plot Shop ${(a.width / s).toFixed(0)}x${(a.height / s).toFixed(0)} (want ${want.width}x${want.height})`);
       }
+      if (el("Water")) problems.push("the old WATER button is still there");
     } else if (!vis(shop)) problems.push("Shop missing in the hub");
     else {
       const shopArea = rect(shop).width * rect(shop).height;
@@ -159,22 +156,44 @@ registerCheck({
       }
     }
 
-    // Water: "2x GROWTH" / "FOR 30s" from config; while watered "2x ACTIVE" with the seconds left,
-    // dimmed (locked grey, never pink); no drain ring.
-    if (plot && vis(water)) {
-      const face = water.querySelector('[title="Face"]');
-      const look = face ? getComputedStyle(face).backgroundImage : "";
-      if (look.includes("255, 79, 163")) problems.push("Water is pink");
-      if (water.querySelector('[title^="Ring"]')) problems.push("Water still has a drain ring");
-      const line1 = (water.querySelector('[title="Label"] span') || {}).textContent || "";
-      const line2 = (water.querySelector('[title="Sub"] span') || {}).textContent || "";
-      const label = `${line1} ${line2}`;
-      const active = line1 === "2x ACTIVE";
-      if (active) {
-        if (!look.includes("85, 91, 112")) problems.push("Water isn't dimmed while active");
-        if (!/^2x ACTIVE \d+:\d\d$/.test(label)) problems.push(`watered Water label "${label}"`);
-      } else if (label !== "2x GROWTH FOR 30s") problems.push(`Water label "${label}"`);
-      if (kind.startsWith("hud-plot-watered") && !active) problems.push("the watered scene doesn't show 2x ACTIVE");
+    // Growth circle (plot, while an egg grows): offering "CLICK" ("TAP" on touch) / "<n>x" /
+    // "FOR 5s", or on its cooldown "ACTIVE" / "<n>x" / "0:04" with the shade showing; navy, never
+    // pink; at its configured spot, inside the band between the toast lane and Next Up (8 px clear
+    // of each as drawn), so a toast never covers it.
+    const boost = el("Boost");
+    if (plot && kind.includes("boost") && !vis(boost)) problems.push("the growth circle is missing");
+    if (!plot && vis(boost)) problems.push("the growth circle shows in the hub");
+    if (plot && vis(boost)) {
+      const cfg = data.hud.boost;
+      const text = (n) => ((boost.querySelector(`[title="${n}"] span`) || {}).textContent || "").trim();
+      const l1 = text("Line1"), mult = text("Mult"), l3 = text("Line3");
+      const shade = boost.querySelector('[title="Shade"]');
+      const shaded = shade && rect(shade).height > 0.5;
+      const touchScene = kind.endsWith("touch");
+      if (l1 === "ACTIVE") {
+        if (!/^\d+x$/.test(mult) || !/^\d+:\d\d$/.test(l3)) problems.push(`active circle reads "${l1} ${mult} ${l3}"`);
+        if (!shaded) problems.push("active circle without its cooldown shade");
+      } else {
+        const want = touchScene ? "TAP" : "CLICK";
+        if (l1 !== want || !/^(3|4|5|6|7|8|9|10)x$/.test(mult) || l3 !== "FOR 5s")
+          problems.push(`circle reads "${l1} / ${mult} / ${l3}" (want "${want} / <3-10>x / FOR 5s")`);
+        if (shaded) problems.push("waiting circle shows the cooldown shade");
+      }
+      if (kind.includes("boosted") && l1 !== "ACTIVE") problems.push("the boosted scene's circle isn't active");
+      for (const f of boost.querySelectorAll('[title="Glyph"] div')) {
+        const bg = getComputedStyle(f).backgroundColor;
+        if (bg.includes("255, 79, 163")) { problems.push("the growth circle is pink"); break; }
+      }
+      // The HUD's scale (the circle's own pulse UIScale doesn't count: it's drawn, not layout).
+      const gui = boost.closest(".gui"), s = scaleOf(gui), g = rect(gui), b = drawn(boost);
+      const top = (b.top - g.top) / s, bottom = (b.bottom - g.top) / s, canvasH = g.height / s;
+      const bandTop = data.hud.toast.y + data.hud.toast.height + cfg.gap;
+      const bandBottom = canvasH - data.hud.nextUpBottom - data.hud.nextUpHeight - data.hud.faceOutline - cfg.gap;
+      if (top < bandTop - 1.5) problems.push(`growth circle reaches ${(bandTop - top).toFixed(1)} px into the toast lane`);
+      if (bottom > bandBottom + 1.5) problems.push(`growth circle reaches ${(bottom - bandBottom).toFixed(1)} px into Next Up's gap`);
+      const r = rect(boost), cx = ((r.left + r.right) / 2 - g.left) / s - g.width / s / 2;
+      const spotMatch = kind.match(/boost(\d)/);
+      if (spotMatch && !near(cx, cfg.spots[Number(spotMatch[1]) - 1], 1)) problems.push(`circle at x ${cx.toFixed(1)} (want spot ${spotMatch[1]}: ${cfg.spots[Number(spotMatch[1]) - 1]})`);
     }
 
     // No images for icons anywhere in the HUD (scene JSON: the Hud frame's subtree).
@@ -186,7 +205,7 @@ registerCheck({
 
     // Icons are vector glyphs, not emoji text.
     const OLD = /[\u2190-\u2BFF\u3000-\uFFFF]|[\uD800-\uDBFF]/; // any emoji
-    const iconHosts = ["Upgrades", "Daily", "Almanac", "Cash", "Gems"].concat(plot ? ["Hatch", "BagChip", "Water"] : []);
+    const iconHosts = ["Upgrades", "Daily", "Almanac", "Cash", "Gems"].concat(plot ? ["Hatch", "BagChip", "Boost"] : []);
     for (const n of iconHosts) {
       const host = el(n);
       if (!vis(host)) continue;

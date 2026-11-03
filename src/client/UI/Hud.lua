@@ -10,8 +10,8 @@
 --                 everywhere from 5 min before an event), Instant Weather (pink, when no event is
 --                 near), Starter Bundle (always, while it runs), bag count (plot)
 --   plot          egg tray (the biggest thing: owned eggs, one "next egg" tile, 2x Luck, HATCH),
---                 WATER with its drain ring and SHOP at the same size beside it, the Next Up line
---                 above the tray.
+--                 the growth circle in the middle band (tap: a 3x-10x boost for 5 s, then it
+--                 moves), SHOP bottom-right, the Next Up line above the tray.
 --   hub           SHOP grows to the biggest button; weather countdown as plain text; bag worth is
 --                 written on the Sell stall's sign (ZoneController).
 --
@@ -36,16 +36,25 @@ local Growth = require(Shared.Growth)
 local Costs = require(Shared.Costs)
 local Products = require(Shared.Config.Products)
 local ShopRules = require(Shared.ShopRules)
+local Watering = require(Shared.Watering)
 local State = require(script.Parent.Parent.State)
 local Purchase = require(script.Parent.Parent.Purchase)
+local Sfx = require(script.Parent.Parent.Sfx)
 local Theme = require(script.Parent.Theme)
 local C = require(script.Parent.Components)
 local Viewport = require(script.Parent.Viewport)
 local Icons = require(script.Parent.Icons)
 local L = require(Shared.Config.Hud)
 
-local New, Children, Computed, ForPairs, Observer, Spring, OnEvent =
-	Fusion.New, Fusion.Children, Fusion.Computed, Fusion.ForPairs, Fusion.Observer, Fusion.Spring, Fusion.OnEvent
+local New, Children, Computed, ForPairs, Observer, Spring, OnEvent, Value =
+	Fusion.New,
+	Fusion.Children,
+	Fusion.Computed,
+	Fusion.ForPairs,
+	Fusion.Observer,
+	Fusion.Spring,
+	Fusion.OnEvent,
+	Fusion.Value
 
 local NAVY = Theme.colors.navy
 local SPEND = Theme.colors.spend
@@ -118,16 +127,15 @@ local inHub = Computed(function()
 	return State.zone:get() == "hub"
 end)
 
--- Plot buttons (WATER, SHOP; same size) are always side by side, WATER on the left. Mouse screens:
--- in the bottom-right corner when that clears the egg tray, else (a narrow window) mid-right, like
--- touch screens, where the jump button owns the corner.
+-- SHOP at the plot. Mouse screens: in the bottom-right corner when that clears the egg tray, else
+-- (a narrow window) mid-right, like touch screens, where the jump button owns the corner.
 -- (Both Computeds read State directly, never each other: Fusion 0.2 can't order a Computed that
 -- is first read mid-update, so a touch -> mouse switch would leave SHOP mid-right on stale data.)
 local function bottomRowTooNarrow(screen: { width: number, height: number, scale: number }): boolean
 	local canvasW = screen.width / screen.scale
 	local trayRight = canvasW / 2 + shiftFor(screen) + TRAY_HALF + Theme.shadow
-	local waterLeft = canvasW - EDGE - 2 * PLOT.width - PLOT.gap
-	return waterLeft < trayRight + PLOT.trayClearance
+	local shopLeft = canvasW - EDGE - PLOT.width
+	return shopLeft < trayRight + PLOT.trayClearance
 end
 local plotMidRight = Computed(function()
 	local touch = State.touch:get()
@@ -154,7 +162,7 @@ local PLOT_COLUMN_BOTTOM = COLUMN_TOP
 	+ COLUMN.bundleHeight
 	+ ROW_STEP
 	+ COLUMN.bagHeight
--- Mid-right SHOP / WATER: the top of a `height` button centered on the canvas's height, but never
+-- Mid-right SHOP: the top of a `height` button centered on the canvas's height, but never
 -- closer than COLUMN.gap (as drawn) under the right column at its tallest, so a row appearing or
 -- going never moves them.
 local function midRightTop(screen: { width: number, height: number, scale: number }, height: number, hub: boolean)
@@ -163,7 +171,7 @@ local function midRightTop(screen: { width: number, height: number, scale: numbe
 end
 
 -- Next Up's horizontal shift: the tray's (clear of the chat), but where the mid-right buttons
--- (WATER + SHOP at the plot, SHOP in the hub) reach down over its row (a narrow window), it slides
+-- (SHOP, at the plot's size or the hub's) reach down over its row (a narrow window), it slides
 -- left until it is COLUMN.gap clear of them as drawn (its 3 px outline, their outline).
 local function nextUpShift(
 	screen: { width: number, height: number, scale: number },
@@ -175,7 +183,7 @@ local function nextUpShift(
 		return shift
 	end
 	local canvasW, canvasH = screen.width / screen.scale, screen.height / screen.scale
-	local buttonsW = if hub then L.shop.hubWidth else 2 * PLOT.width + PLOT.gap
+	local buttonsW = if hub then L.shop.hubWidth else PLOT.width
 	local buttonsH = if hub then L.shop.hubHeight else PLOT.height
 	local buttonsBottom = midRightTop(screen, buttonsH, hub) + buttonsH + Theme.shadow
 	local nextUpTop = canvasH - L.nextUpBottom - L.nextUpHeight - L.faceOutline
@@ -576,12 +584,12 @@ end
 ---------------------------------------------------------------------------- always: Shop
 
 -- The one hot-colored button. Biggest button on screen in the hub; at the plot, where the egg tray
--- is the priority, it is exactly WATER's size and sits beside it.
+-- and the growth circle are the priority, it is smaller (Config/Hud plotButtons).
 local function shopButton()
 	return C.button({
 		Name = "Shop",
 		-- On touch screens the jump button owns the bottom-right corner: Shop moves to mid-right (at
-		-- the plot also on a narrow mouse screen, where WATER and SHOP don't fit beside the tray).
+		-- the plot also on a narrow mouse screen, where it doesn't fit beside the tray).
 		AnchorPoint = Computed(function()
 			return if shopMidRight:get() then Vector2.new(1, 0) else Vector2.new(1, 1)
 		end),
@@ -1040,7 +1048,7 @@ local function skipBadge()
 				State.slotGrowth(snap, slot, now),
 				slot.required,
 				now,
-				snap.wateredUntil,
+				State.water(snap),
 				snap.speed
 			)
 			longest = math.max(longest, left)
@@ -1329,105 +1337,183 @@ local function eggTray()
 	})
 end
 
--- WATER: one tap waters the whole plot (GameConfig.waterMultiplier for waterDuration). The drop
--- glyph and "2x GROWTH" / "FOR 30s" (from config); while it runs "2x ACTIVE" with the seconds
--- left, dimmed (navy, never pink: it's free). The first tap in a session explains it in a toast.
--- 2 -> "2", 1.5 -> "1.5" (config values may be fractional; %d would throw on them).
+-- The growth circle (Config/Hud.boost; rules in shared/Watering, the server's WaterService): a
+-- stepped navy circle with a water-blue rim in the middle band of the screen, at one of a few
+-- spots. It offers the server's next multiplier ("CLICK" / "7x" / "FOR 5s"; "TAP" on touch
+-- screens); a tap starts it (TapBoost), the circle shows "ACTIVE" with the seconds left under a
+-- shade that drains away, and when the boost runs out it comes back at another spot with the next
+-- offer. Shown at the plot while an egg grows (or a boost runs). Navy, never pink: it's free.
+local BOOST = L.boost
+local boostSpot = State.boostSpot
+local boostToastShown = false
+
+-- The circle's center: in the middle of the band between the toast lane and Next Up (as drawn:
+-- the glyph's outline above, outline + shadow below), at least `gap` clear of each even at the top
+-- of its pulse (it scales around its center).
+local function boostCenterY(screen: { width: number, height: number, scale: number }): number
+	local canvasH = screen.height / screen.scale
+	local bandTop = L.toast.y + L.toast.height + BOOST.gap
+	local bandBottom = canvasH - L.nextUpBottom - L.nextUpHeight - L.faceOutline - BOOST.gap
+	return math.floor((bandTop + bandBottom - L.glyph.shadow) / 2)
+end
+
+-- "2" / "1.5"
 local function plainNumber(n: number): string
 	return if n == math.floor(n) then tostring(math.floor(n)) else tostring(n)
 end
-local WATER_BOOST = plainNumber(GameConfig.waterMultiplier) .. "x"
-local WATER_LINE1 = WATER_BOOST .. " GROWTH"
-local WATER_LINE2 = "FOR " .. plainNumber(GameConfig.waterDuration) .. "s"
-local WATER_TOAST = "Watered! Eggs grow "
-	.. WATER_BOOST
-	.. " faster for "
-	.. plainNumber(GameConfig.waterDuration)
-	.. " s."
-local wateredThisSession = false
+local BOOST_SECONDS = plainNumber(GameConfig.water.tapSeconds)
 
-local function waterButton()
-	local watering = Computed(function()
-		local snap = State.snapshot:get()
-		return snap ~= nil and State.now:get() < snap.wateredUntil
+local function boostCircle()
+	local active = Computed(function()
+		local snap, now = State.snapshot:get(), State.now:get()
+		return snap ~= nil and now < snap.wateredUntil
 	end)
-	local growing = Computed(function()
-		return State.nextReadyIn:get() ~= nil
+	-- A tap waits for the server's answer (one snapshot) before it can tap again.
+	local pending = Value(false)
+	Observer(active):onChange(function()
+		pending:set(false)
+		-- The boost ran out: the circle comes back somewhere else with the next offer.
+		if not active:get(false) then
+			boostSpot:set(Watering.nextSpot(boostSpot:get(false), #BOOST.spots, math.random()))
+		end
 	end)
-	local TEXT_X = PLOT.glyphInset + PLOT.glyph + PLOT.textGap
-	return New("Frame")({
-		Name = "Water",
-		-- Left of SHOP, the same size; bottom-right, or mid-right with SHOP (plotMidRight).
-		AnchorPoint = Computed(function()
-			return if plotMidRight:get() then Vector2.new(1, 0) else Vector2.new(1, 1)
-		end),
-		Position = Computed(function()
-			local midRight, screen = plotMidRight:get(), State.screen:get()
-			local beside = -(EDGE + PLOT.width + PLOT.gap)
-			return if midRight
-				then UDim2.new(1, beside, 0, midRightTop(screen, PLOT.height, false))
-				else UDim2.new(1, beside, 1, -EDGE)
-		end),
-		Size = UDim2.fromOffset(PLOT.width, PLOT.height),
+	local size = BOOST.size
+	local shadeRows = {}
+	for i, r in Icons.disc(Icons.ORB_ROWS - 1, Icons.ORB_FACE_INSET, Theme.colors.waterDark) do
+		-- Rows hang from the shade's bottom edge (it drains downward as the boost runs out).
+		shadeRows[i] = New("Frame")({
+			Name = "Row",
+			BorderSizePixel = 0,
+			BackgroundColor3 = Theme.colors.waterDark,
+			BackgroundTransparency = BOOST.shadeTransparency,
+			Position = UDim2.new(r[1], 0, 1, (r[2] - 1) * size),
+			Size = UDim2.new(r[3], 0, 0, r[4] * size),
+			ZIndex = 8,
+		})
+	end
+	local function line(name: string, cfg: { y: number, height: number, text: number }, text: any, color: Color3?)
+		return C.label({
+			Name = name,
+			Text = text,
+			Position = UDim2.fromOffset(0, cfg.y),
+			Size = UDim2.new(1, 0, 0, cfg.height),
+			MaxTextSize = cfg.text,
+			TextColor3 = color,
+			ZIndex = 9,
+		})
+	end
+	return New("TextButton")({
+		Name = "Boost",
+		Text = "",
+		AutoButtonColor = false,
 		BackgroundTransparency = 1,
-		Visible = atPlot,
+		Size = UDim2.fromOffset(size, size),
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = Computed(function()
+			local screen, spot = State.screen:get(), boostSpot:get()
+			return UDim2.new(0.5, BOOST.spots[spot] or 0, 0, boostCenterY(screen))
+		end),
+		Visible = Computed(function()
+			local plot, ready, isActive = atPlot:get(), State.nextReadyIn:get(), active:get()
+			return plot and (ready ~= nil or isActive)
+		end),
+		[OnEvent("Activated")] = function()
+			local snap = State.snapshot:get(false)
+			if not snap or active:get(false) or pending:get(false) then
+				return
+			end
+			pending:set(true)
+			Remotes.get("TapBoost"):FireServer()
+			Sfx.play("water")
+			if not boostToastShown then
+				boostToastShown = true
+				State.toast(
+					string.format(
+						"%sx growth for %s s! A new boost pops up when it ends.",
+						plainNumber(snap.waterOffer),
+						BOOST_SECONDS
+					),
+					"info"
+				)
+			end
+			-- No answer (a lost packet): tap again after a moment.
+			task.delay(1.5, function()
+				pending:set(false)
+			end)
+		end,
 		[Children] = {
-			C.button({
-				Size = UDim2.fromScale(1, 1),
-				Color = NAVY,
-				Text = "",
-				Disabled = watering,
-				Pulse = Computed(function()
-					local isWatering, isGrowing = watering:get(), growing:get()
-					return not isWatering and isGrowing
-				end),
-				Selected = Computed(function()
-					return State.objective:get().ui == "Water"
-				end),
-				OnClick = function()
-					Remotes.get("Water"):FireServer()
-					if not wateredThisSession then
-						wateredThisSession = true
-						State.toast(WATER_TOAST, "info")
+			New("UIScale")({
+				Scale = Computed(function()
+					local t, isActive = State.now:get(), active:get()
+					if isActive then
+						return 1
 					end
-				end,
-				Children = {
-					Icons.new("drop", {
-						AnchorPoint = Vector2.new(0, 0.5),
-						Position = UDim2.new(0, PLOT.glyphInset, 0.5, L.top.iconNudge),
-						Size = PLOT.glyph,
-						ZIndex = 4,
-					}),
-					C.label({
-						Name = "Label",
-						Text = Computed(function()
-							return if watering:get() then WATER_BOOST .. " ACTIVE" else WATER_LINE1
-						end),
-						Position = UDim2.fromOffset(TEXT_X, PLOT.line1.y),
-						Size = UDim2.new(1, -(TEXT_X + PLOT.textRight), 0, PLOT.line1.height),
-						TextXAlignment = Enum.TextXAlignment.Left,
-						MaxTextSize = PLOT.line1.text,
-						ZIndex = 4,
-					}),
-					C.label({
-						Name = "Sub",
-						-- While watered: the seconds left ("0:18").
-						Text = Computed(function()
-							local snap = State.snapshot:get()
-							if watering:get() and snap then
-								return clock(snap.wateredUntil - State.now:get())
-							end
-							return WATER_LINE2
-						end),
-						Position = UDim2.fromOffset(TEXT_X, PLOT.line2.y),
-						Size = UDim2.new(1, -(TEXT_X + PLOT.textRight), 0, PLOT.line2.height),
-						TextXAlignment = Enum.TextXAlignment.Left,
-						MaxTextSize = PLOT.line2.text,
-						TextColor3 = Theme.colors.cream,
-						ZIndex = 4,
-					}),
-				},
+					return 1 + BOOST.pulse * (0.5 + 0.5 * math.sin(t * 2 * math.pi / BOOST.pulsePeriod))
+				end),
 			}),
+			Icons.new("orb", {
+				Size = UDim2.fromScale(1, 1),
+				-- The rim: water blue while it waits, grey while the boost runs, gold when the
+				-- tutorial points at it.
+				Color = Computed(function()
+					local o, isActive = State.objective:get(), active:get()
+					return if isActive
+						then Theme.colors.locked
+						elseif o.ui == "Boost" then Theme.colors.gold
+						else Theme.colors.water
+				end),
+				ZIndex = 5,
+			}),
+			-- The cooldown: water fills the face while the boost runs and drains with the time left.
+			New("Frame")({
+				Name = "Shade",
+				BackgroundTransparency = 1,
+				ClipsDescendants = true,
+				AnchorPoint = Vector2.new(0, 1),
+				Position = UDim2.fromScale(0, 1),
+				Size = Computed(function()
+					local snap, now, isActive = State.snapshot:get(), State.now:get(), active:get()
+					if not isActive or not snap then
+						return UDim2.fromScale(1, 0)
+					end
+					local left = math.clamp((snap.wateredUntil - now) / GameConfig.water.tapSeconds, 0, 1)
+					return UDim2.fromScale(1, left)
+				end),
+				ZIndex = 8,
+				[Children] = shadeRows,
+			}),
+			line(
+				"Line1",
+				BOOST.line1,
+				Computed(function()
+					local touch, isActive = State.touch:get(), active:get()
+					return if isActive then "ACTIVE" elseif touch then "TAP" else "CLICK"
+				end),
+				Theme.colors.cream
+			),
+			line(
+				"Mult",
+				BOOST.mult,
+				Computed(function()
+					local snap, isActive = State.snapshot:get(), active:get()
+					if not snap then
+						return ""
+					end
+					return plainNumber(if isActive then snap.waterMult else snap.waterOffer) .. "x"
+				end)
+			),
+			line(
+				"Line3",
+				BOOST.line3,
+				Computed(function()
+					local snap, now, isActive = State.snapshot:get(), State.now:get(), active:get()
+					if isActive and snap then
+						return clock(math.ceil(snap.wateredUntil - now))
+					end
+					return "FOR " .. BOOST_SECONDS .. "s"
+				end),
+				Theme.colors.cream
+			),
 		},
 	})
 end
@@ -1638,7 +1724,7 @@ return function()
 		rightColumn(),
 		-- plot
 		eggTray(),
-		waterButton(),
+		boostCircle(),
 		nextUp(),
 	}
 end

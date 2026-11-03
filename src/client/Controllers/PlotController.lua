@@ -1,6 +1,7 @@
 --!strict
 -- Draws every plot from the attributes the server replicates: eggs growing in the soil (with their
--- mutations showing), timers on your own plot (UI/SlotTimer, with a "2x" chip while watered), a
+-- mutations showing), timers on your own plot (UI/SlotTimer, with the watering multiplier's chip),
+-- the sprinkler spraying over a water pad while its owner stands on it, a
 -- marker on each empty or buyable patch of your own soil (UI/SoilMarker: "+" or the price), and
 -- each owner's best mutants roaming their pen.
 -- Turns clicks on your own soil into Plant / Harvest / BuySlot intents. All visuals are client-only.
@@ -109,6 +110,15 @@ function PlotController.slotPart(index: number): BasePart?
 	return slotsFolder and slotsFolder:FindFirstChild("Slot" .. index) :: BasePart?
 end
 
+-- A plot's watering state from its attributes (the water pad + the growth boost).
+local function plotWater(plot: Model): Growth.Water
+	return Growth.water(
+		(plot:GetAttribute("WateredUntil") or 0) :: number,
+		(plot:GetAttribute("WaterMult") or 1) :: number,
+		plot:GetAttribute("OnPad") == true
+	)
+end
+
 -- Current growth of a slot from its attributes (same math as the server).
 local function growthOf(v: SlotVisual, now: number): (number, number)
 	local required = (v.slot:GetAttribute("Required") or 1) :: number
@@ -116,7 +126,7 @@ local function growthOf(v: SlotVisual, now: number): (number, number)
 		(v.slot:GetAttribute("Growth") or 0) :: number,
 		(v.slot:GetAttribute("UpdatedAt") or now) :: number,
 		now,
-		(v.plot:GetAttribute("WateredUntil") or 0) :: number,
+		plotWater(v.plot),
 		(v.plot:GetAttribute("Speed") or 1) :: number
 	)
 	return growth, required
@@ -278,13 +288,11 @@ local function updateSlot(v: SlotVisual, now: number, t: number)
 	end
 	local gui = v.gui :: BillboardGui
 	gui.Enabled = true
-	local wateredUntil = (v.plot:GetAttribute("WateredUntil") or 0) :: number
+	local water = plotWater(v.plot)
 	local speed = (v.plot:GetAttribute("Speed") or 1) :: number
-	local timeText = if ready
-		then ""
-		else Format.duration(Growth.secondsRemaining(growth, required, now, wateredUntil, speed))
-	-- "2x" chip while the plot is watered (WateredUntil) and the egg is still growing.
-	SlotTimer.set(v.timer :: SlotTimer.Timer, progress, ready, now < wateredUntil, timeText)
+	local timeText = if ready then "" else Format.duration(Growth.secondsRemaining(growth, required, now, water, speed))
+	-- The watering multiplier's chip ("2x" on the pad, "7x" boosted) while the egg is still growing.
+	SlotTimer.set(v.timer :: SlotTimer.Timer, progress, ready, Growth.waterRate(water, now), timeText)
 end
 
 local function onSlotClicked(plot: Model, slot: BasePart)
@@ -328,7 +336,7 @@ local function onSlotClicked(plot: Model, slot: BasePart)
 			if growth >= required then
 				Remotes.get("Harvest"):FireServer(index)
 			else
-				State.toast("Still growing. Tap Water to speed it up!", "info")
+				State.toast("Still growing. Stand on the water pad or tap the growth circle!", "info")
 			end
 			return
 		end
@@ -490,11 +498,40 @@ local function watchSlot(plot: Model, slot: Instance)
 	end
 end
 
+-- The sprinkler sprays while the plot's owner stands on the water pad (the OnPad attribute): soft
+-- blue drops, no light (the art rules), the same for everyone watching.
+local function watchSprinkler(plot: Model)
+	local sprinkler = plot:WaitForChild("Sprinkler", 10)
+	local head = sprinkler and sprinkler:FindFirstChild("Head") :: BasePart?
+	if not head then
+		return
+	end
+	local spray = Instance.new("ParticleEmitter")
+	spray.Name = "Spray"
+	spray.Color = ColorSequence.new(Theme.colors.water)
+	spray.LightEmission = 0
+	spray.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 0.1) })
+	spray.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
+	spray.Lifetime = NumberRange.new(0.6, 0.9)
+	spray.Speed = NumberRange.new(6, 8)
+	spray.SpreadAngle = Vector2.new(40, 40)
+	spray.Acceleration = Vector3.new(0, -24, 0)
+	spray.EmissionDirection = Enum.NormalId.Top
+	spray.Rate = 60
+	spray.Parent = head
+	local function update()
+		spray.Enabled = plot:GetAttribute("OnPad") == true
+	end
+	plot:GetAttributeChangedSignal("OnPad"):Connect(update)
+	update()
+end
+
 local function watchPlot(plot: Instance)
 	if not plot:IsA("Model") then
 		return
 	end
 	pens[plot] = { plot = plot, key = "", roamers = {} }
+	task.spawn(watchSprinkler, plot)
 	local slotsFolder = plot:WaitForChild("Slots")
 	slotsFolder.ChildAdded:Connect(function(slot)
 		watchSlot(plot, slot)
