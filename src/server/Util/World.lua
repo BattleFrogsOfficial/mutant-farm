@@ -6,7 +6,8 @@
 -- Rules the layout follows (tools/preview/check.luau verifies them):
 --   * Every prop is its own Model, and props never intersect each other.
 --   * Ground layers never share a surface height (no z-fighting). Layer tops, in studs:
---       valley 0, path 0.25, plaza 0.45, plot base 0.5, pen floor 0.65, lawn 0.7, soil 0.95
+--       valley 0, path 0.25, plaza 0.45, plot base 0.5, pen floor 0.65, lawn 0.7, water pad rim
+--       0.78, water pad 0.86, soil 0.95
 --     Each layer is thick and sinks into the one below, so no thin floating edges.
 --   * Labels are SurfaceGuis on the face that looks at the viewer (Front = -Z).
 
@@ -31,6 +32,7 @@ export type Plot = {
 	sign: TextLabel,
 	income: TextLabel,
 	frame: CFrame,
+	waterPad: BasePart, -- the water pad's top disc (attribute Radius); its owner standing on it = 2x
 }
 
 local COLORS = {
@@ -51,6 +53,8 @@ local COLORS = {
 	rock = Color3.fromHex("#6C6380"),
 	hay = Color3.fromHex("#E8D27A"),
 	buy = Color3.fromHex("#7CFF4A"),
+	water = Color3.fromHex("#4AB8FF"),
+	waterDeep = Color3.fromHex("#2A78C9"),
 }
 
 -- Layout (studs)
@@ -64,9 +68,22 @@ local SLOT_SIZE = 3.6
 local SLOT_SPACING = 4.2
 local SLOT_COLUMNS = 8
 local GATE_HALF = 5 -- gate opening is 10 wide
+-- The water pad (WaterService: stand on it, the plot grows 2x): in the front corner by the gate,
+-- clear of the soil grid (|x| <= 16.5, z >= -15.8) and the side fence (x = 23).
+local WATER_PAD = { x = 19, z = -19, radius = 2.4 }
 
 -- Surface heights (tops).
-local Y = { valley = 0, path = 0.25, plaza = 0.45, plotBase = 0.5, pen = 0.65, lawn = 0.7, soil = 0.95 }
+local Y = {
+	valley = 0,
+	path = 0.25,
+	plaza = 0.45,
+	plotBase = 0.5,
+	pen = 0.65,
+	lawn = 0.7,
+	waterRim = 0.78,
+	waterPad = 0.86,
+	soil = 0.95,
+}
 
 local rng = Rng.new(20261027) -- decoration placement is the same every server
 
@@ -1153,6 +1170,8 @@ local function buildPlot(index: number, parent: Instance): Plot
 	model:SetAttribute("Index", index)
 	model:SetAttribute("OwnerUserId", 0)
 	model:SetAttribute("WateredUntil", 0)
+	model:SetAttribute("WaterMult", 1)
+	model:SetAttribute("OnPad", false)
 	model:SetAttribute("Speed", 1)
 	model:SetAttribute("Pen", "[]")
 
@@ -1259,6 +1278,60 @@ local function buildPlot(index: number, parent: Instance): Plot
 		slots[i] = slot
 	end
 
+	-- Water pad: a blue disc on a stone rim, "2x GROWTH" on the floor (read from the gate), and a
+	-- little sprinkler on the rim's fence side. PlotService watches the owner's feet on it.
+	local padModel = group("WaterPad", model)
+	local padCenter = world(WATER_PAD.x, WATER_PAD.z)
+	local r = WATER_PAD.radius
+	disc(
+		{ Name = "Rim", Color = COLORS.stone, Material = Enum.Material.Slate, Parent = padModel },
+		padCenter,
+		r + 0.5,
+		0.6,
+		Y.waterRim
+	)
+	local waterPad = disc({
+		Name = "Pad",
+		Color = COLORS.water,
+		Material = Enum.Material.SmoothPlastic,
+		Parent = padModel,
+	}, padCenter, r, 0.6, Y.waterPad)
+	waterPad:SetAttribute("Radius", r)
+	padModel.PrimaryPart = waterPad
+	local padLabel = part({
+		Name = "Label",
+		Size = Vector3.new(r * 1.6, 0.05, r * 0.7),
+		CFrame = CFrame.lookAt(
+			Vector3.new(padCenter.X, Y.waterPad + 0.03, padCenter.Z),
+			world(0, -h + 3, Y.waterPad + 0.03)
+		),
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		Parent = padModel,
+	})
+	signText(padLabel, Enum.NormalId.Top, "2x GROWTH").Rotation = 180
+	local sprinkler = group("Sprinkler", model)
+	local sprinklerAt = world(WATER_PAD.x + r + 0.25, WATER_PAD.z)
+	part({
+		Name = "Pipe",
+		Size = Vector3.new(0.3, 1.1, 0.3),
+		CFrame = CFrame.new(sprinklerAt + Vector3.new(0, Y.waterRim + 0.55, 0)),
+		Color = COLORS.slate,
+		Material = Enum.Material.Metal,
+		CanCollide = false,
+		Parent = sprinkler,
+	})
+	local head = blob({
+		Name = "Head",
+		Size = Vector3.new(0.55, 0.4, 0.55),
+		CFrame = CFrame.new(sprinklerAt + Vector3.new(0, Y.waterRim + 1.25, 0)),
+		Color = COLORS.waterDeep,
+		CanCollide = false,
+		Parent = sprinkler,
+	})
+	sprinkler.PrimaryPart = head
+
 	-- Spawn just inside the gate, facing into the plot.
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
@@ -1287,7 +1360,16 @@ local function buildPlot(index: number, parent: Instance): Plot
 	})
 
 	model.Parent = parent
-	return { index = index, model = model, slots = slots, spawn = spawn, sign = sign, income = income, frame = frame }
+	return {
+		index = index,
+		model = model,
+		slots = slots,
+		spawn = spawn,
+		sign = sign,
+		income = income,
+		frame = frame,
+		waterPad = waterPad,
+	}
 end
 
 local function buildDecor(parent: Instance)
