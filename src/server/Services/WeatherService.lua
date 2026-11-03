@@ -220,19 +220,36 @@ local function onBuyInstantWeather(player: Player, data: Types.Profile, eventId:
 		return
 	end
 	local event = (Config.events :: any)[eventId]
+	WeatherService.startPlotEvent(
+		player,
+		data,
+		eventId,
+		string.format("%s %s on your farm for %d s!", event.icon, event.name, event.durationSeconds)
+	)
+end
+
+-- Starts a 120 s event on `player`'s plot only (Instant Weather; also the onboarding's free
+-- Solar Flare): the same rolls as a global event, the first one right away. False if one runs.
+function WeatherService.startPlotEvent(player: Player, data: Types.Profile, eventId: string, message: string): boolean
+	local event = (Config.events :: any)[eventId]
+	if not event or plotEvents[player] then
+		return false
+	end
 	local now = DataService.now()
 	plotEvents[player] = { id = eventId, startsAt = now, endsAt = now + event.durationSeconds, done = -1 }
 	player:SetAttribute("PlotWeatherId", eventId)
 	player:SetAttribute("PlotWeatherEndsAt", now + event.durationSeconds)
-	Net.notify(
-		player,
-		string.format("%s %s on your farm for %d s!", event.icon, event.name, event.durationSeconds),
-		"success"
-	)
-	-- The first roll right away.
+	Net.notify(player, message, "success")
 	plotEvents[player].done = rollsDue(now, -1, now, eventId, function()
 		GrowthService.weatherRoll(player, data, eventId)
 	end)
+	return true
+end
+
+-- Does a global event run at `now`, or start within `seconds`?
+function WeatherService.globalNear(now: number, seconds: number): boolean
+	local e = Weather.scheduleAt(now)
+	return e.active or e.startsAt - now <= seconds
 end
 
 local function tickPlots(now: number)

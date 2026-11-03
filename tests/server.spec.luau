@@ -146,6 +146,76 @@ return function(t)
 			t.eq(data.onboarding.shopOpened, false, "nothing to retire")
 		end,
 
+		["solo weather: one free Solar Flare after 2:30 with 3 eggs growing, no global event near"] = function()
+			-- A start time well clear of any global event for the next ~10 minutes.
+			local Weather = t.require("src/shared/Weather")
+			local start = 1_800_000_000
+			while true do
+				local e = Weather.scheduleAt(start)
+				if not e.active and e.startsAt - start > 900 then
+					break
+				end
+				start += 60
+			end
+			local world = t.server({ now = start })
+			local player, data = world:join(1)
+			data.slots = {}
+			data.eggs = { Swamp = 6 }
+			-- 2:30 of play with nothing growing: no weather yet.
+			world:advance(151, 1)
+			t.eq(data.onboarding.weather, false, "needs 3 eggs growing")
+			for i = 1, 2 do
+				world:send(player, "Plant", i, "Swamp")
+			end
+			world:advance(3, 1)
+			t.eq(data.onboarding.weather, false, "2 growing isn't enough")
+			world:send(player, "Plant", 3, "Swamp")
+			world:advance(2, 1)
+			t.eq(data.onboarding.weather, true, "fired")
+			t.eq(player:GetAttribute("PlotWeatherId"), "SolarFlare", "on the player's plot")
+			local toasts = {}
+			for _, n in world:received(player, "Notify") do
+				table.insert(toasts, n[1])
+			end
+			t.ok(table.find(toasts, "A Solar Flare hit your farm! Golden odds up for 2 minutes."), "toast")
+			-- Never again: once it ended, more growing eggs don't bring another.
+			world:advance(200, 1)
+			t.eq(player:GetAttribute("PlotWeatherId"), nil, "the event ended")
+			world:send(player, "Plant", 4, "Swamp")
+			world:advance(10, 1)
+			t.eq(player:GetAttribute("PlotWeatherId"), nil, "once per profile")
+			-- A returning profile never gets it.
+			local p2, d2 = world:join(2, { grantedStarterEggs = true, eggs = { Swamp = 3 } })
+			for i = 1, 3 do
+				world:send(p2, "Plant", i, "Swamp")
+			end
+			world:advance(200, 1)
+			t.eq(d2.onboarding.weather, false)
+			t.eq(p2:GetAttribute("PlotWeatherId"), nil)
+		end,
+
+		["solo weather waits while a global event is near"] = function()
+			local Weather = t.require("src/shared/Weather")
+			-- 2:30 of play ends ~2 min before a global event starts.
+			local start = 1_800_000_000
+			while true do
+				local e = Weather.scheduleAt(start)
+				if not e.active and e.startsAt - start > 260 and e.startsAt - start < 300 then
+					break
+				end
+				start += 5
+			end
+			local world = t.server({ now = start })
+			local player, data = world:join(1)
+			data.slots = {}
+			data.eggs = { Swamp = 3 }
+			for i = 1, 3 do
+				world:send(player, "Plant", i, "Swamp")
+			end
+			world:advance(160, 1)
+			t.eq(data.onboarding.weather, false, "a global event starts within 5 min")
+		end,
+
 		["opening the Egg Shop once retires the tray's BUY button for good"] = function()
 			local world = t.server()
 			local player, data = world:join(1)
