@@ -1,6 +1,7 @@
 -- Egg Shop carousel: snapping, focus rules, switch independence, auto-scroll gating, unlocks,
 -- and the policy gates the shop relies on.
 return function(t)
+	local Eggs = t.require("src/shared/Config/Eggs")
 	local Carousel = t.require("src/shared/Carousel")
 	local ShopRules = t.require("src/shared/ShopRules")
 	local cfg = t.require("src/shared/Config/EggShopUI")
@@ -56,8 +57,8 @@ return function(t)
 		end,
 		["switch: focusable cards don't depend on the Cash/Gems mode, so focus and offset hold"] = function()
 			-- Unlock gating is identical for base tiers and their Gem variants.
-			for _, base in { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" } do
-				for _, state in { { 0, 0 }, { 0, 30_000 }, { 1, 0 }, { 3, 0 }, { 6, 0 } } do
+			for _, base in Eggs.order do
+				for _, state in { { 0, 0 }, { 0, 30_000 }, { 1, 0 }, { 3, 0 }, { 6, 0 }, { 9, 0 }, { 11, 0 } } do
 					t.eq(
 						ShopRules.isUnlocked(base, state[1], state[2]),
 						ShopRules.isUnlocked(base .. "Gem", state[1], state[2])

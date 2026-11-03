@@ -240,7 +240,7 @@ registerCheck({
       };
       const want = EXPECT[kind];
       const owned = tiles.filter((t) => t !== "NextEgg");
-      for (const gated of ["Toxic", "Void", "Cosmic"]) if (owned.includes(gated) && !(want && want.owned.includes(gated))) problems.push(`gated tier ${gated} in the tray`);
+      for (const gated of ["Toxic", "Void", "Cosmic", "Magma", "Quantum"]) if (owned.includes(gated) && !(want && want.owned.includes(gated))) problems.push(`gated tier ${gated} in the tray`);
       if (want) {
         if ([...owned].sort().join(",") !== [...want.owned].sort().join(",")) problems.push(`tray shows ${owned.join("+") || "nothing"} (want ${want.owned.join("+") || "nothing"})`);
         if (want.next === null && tiles.includes("NextEgg")) problems.push(`unexpected next-egg tile "${nextText}"`);

@@ -89,7 +89,8 @@ return {
 	tabName = { y = 2, height = 19, text = 14 },
 	tabCount = { y = 21, height = 18, text = 16 },
 	gridGap = 8, -- tabs -> grid
-	cellWidth = 110, -- 6 x 110 + 5 x 8 = 700 <= content width (844)
+	cellWidth = 134, -- 6 x 134 + 5 x 8 = 844 = the content width
+	gridColumns = 6,
 	cellHeight = 97,
 	cellGap = 8,
 	pagerHeight = 48,

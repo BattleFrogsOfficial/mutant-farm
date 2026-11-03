@@ -108,9 +108,9 @@ if mode == "zoo" then
 	ground.Material = roblox.Enum.Material.Grass
 	ground.Anchored = true
 	ground.Parent = workspace
-	local tiers = { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" }
+	local tiers = requireModule(game.ReplicatedStorage.Shared.Config.Eggs).order
 	local pick = tonumber(process.env.ZOO_PICK) or 2 -- which species of each bucket
-	local x = -33
+	local x = -45 -- 8 tiers x 12 studs, centered
 	for _, tier in tiers do
 		for _, rarity in { "Common", "Legendary" } do
 			local id = Mutants.buckets[tier][rarity][pick]

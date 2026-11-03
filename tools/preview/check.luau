@@ -397,7 +397,7 @@ local function placeModel(model, cf)
 	end
 end
 local plot = plots[1]
-for _, eggId in { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" } do
+for _, eggId in requireModule(game.ReplicatedStorage.Shared.Config.Eggs).order do
 	for _, progress in { 0, 1 } do
 		local slot = plot.slots[1]
 		local egg = MutantModel.buildEgg(eggId, progress, {})
@@ -410,7 +410,7 @@ for _, eggId in { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" } do
 	end
 end
 local penCenter = plot.model:GetAttribute("PenCenter")
-for _, spec in { { "Starter", "Common", 0.8 }, { "Cosmic", "Legendary", 3 } } do
+for _, spec in { { "Starter", "Common", 0.8 }, { "Cosmic", "Legendary", 3 }, { "Quantum", "Legendary", 3 } } do
 	local Mutants = requireModule(game.ReplicatedStorage.Shared.Config.Mutants)
 	local data = {
 		tier = spec[1],

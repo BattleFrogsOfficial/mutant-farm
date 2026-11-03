@@ -748,6 +748,7 @@ local function build()
 						-- 2 rows between the tabs and the pager, 6 columns in the content width.
 						CellSize = UDim2.fromOffset(AlmanacUI.cellWidth, AlmanacUI.cellHeight),
 						CellPadding = UDim2.fromOffset(AlmanacUI.cellGap, AlmanacUI.cellGap),
+						FillDirectionMaxCells = AlmanacUI.gridColumns,
 						SortOrder = Enum.SortOrder.LayoutOrder,
 						HorizontalAlignment = Enum.HorizontalAlignment.Center,
 					}),

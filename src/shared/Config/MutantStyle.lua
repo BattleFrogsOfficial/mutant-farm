@@ -2160,8 +2160,8 @@ Style.Magma = {
 	skin = {
 		material = "CrackedLava",
 		reflectance = 0,
-		palette = { "#3A2620", "#4A2C22", "#2E1C16", "#55301F", "#3E2A26", "#4B2E2A", "#36201A", "#5A3424" },
-		secondary = { "#FF7A1F", "#FFB23A", "#E0461A" },
+		palette = { "#6A4232", "#7A4A36", "#5E3C30", "#84503A", "#6E4636", "#7C5240", "#62402E", "#8A5640" },
+		secondary = { "#FF7A1F", "#FFA23A", "#F0561A" },
 		accent = { "#FFD23A", "#FF5A1F", "#1A0F0A", "#FF9A3A" },
 		-- Embers drifting up off the crust.
 		particles = { color = "#FF8A2A", rate = 2, size = 0.22, lifetime = 2, speed = 1.2, transparency = 0.35 },
@@ -2172,23 +2172,41 @@ Style.Magma = {
 		{
 			id = "magmaBoulder",
 			label = "Boulder",
-			text = "a body of stacked, smoldering boulders",
+			text = "a body of tumbled boulders around a molten core",
 			parts = {
-				P("block", { 2.4, 1.8, 2.2 }, "root", { 0, 0.95, 0 }, "skin", { rot = { 0, 15, 0 } }),
-				P("block", { 1.8, 1.4, 1.7 }, "root", { 0, 2.4, 0 }, "skin", { rot = { 0, -20, 0 } }),
+				P("block", { 2.3, 1.7, 2.1 }, "root", { 0, 0.95, 0 }, "skin", { rot = { 8, 18, -6 } }),
+				-- The molten core, glowing orange between the rocks (not Neon: it's big).
+				P("ellipsoid", { 2.2, 2.6, 2.1 }, "root", { 0, 1.7, 0 }, "skin2", { mat = "SmoothPlastic" }),
+				P("block", { 1.7, 1.3, 1.6 }, "root", { 0.1, 2.5, 0 }, "skin", { rot = { -10, -22, 9 } }),
+				P(
+					"block",
+					{ 0.9, 0.8, 0.9 },
+					"root",
+					{ 1.0, 1.7, 0.2 },
+					"skin",
+					{ mirror = true, rot = { 25, 35, 15 } }
+				),
 			},
-			head = { pos = { 0, 2.35, 0 }, r = { 0.95, 0.75, 0.9 } },
+			head = { pos = { 0, 2.45, 0 }, r = { 0.9, 0.72, 0.85 } },
 		},
 		{
 			id = "magmaSlump",
 			label = "Molten",
-			text = "a slumped, half-molten body",
+			text = "a slumped, half-molten body on a pool of lava",
 			parts = {
-				P("ellipsoid", { 2.8, 1.8, 2.6 }, "root", { 0, 0.95, 0 }, "skin"),
-				P("ellipsoid", { 1.7, 1.3, 1.6 }, "root", { 0, 1.95, 0 }, "skin"),
-				P("cyl", { 0.2, 3.2, 3.0 }, "root", { 0, 0.1, 0 }, "skin2", { rot = { 0, 0, 90 } }),
+				P("ellipsoid", { 2.8, 1.9, 2.6 }, "root", { 0, 1.0, 0 }, "skin"),
+				P("ellipsoid", { 1.7, 1.3, 1.6 }, "root", { 0, 2.0, 0 }, "skin"),
+				P(
+					"cyl",
+					{ 0.2, 3.4, 3.2 },
+					"root",
+					{ 0, 0.1, 0 },
+					"skin2",
+					{ rot = { 0, 0, 90 }, mat = "SmoothPlastic" }
+				),
+				P("ellipsoid", { 0.9, 0.7, 0.8 }, "root", { 1.05, 0.45, -0.4 }, "skin2", { mat = "SmoothPlastic" }),
 			},
-			head = { pos = { 0, 1.9, 0 }, r = { 1.1, 0.9, 1.0 } },
+			head = { pos = { 0, 1.95, 0 }, r = { 1.1, 0.9, 1.0 } },
 		},
 		{
 			id = "magmaHunch",
@@ -2198,12 +2216,13 @@ Style.Magma = {
 				P("ellipsoid", { 2.5, 2.5, 2.2 }, "root", { 0, 1.3, 0 }, "skin", { rot = { -10, 0, 0 } }),
 				P(
 					"block",
-					{ 0.9, 0.8, 0.9 },
+					{ 0.95, 0.85, 0.95 },
 					"root",
 					{ 1.05, 2.2, 0.2 },
 					"skin",
 					{ mirror = true, rot = { 20, 30, 10 } }
 				),
+				P("ellipsoid", { 1.3, 1.1, 0.4 }, "root", { 0, 1.15, -1.0 }, "skin2", { mat = "SmoothPlastic" }),
 			},
 			head = { pos = { 0, 1.6, -0.35 }, r = { 1.05, 0.9, 0.95 } },
 		},
@@ -2217,7 +2236,7 @@ Style.Magma = {
 			parts = {
 				P(
 					"block",
-					{ 0.07, 0.45, 0.05 },
+					{ 0.1, 0.45, 0.06 },
 					"body",
 					{ 0, -0.25, 0 },
 					"#FF8A2A",
@@ -2225,7 +2244,7 @@ Style.Magma = {
 				),
 				P(
 					"block",
-					{ 0.07, 0.45, 0.05 },
+					{ 0.1, 0.45, 0.06 },
 					"body",
 					{ 0, 0.35, 0 },
 					"#FFB23A",
