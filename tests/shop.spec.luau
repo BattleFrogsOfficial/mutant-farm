@@ -25,6 +25,9 @@ return function(t)
 			t.eq(ShopRules.unlockedAtRebirth(2), nil)
 			t.eq(ShopRules.unlockedAtRebirth(3), "Void")
 			t.eq(ShopRules.unlockedAtRebirth(6), "Cosmic")
+			t.eq(ShopRules.unlockedAtRebirth(9), "Magma")
+			t.eq(ShopRules.unlockedAtRebirth(11), "Quantum")
+			t.eq(ShopRules.unlockedAtRebirth(10), nil)
 			t.eq(ShopRules.unlockedAtRebirth(0), "Starter")
 		end,
 		["Lab unlocks when lifetime earnings cross 25,000, whatever the balance"] = function()
@@ -38,8 +41,9 @@ return function(t)
 			t.eq(ShopRules.nextLocked(0, 0), "Lab")
 			t.eq(ShopRules.nextLocked(0, 25_000), "Toxic")
 		end,
-		["rebirth gates: Starter/Swamp/Lab 0, Toxic 1, Void 3, Cosmic 6"] = function()
-			local expected = { Starter = 0, Swamp = 0, Lab = 0, Toxic = 1, Void = 3, Cosmic = 6 }
+		["rebirth gates: Starter/Swamp/Lab 0, Toxic 1, Void 3, Cosmic 6, Magma 9, Quantum 11"] = function()
+			local expected =
+				{ Starter = 0, Swamp = 0, Lab = 0, Toxic = 1, Void = 3, Cosmic = 6, Magma = 9, Quantum = 11 }
 			for id, r in expected do
 				t.eq(Eggs.tiers[id].unlockRebirth, r)
 				t.ok(ShopRules.isUnlocked(id, r, 1e15), id .. " unlocked at its rebirth")
@@ -55,7 +59,16 @@ return function(t)
 			t.eq(Eggs.tiers.Cosmic.baseValue, 20_000_000)
 		end,
 		["every Gem egg: odds sum to 100, Uncommon+ exactly 2x the base before renormalizing"] = function()
-			local gemPrices = { Starter = 15, Swamp = 40, Lab = 120, Toxic = 300, Void = 800, Cosmic = 2_000 }
+			local gemPrices = {
+				Starter = 15,
+				Swamp = 40,
+				Lab = 120,
+				Toxic = 300,
+				Void = 800,
+				Cosmic = 2_000,
+				Magma = 5_000,
+				Quantum = 12_000,
+			}
 			for _, baseId in Eggs.order do
 				local base, gem = Eggs.tiers[baseId], Eggs.tiers[baseId .. "Gem"]
 				t.ok(gem ~= nil, baseId .. " has a Gem variant")

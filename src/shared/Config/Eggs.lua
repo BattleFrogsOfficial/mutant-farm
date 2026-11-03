@@ -2,7 +2,8 @@
 -- Egg tiers. All balance numbers for eggs live here; logic never hardcodes them.
 -- growTime is in seconds for a Common hatch; Rarities.growMultiplier stretches it.
 -- odds are percentages (must sum to 100) and are what the in-game odds panel shows.
--- design: shell look (pattern: spots | blotches | hazard | cracks | stars | ring); color is the UI swatch.
+-- design: shell look (pattern: spots | blotches | hazard | cracks | stars | ring | magma | pixels);
+-- color is the UI swatch.
 -- Unlock: unlockRebirth rebirths, plus unlockEarned lifetime Cash earned if set (Lab: 3 eggs before
 -- the first rebirth). shared/ShopRules.lua is the one place that checks it.
 -- tagline: one line shown on the Egg Shop card while the tier is further locked.
@@ -21,7 +22,7 @@ local LimitedEggs = require(script.Parent.LimitedEggs)
 
 local Eggs = {}
 
-Eggs.order = { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" }
+Eggs.order = { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic", "Magma", "Quantum" }
 
 Eggs.tiers = {
 	Starter = {
@@ -99,10 +100,36 @@ Eggs.tiers = {
 		color = "#9B5CFF",
 		odds = { Common = 55, Uncommon = 25, Rare = 14, Epic = 5.67, Legendary = 0.33 },
 	},
+	-- Late-game tiers (2026-11-03): something new to reach after Cosmic.
+	Magma = {
+		id = "Magma",
+		design = { pattern = "magma", shell = "#2E1C16", accent = "#FF7A1F", glow = true },
+		name = "Magma Egg",
+		tagline = "Hot to the touch",
+		unlockRebirth = 9,
+		cost = 50_000_000,
+		growTime = 10 * 60 * 60,
+		baseValue = 250_000_000,
+		color = "#FF6A1F",
+		odds = { Common = 50, Uncommon = 26, Rare = 16, Epic = 7.5, Legendary = 0.5 },
+	},
+	Quantum = {
+		id = "Quantum",
+		design = { pattern = "pixels", shell = "#E8F6FF", accent = "#22D3EE", glow = true },
+		name = "Quantum Egg",
+		tagline = "Here and not here",
+		unlockRebirth = 11,
+		cost = 500_000_000,
+		growTime = 12 * 60 * 60,
+		baseValue = 3_200_000_000,
+		color = "#22D3EE",
+		odds = { Common = 45, Uncommon = 27, Rare = 18, Epic = 9.25, Legendary = 0.75 },
+	},
 }
 
 -- Gem variant prices (Gems per egg; the x5 pack is 5x).
-Eggs.gemCosts = { Starter = 15, Swamp = 40, Lab = 120, Toxic = 300, Void = 800, Cosmic = 2_000 }
+Eggs.gemCosts =
+	{ Starter = 15, Swamp = 40, Lab = 120, Toxic = 300, Void = 800, Cosmic = 2_000, Magma = 5_000, Quantum = 12_000 }
 Eggs.gemOddsMultiplier = 2 -- Uncommon-and-above weights x this, then renormalized
 
 -- A tier's odds with Uncommon-and-above weights x `boost`, renormalized to 100.

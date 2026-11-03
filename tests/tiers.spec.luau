@@ -7,7 +7,7 @@ return function(t)
 	local Costs = t.require("src/shared/Costs")
 	return {
 		["every tier has price, grow time, value, odds and a design"] = function()
-			t.eq(#Eggs.order, 6)
+			t.eq(#Eggs.order, 8)
 			for _, id in Eggs.order do
 				local tier = Eggs.tiers[id]
 				t.ok(tier.cost > 0 and tier.growTime > 0 and tier.baseValue > 0, id .. " numbers")

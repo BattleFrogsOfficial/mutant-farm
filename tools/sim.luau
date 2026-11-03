@@ -46,6 +46,8 @@ local opts = {
 	growth = nil :: number?,
 	pen = "sell",
 	autoharvest = false,
+	all = false,
+	passes = nil :: string?,
 	taps = 1,
 }
 do
@@ -57,6 +59,12 @@ do
 			-- separator passed through by `lune run tools/sim -- ...`
 		elseif a == "--autoharvest" then
 			opts.autoharvest = true -- add a paying + Auto-Harvest scenario (toggles on, sells Commons)
+		elseif a == "--passes" then
+			-- a custom scenario: comma-separated pass ids ("Luck2x,VIP"; "none" = free)
+			opts.passes = args[i + 1]
+			i += 1
+		elseif a == "--all" then
+			opts.all = true -- add a scenario that owns every pass
 		elseif a == "--first" then
 			opts.first = true -- only the time to Rebirth 1
 		elseif a == "--first-cost" then
@@ -479,6 +487,28 @@ local scenarios = {
 	{ name = "Free", passes = {} },
 	{ name = "Paying (2x Luck)", passes = { Luck2x = true } },
 }
+if opts.passes then
+	local set = {}
+	for id in string.gmatch(opts.passes, "[^,]+") do
+		if id ~= "none" then
+			set[id] = true
+		end
+	end
+	scenarios = { { name = "Custom (" .. opts.passes .. ")", passes = set } }
+end
+if opts.all then
+	table.insert(scenarios, {
+		name = "Everything (every pass: 2x Luck, Auto-Harvest, 2x Growth, Offline Mutations, +10 Slots, VIP)",
+		passes = {
+			Luck2x = true,
+			AutoHarvest = true,
+			GrowthSpeed2x = true,
+			OfflineMutations = true,
+			PlotSlots10 = true,
+			VIP = true,
+		},
+	})
+end
 if opts.autoharvest then
 	table.insert(scenarios, {
 		name = string.format(

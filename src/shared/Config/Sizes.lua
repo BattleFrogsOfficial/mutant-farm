@@ -7,7 +7,16 @@ return {
 	-- tierScale x rarityScale x species.scale x size ^ sizeExponent, so a Titan Cosmic
 	-- Legendary towers ~40x over a Starter Common. Giants are the flex.
 	visual = {
-		tierScale = { Starter = 1, Swamp = 1.2, Lab = 1.45, Toxic = 1.75, Void = 2.1, Cosmic = 2.6 },
+		tierScale = {
+			Starter = 1,
+			Swamp = 1.2,
+			Lab = 1.45,
+			Toxic = 1.75,
+			Void = 2.1,
+			Cosmic = 2.6,
+			Magma = 3.0,
+			Quantum = 3.4,
+		},
 		rarityScale = { Common = 1, Uncommon = 1.15, Rare = 1.35, Epic = 1.7, Legendary = 2.4 },
 		sizeExponent = 1.6,
 	},
