@@ -15,6 +15,7 @@ export type Slot = {
 	lastRollAt: number,
 	baseGrow: number?, -- onboarding grow ramp: seconds as a Common instead of the tier's
 	scripted: string?, -- "firstHatch": the scripted first hatch (no rolls; fixed outcome)
+	firstRare: boolean?, -- the guaranteed Rare (the 2nd egg): its reveal offers the Starter Bundle
 }
 
 -- An owned patch's Auto-Harvest settings (kept while the patch is empty, unlike its Slot).

@@ -191,6 +191,7 @@ local function plant(player: Player, data: Types.Profile, key: string, eggId: st
 		lastRollAt = now,
 		-- Onboarding's grow ramp (Config/Onboarding.growRamp): early Starter eggs grow faster.
 		baseGrow = if data.onboarding.active then Onboarding.rampSeconds(eggId, data.stats.harvested) else nil,
+		firstRare = if data.stats.eggsPlanted == GUARANTEED_RARE_PLANT then true else nil,
 	}
 	Analytics.funnel(player, data, "FirstPlant")
 	DataService.changed(player)
@@ -340,6 +341,15 @@ local function harvest(player: Player, data: Types.Profile, key: string, opts: H
 		entry.firstHatch = true -- the Almanac card wears the FIRST HATCH BONUS ribbon
 	end
 	Analytics.hatch(player, item)
+	-- Onboarding: the Starter Bundle's offer window starts on the reveal of the first real Rare
+	-- (the guaranteed 2nd egg), not on join; once.
+	local offer = nil
+	local ob = data.onboarding
+	if slot.firstRare and ob.active and not ob.bundle and not data.bundleBought then
+		ob.bundle = true
+		data.bundleOfferEndsAt = (at or DataService.now()) + Products.robux.StarterBundle.offerSeconds
+		offer = "StarterBundle"
+	end
 	if isNew then
 		almanacMilestone(player, data)
 	end
@@ -355,7 +365,8 @@ local function harvest(player: Player, data: Types.Profile, key: string, opts: H
 		tonumber(key),
 		isNew,
 		o.auto == true,
-		o.sold == true
+		o.sold == true,
+		offer
 	)
 	return item, nil
 end

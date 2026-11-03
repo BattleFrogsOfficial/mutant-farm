@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Theme = require(script.Parent.Theme)
 local Icons = require(script.Parent.Icons)
 local OnboardingConfig = require(ReplicatedStorage.Shared.Config.Onboarding)
+local Products = require(ReplicatedStorage.Shared.Config.Products)
 
 local HatchScreen = {}
 
@@ -24,6 +25,7 @@ export type Screen = {
 	fast: TextButton,
 	potion: TextButton,
 	pin: TextButton,
+	bundle: TextButton,
 	newRibbon: Frame,
 	bonusRibbon: Frame,
 	name: TextLabel,
@@ -339,6 +341,17 @@ function HatchScreen.new(): Screen
 		Visible = false,
 		Parent = root,
 	}, "pin")
+	-- The Starter Bundle, offered on the reveal of the first real Rare (onboarding), above the
+	-- potion offer. Pink: it spends Robux.
+	local bundle = button("Bundle", "BUNDLE · R$ " .. Products.robux.StarterBundle.price, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 16, 0.5, -64),
+		Size = UDim2.fromOffset(210, 52),
+		BackgroundColor3 = Theme.colors.spend,
+		ZIndex = 10,
+		Visible = false,
+		Parent = root,
+	}, "gift")
 	local skipAll = button("SkipAll", "Skip all", {
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -16, 0.5, 30),
@@ -381,6 +394,7 @@ function HatchScreen.new(): Screen
 		fast = fast,
 		potion = potion,
 		pin = pin,
+		bundle = bundle,
 		newRibbon = newRibbon,
 		bonusRibbon = bonusRibbon,
 		name = name,

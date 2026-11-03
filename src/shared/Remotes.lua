@@ -38,7 +38,7 @@ Remotes.ClientToServer = {
 Remotes.ServerToClient = {
 	"State", -- (snapshot: Types.Snapshot)
 	"Notify", -- (message: string, kind: "info" | "error" | "success")
-	"Harvested", -- (item, valueNow, slotIndex, isNewSpecies, auto: boolean, sold: boolean) auto = Auto-Harvest pass
+	"Harvested", -- (item, valueNow, slotIndex, isNewSpecies, auto: boolean, sold: boolean, offer: string?) auto = Auto-Harvest pass; offer "StarterBundle" on the first Rare (onboarding)
 	"Mutated", -- (slotIndex: number, eggId: string, mutationId: string, worthNow: number)
 	"Payout", -- (amount: number) pen income just paid
 	"WelcomeBack", -- ({ away, ready, mutations, capped, earned, autoHarvest, autoHarvested, autoSold, autoSoldValue, autoKept, waitingCash, waitingBag, autoStopped, capHours })

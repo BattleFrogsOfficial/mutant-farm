@@ -57,6 +57,7 @@ return function(t)
 			t.eq(data.cash, 100)
 			t.eq(data.eggs.Starter, 1)
 			t.eq(data.onboarding.active, true)
+			t.eq(data.bundleOfferEndsAt, 0, "no Starter Bundle window on join")
 			local slot = data.slots["1"]
 			t.ok(slot ~= nil and slot.eggId == "Starter" and slot.scripted == "firstHatch", "pre-planted on patch 1")
 			local Growth = world:modulesRequire("src/shared/Growth")
@@ -105,6 +106,12 @@ return function(t)
 			t.ok(second ~= nil and second.scripted == nil and second.valueScale == nil, "a real hatch")
 			t.eq(second.rarity, "Rare")
 			t.ok(table.find(seen, "Hatch_Rare") ~= nil, "real hatches are logged")
+			-- The Starter Bundle window starts on this reveal (not on join), and the reveal offers it.
+			local harvests = world:received(player, "Harvested")
+			t.eq(harvests[#harvests][7], "StarterBundle", "offered on the Rare's reveal")
+			t.eq(harvests[1][7], nil, "not on the scripted first hatch")
+			t.ok(data.bundleOfferEndsAt > world.now + 500, "the 10-minute window runs from the reveal")
+			t.eq(data.onboarding.bundle, true)
 		end,
 
 		["the grow ramp: Starter only, 10 / 20 / 30 s by hatches so far, gone from hatch 30"] = function()
@@ -134,6 +141,17 @@ return function(t)
 			d2.stats.eggsPlanted = 5
 			world:send(p2, "Plant", 1, "Starter")
 			t.eq(d2.slots["1"].baseGrow, nil)
+		end,
+
+		["the Starter Bundle waits for the first Rare across a rejoin"] = function()
+			local world = t.server()
+			local player = world:join(1)
+			world:leave(player)
+			world:advance(60)
+			local _, back = world:join(1)
+			t.eq(back.bundleOfferEndsAt, 0, "still waiting for the Rare's reveal")
+			t.eq(back.onboarding.active, true)
+			t.eq(back.eggs.Starter, 1, "starting eggs granted once")
 		end,
 
 		["a returning profile gets none of the opening"] = function()

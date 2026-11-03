@@ -24,6 +24,7 @@ local MutantModel = require(Shared.MutantModel)
 local HatchIsland = require(Shared.HatchIsland)
 local State = require(script.Parent.Parent.State)
 local Sfx = require(script.Parent.Parent.Sfx)
+local Purchase = require(script.Parent.Parent.Purchase)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local HatchScreen = require(script.Parent.Parent.UI.HatchScreen)
 local PlotController = require(script.Parent.PlotController)
@@ -47,7 +48,7 @@ local MAX_CAMERA_DISTANCE = 120
 local FAST_HATCH_AFTER = 20 -- hatches before the Fast Hatch toggle shows
 local fastHatchOn = false -- local copy of the Fast Hatch setting (flips instantly on tap) -- bigger mutants are shown scaled down to fit the set
 
-type Hatch = { item: any, value: number, slotIndex: number?, isNew: boolean }
+type Hatch = { item: any, value: number, slotIndex: number?, isNew: boolean, offer: string? }
 local queue: { Hatch } = {}
 local playing = false
 local skip = false
@@ -462,9 +463,19 @@ local function pinOffer(visible: boolean)
 	end
 end
 
+-- The Starter Bundle on the reveal of the first real Rare (the server starts its window then and
+-- says so with the Harvested event's `offer`).
+local revealOffer: string? = nil
+local function bundleOffer(visible: boolean)
+	local snap = State.get()
+	local open = snap ~= nil and (snap.bundleOfferEndsAt or 0) > workspace:GetServerTimeNow()
+	screen.bundle.Visible = visible and revealOffer == "StarterBundle" and open
+end
+
 local function setRevealVisible(visible: boolean)
 	potionOffer(visible)
 	pinOffer(visible)
+	bundleOffer(visible)
 	screen.title.Visible = visible
 	screen.value.Visible = visible
 	screen.name.Visible = visible
@@ -511,6 +522,7 @@ end
 local function play(h: Hatch)
 	local item = h.item
 	revealItem = item
+	revealOffer = h.offer
 	revealPinned = item.pinned == true
 	local rank = RANK[item.rarity] or 1
 	local rarityColor = Color3.fromHex(Rarities.info[item.rarity].color)
@@ -844,7 +856,8 @@ local function onHarvested(
 	slotIndex: number?,
 	isNew: boolean?,
 	auto: boolean?,
-	sold: boolean?
+	sold: boolean?,
+	offer: string?
 )
 	if auto then
 		-- Auto-Harvest pass: no cutscene (it would interrupt you all the time), just good news.
@@ -867,7 +880,7 @@ local function onHarvested(
 	if slotIndex then
 		PlotController.hideSlotEgg(slotIndex)
 	end
-	table.insert(queue, { item = item, value = value, slotIndex = slotIndex, isNew = isNew == true })
+	table.insert(queue, { item = item, value = value, slotIndex = slotIndex, isNew = isNew == true, offer = offer })
 	if playing then
 		screen.skipAll.Visible = true
 		screen.queue.Text = string.format("+%d more", #queue)
@@ -1023,6 +1036,9 @@ function HatchController.Init()
 	end)
 	screen.skipAll.Activated:Connect(function()
 		skipAll = true
+	end)
+	screen.bundle.Activated:Connect(function()
+		Purchase.product("StarterBundle")
 	end)
 	screen.potion.Activated:Connect(function()
 		local cost = Products.gems.LuckPotion.cost
