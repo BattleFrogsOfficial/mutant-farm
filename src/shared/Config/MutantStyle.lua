@@ -22,7 +22,8 @@
 --           for the idle animation (orbit | drip | flicker | float); name names the part.
 -- Eye styles (MutantModel): normal | baby | sleepy | angry | bulge (frog eyes on bumps) | frog
 -- (gold, slit pupil) | toxic (acid yellow, angry) | hollow (dark sockets) | glow (one white
--- glowing eye) | star (gold star pupils) | starlit (dark glossy eyes with a star glint) | goggle.
+-- glowing eye) | star (gold star pupils) | starlit (dark glossy eyes with a star glint) | goggle |
+-- ember (Magma: dark eyes with a glowing orange pupil) | pixel (Quantum: square eyes, square pupils).
 -- Mouths: smile | line | frog | fangs | tooth | tongue | whisper | none.
 -- Features: { id, slot, label, text, parts, face?, particles? }. One feature per slot, so a
 -- species never wears two hats. `face` overrides the tier's default eyes / eyeStyle / mouth.
@@ -2152,10 +2153,678 @@ Style.Cosmic = {
 	},
 }
 
+-- Magma (Rebirth 9, 2026-11-03): molten rock. Cracked-lava skin (dark crust, glowing seams in the
+-- texture itself, no Neon), ember eyes, rock feet, rising embers; idle: a rumble that shakes it.
+Style.Magma = {
+	label = "Magma",
+	skin = {
+		material = "CrackedLava",
+		reflectance = 0,
+		palette = { "#3A2620", "#4A2C22", "#2E1C16", "#55301F", "#3E2A26", "#4B2E2A", "#36201A", "#5A3424" },
+		secondary = { "#FF7A1F", "#FFB23A", "#E0461A" },
+		accent = { "#FFD23A", "#FF5A1F", "#1A0F0A", "#FF9A3A" },
+		-- Embers drifting up off the crust.
+		particles = { color = "#FF8A2A", rate = 2, size = 0.22, lifetime = 2, speed = 1.2, transparency = 0.35 },
+	},
+	face = { eyes = 2, eyeStyle = "ember", mouth = "wide" },
+	feet = "nub",
+	bodies = {
+		{
+			id = "magmaBoulder",
+			label = "Boulder",
+			text = "a body of stacked, smoldering boulders",
+			parts = {
+				P("block", { 2.4, 1.8, 2.2 }, "root", { 0, 0.95, 0 }, "skin", { rot = { 0, 15, 0 } }),
+				P("block", { 1.8, 1.4, 1.7 }, "root", { 0, 2.4, 0 }, "skin", { rot = { 0, -20, 0 } }),
+			},
+			head = { pos = { 0, 2.35, 0 }, r = { 0.95, 0.75, 0.9 } },
+		},
+		{
+			id = "magmaSlump",
+			label = "Molten",
+			text = "a slumped, half-molten body",
+			parts = {
+				P("ellipsoid", { 2.8, 1.8, 2.6 }, "root", { 0, 0.95, 0 }, "skin"),
+				P("ellipsoid", { 1.7, 1.3, 1.6 }, "root", { 0, 1.95, 0 }, "skin"),
+				P("cyl", { 0.2, 3.2, 3.0 }, "root", { 0, 0.1, 0 }, "skin2", { rot = { 0, 0, 90 } }),
+			},
+			head = { pos = { 0, 1.9, 0 }, r = { 1.1, 0.9, 1.0 } },
+		},
+		{
+			id = "magmaHunch",
+			label = "Hunched",
+			text = "a heavy, hunched body with craggy shoulders",
+			parts = {
+				P("ellipsoid", { 2.5, 2.5, 2.2 }, "root", { 0, 1.3, 0 }, "skin", { rot = { -10, 0, 0 } }),
+				P(
+					"block",
+					{ 0.9, 0.8, 0.9 },
+					"root",
+					{ 1.05, 2.2, 0.2 },
+					"skin",
+					{ mirror = true, rot = { 20, 30, 10 } }
+				),
+			},
+			head = { pos = { 0, 1.6, -0.35 }, r = { 1.05, 0.9, 0.95 } },
+		},
+	},
+	signatures = {
+		{
+			id = "lavaVeins",
+			slot = "pattern",
+			label = "Lava veins",
+			text = "lava glowing through cracks in its crust",
+			parts = {
+				P(
+					"block",
+					{ 0.07, 0.45, 0.05 },
+					"body",
+					{ 0, -0.25, 0 },
+					"#FF8A2A",
+					{ neon = true, ring = { n = 7, r = 1.22 }, rot = { 0, 0, 25 } }
+				),
+				P(
+					"block",
+					{ 0.07, 0.45, 0.05 },
+					"body",
+					{ 0, 0.35, 0 },
+					"#FFB23A",
+					{ neon = true, ring = { n = 7, r = 1.2, phase = 0.5 }, rot = { 0, 0, -25 } }
+				),
+			},
+		},
+		{
+			id = "volcanoCrown",
+			slot = "top",
+			label = "Volcano crown",
+			text = "a tiny volcano smoking on its head",
+			parts = {
+				P("cyl", { 0.7, 0.95, 0.95 }, "top", { 0, 0.3, 0 }, "skinDark", { rot = { 0, 0, 90 } }),
+				P("cyl", { 0.22, 0.55, 0.55 }, "top", { 0, 0.72, 0 }, "#FF7A1F", { rot = { 0, 0, 90 } }),
+				P("ball", { 0.22, 0.22, 0.22 }, "top", { 0, 0.86, 0 }, "#FFB23A", { neon = true }),
+			},
+			particles = { color = "#6A5A54", rate = 2, size = 0.5, lifetime = 2.5, speed = 1, transparency = 0.55 },
+		},
+		{
+			id = "obsidianSpines",
+			slot = "back",
+			label = "Obsidian spines",
+			text = "glassy black obsidian spines down its back",
+			parts = {
+				P(
+					"wedge",
+					{ 0.25, 0.8, 0.5 },
+					"back",
+					{ 0.35, 0.45, 0.1 },
+					"#141018",
+					{ mirror = true, mat = "Glass", refl = 0.3 }
+				),
+				P("wedge", { 0.28, 1.05, 0.55 }, "back", { 0, 0.8, 0.1 }, "#141018", { mat = "Glass", refl = 0.3 }),
+			},
+		},
+		{
+			id = "emberCloud",
+			slot = "aura",
+			label = "Ember cloud",
+			text = "a swirl of sparks wherever it goes",
+			parts = {},
+			particles = { color = "#FFB23A", rate = 4, size = 0.28, lifetime = 1.8, speed = 1.5, transparency = 0.3 },
+		},
+	},
+	features = {
+		{
+			id = "rockHorns",
+			slot = "crown",
+			label = "Rock horns",
+			text = "two chunky rock horns",
+			parts = {
+				P(
+					"wedge",
+					{ 0.28, 0.75, 0.4 },
+					"top",
+					{ 0.5, 0.1, 0 },
+					"#2A1A14",
+					{ mirror = true, rot = { 0, 0, -20 } }
+				),
+			},
+		},
+		{
+			id = "magmaBelly",
+			slot = "chest",
+			label = "Magma belly",
+			text = "a belly of cooling orange magma",
+			parts = { P("ellipsoid", { 1.3, 1.1, 0.35 }, "front", { 0, -0.15, 0.05 }, "skin2") },
+		},
+		{
+			id = "smolderEyes",
+			slot = "eyes",
+			label = "Three eyes",
+			text = "three smoldering eyes",
+			parts = {},
+			face = { eyes = 3 },
+		},
+		{
+			id = "lavaDrip",
+			slot = "side",
+			label = "Lava drip",
+			text = "lava dripping from one side",
+			parts = {
+				P("ellipsoid", { 0.5, 0.9, 0.5 }, "side", { 0.05, -0.3, 0 }, "#E0461A"),
+				P("ellipsoid", { 0.3, 0.55, 0.3 }, "side", { 0.15, -0.9, 0 }, "#FF7A1F", { anim = "drip" }),
+			},
+		},
+		{
+			id = "ashTail",
+			slot = "tail",
+			label = "Ash tail",
+			text = "a crumbly tail of ash",
+			parts = {
+				P("ellipsoid", { 0.55, 0.45, 0.9 }, "back", { 0, -0.5, 0.7 }, "#5A4A44"),
+				P("ellipsoid", { 0.38, 0.32, 0.7 }, "back", { 0, -0.6, 1.35 }, "#6A5A54"),
+			},
+		},
+		{
+			id = "basaltCollar",
+			slot = "neck",
+			label = "Basalt collar",
+			text = "a collar of basalt columns",
+			parts = {
+				P(
+					"block",
+					{ 0.4, 0.3, 0.4 },
+					"neck",
+					{ 0, 0, 0 },
+					"#2A1A14",
+					{ ring = { n = 6, r = 0.75 }, mat = "Basalt" }
+				),
+			},
+		},
+		{
+			id = "coalCheeks",
+			slot = "cheeks",
+			label = "Coal cheeks",
+			text = "two glowing coals for cheeks",
+			parts = {
+				P(
+					"ball",
+					{ 0.24, 0.24, 0.24 },
+					"face",
+					{ 0.55, -0.38, 0.05 },
+					"#FF5A1F",
+					{ mirror = true, neon = true }
+				),
+			},
+		},
+		{
+			id = "smokeChimney",
+			slot = "top",
+			label = "Chimney",
+			text = "a little chimney puffing smoke",
+			parts = {
+				P("cyl", { 0.7, 0.4, 0.4 }, "top", { 0.25, 0.3, 0 }, "#3A3A3A", { rot = { 0, 0, 90 } }),
+			},
+			particles = { color = "#8A8A8A", rate = 2.5, size = 0.45, lifetime = 2.2, speed = 1.1, transparency = 0.5 },
+		},
+	},
+	props = concat(
+		props({
+			id = "anvil",
+			label = "anvil",
+			text = "hammers away on a %s anvil",
+			parts = {
+				P("block", { 0.5, 0.5, 0.4 }, "beside", { 0, 0.25, 0 }, "#3A3A40"),
+				P("block", { 1.1, 0.3, 0.5 }, "beside", { 0, 0.65, 0 }, "prop"),
+			},
+		}, { { "Iron", "Iron", "#5A5A64" }, { "Bronze", "Bronze", "#B07A3A" }, { "Black", "Black", "#1E1E24" } }),
+		props({
+			id = "pickaxe",
+			label = "pickaxe",
+			text = "digs for gems with a %s pickaxe",
+			parts = {
+				P("cyl", { 1.4, 0.1, 0.1 }, "beside", { 0, 0.7, 0 }, "#7A5A3A", { rot = { 0, 0, 80 } }),
+				P("wedge", { 0.12, 0.2, 0.9 }, "beside", { 0.05, 1.35, 0 }, "prop", { rot = { 0, 90, 0 } }),
+			},
+		}, { { "Steel", "Steel", "#B8C0C8" }, { "Gold", "Gold", "#E8B83A" }, { "Ruby", "Ruby", "#C83A4A" } }),
+		props({
+			id = "lavaLamp",
+			label = "lava lamp",
+			text = "keeps a %s lava lamp for company",
+			parts = {
+				P("cyl", { 0.2, 0.5, 0.5 }, "beside", { 0, 0.1, 0 }, "#2A2A30", { rot = { 0, 0, 90 } }),
+				P(
+					"cyl",
+					{ 0.9, 0.38, 0.38 },
+					"beside",
+					{ 0, 0.65, 0 },
+					"prop",
+					{ rot = { 0, 0, 90 }, mat = "Glass", tr = 0.4 }
+				),
+				P("ball", { 0.18, 0.18, 0.18 }, "beside", { 0, 0.6, 0 }, "#FF8A2A", { neon = true }),
+			},
+		}, { { "Orange", "Orange", "#FFB86A" }, { "Red", "Red", "#FF6A6A" }, { "Yellow", "Yellow", "#FFE07A" } }),
+		props({
+			id = "cauldron",
+			label = "cauldron",
+			text = "stirs a bubbling %s cauldron",
+			parts = {
+				P("ball", { 1.0, 0.8, 1.0 }, "beside", { 0, 0.45, 0 }, "#2A2A2E"),
+				P("cyl", { 0.08, 0.85, 0.85 }, "beside", { 0, 0.82, 0 }, "prop", { rot = { 0, 0, 90 } }),
+			},
+		}, { { "Lava", "Lava", "#FF6A1F" }, { "Gold", "Gold", "#FFD23A" }, { "Ember", "Ember", "#E0461A" } }),
+		props({
+			id = "minecart",
+			label = "minecart",
+			text = "pushes a %s minecart of hot rocks",
+			parts = {
+				P("block", { 1.0, 0.55, 0.7 }, "beside", { 0, 0.5, 0 }, "prop"),
+				P("cyl", { 0.12, 0.32, 0.32 }, "beside", { 0.32, 0.16, -0.38 }, "#2A2A2E", { mirror = true }),
+				P("cyl", { 0.12, 0.32, 0.32 }, "beside", { 0.32, 0.16, 0.38 }, "#2A2A2E", { mirror = true }),
+				P("ball", { 0.3, 0.3, 0.3 }, "beside", { 0.1, 0.85, 0 }, "#4A2C22"),
+			},
+		}, { { "Rusty", "Rusty", "#9A5A3A" }, { "Iron", "Iron", "#6A6A74" }, { "Copper", "Copper", "#C8783A" } }),
+		props({
+			id = "bellows",
+			label = "bellows",
+			text = "fans the fire with %s bellows",
+			parts = {
+				P("wedge", { 0.5, 0.25, 0.9 }, "beside", { 0, 0.35, 0 }, "prop", { rot = { 0, 0, 0 } }),
+				P("cyl", { 0.5, 0.08, 0.08 }, "beside", { 0, 0.35, -0.65 }, "#5A4A3A", { rot = { 0, 90, 0 } }),
+			},
+		}, { { "Leather", "Leather", "#8A5A3A" }, { "Red", "Red", "#A83A2A" }, { "Black", "Black", "#2A2220" } }),
+		props({
+			id = "coalBucket",
+			label = "coal bucket",
+			text = "snacks from a %s bucket of coal",
+			parts = {
+				P("cyl", { 0.6, 0.6, 0.6 }, "beside", { 0, 0.3, 0 }, "prop", { rot = { 0, 0, 90 } }),
+				P("ball", { 0.24, 0.24, 0.24 }, "beside", { 0.1, 0.62, 0 }, "#1A1A1A", { ring = { n = 3, r = 0.14 } }),
+			},
+		}, { { "Tin", "Tin", "#A8A8B0" }, { "Brass", "Brass", "#C8A04A" }, { "Iron", "Iron", "#5A5A64" } })
+	),
+	-- Fiery compounds ("Cinderhorn"). Legendary: "Overlord <name>".
+	names = {
+		first = {
+			"Cinder",
+			"Ember",
+			"Blaze",
+			"Pyro",
+			"Ash",
+			"Char",
+			"Flint",
+			"Basalt",
+			"Obsid",
+			"Ignis",
+			"Volc",
+			"Brim",
+			"Kiln",
+			"Coal",
+			"Smold",
+			"Furn",
+			"Slag",
+			"Forge",
+			"Tinder",
+			"Soot",
+		},
+		second = {
+			"horn",
+			"back",
+			"fist",
+			"jaw",
+			"stomp",
+			"crag",
+			"tusk",
+			"heart",
+			"plate",
+			"shell",
+			"hoof",
+			"knuckle",
+			"chomp",
+			"crater",
+			"rumble",
+		},
+		title = "Overlord",
+	},
+	idle = "rumble",
+	idleVariants = { "Eruption", "Lava Stomp", "Slow Smolder" },
+	habitats = {
+		"Crawled out of a crack under the farm's fountain",
+		"Sleeps curled around the hub's lamps for warmth",
+		"Was found cooling off in the Sell stall's ice box",
+		"Hatched with a puff of smoke and a cough",
+	},
+	funFacts = {
+		"%s is warm to hug. Very, very warm.",
+		"%s roasts marshmallows without a fire.",
+		"A group of %ss is called a 'bonfire'.",
+		"%s melts snow just by thinking about it.",
+		"%s rumbles when it's hungry. It's always hungry.",
+		"%s once lit every lamp in the hub by sneezing.",
+		"%s cools down by sitting in the fountain. The fountain steams.",
+		"%s collects shiny rocks and keeps them toasty.",
+	},
+}
+
+-- Quantum (Rebirth 11, 2026-11-03): a hologram made of voxels. Translucent cyan glass around a
+-- solid core, square pixel eyes, no feet; idle: it phases (a still hover that glitches sideways
+-- for an instant now and then).
+Style.Quantum = {
+	label = "Quantum",
+	skin = {
+		material = "Glass",
+		reflectance = 0.15,
+		transparency = 0.25,
+		palette = { "#7FE8FF", "#5CD6F0", "#9AD8FF", "#B8F0FF", "#6ACBFF", "#8AF0E0", "#A8C8FF", "#C0F8FF" },
+		secondary = { "#FF5CE1", "#7A5CFF", "#FFFFFF" },
+		accent = { "#FF5CE1", "#22D3EE", "#1A2240", "#FFFFFF" },
+		-- Data motes.
+		particles = { color = "#9AF0FF", rate = 2, size = 0.18, lifetime = 1.5, speed = 0.6, transparency = 0.4 },
+	},
+	face = { eyes = 2, eyeStyle = "pixel", mouth = "line" },
+	feet = "none",
+	bodies = {
+		{
+			id = "quantumCube",
+			label = "Cube",
+			text = "a glassy cube around a glowing core",
+			parts = {
+				P("block", { 2.2, 2.2, 2.2 }, "root", { 0, 1.4, 0 }, "skin"),
+				P("block", { 1.0, 1.0, 1.0 }, "root", { 0, 1.4, 0 }, "skin2", { mat = "SmoothPlastic", tr = 0 }),
+			},
+			head = { pos = { 0, 1.6, 0 }, r = { 1.0, 0.9, 1.05 } },
+		},
+		{
+			id = "quantumTesseract",
+			label = "Tesseract",
+			text = "a cube inside a cube inside a cube",
+			parts = {
+				P("block", { 2.4, 2.4, 2.4 }, "root", { 0, 1.5, 0 }, "skin", { tr = 0.5 }),
+				P("block", { 1.5, 1.5, 1.5 }, "root", { 0, 1.5, 0 }, "skin", { rot = { 0, 45, 0 } }),
+				P(
+					"block",
+					{ 0.7, 0.7, 0.7 },
+					"root",
+					{ 0, 1.5, 0 },
+					"skin2",
+					{ rot = { 45, 45, 0 }, mat = "SmoothPlastic", tr = 0 }
+				),
+			},
+			head = { pos = { 0, 1.5, 0 }, r = { 1.1, 1.0, 1.15 } },
+		},
+		{
+			id = "quantumVoxels",
+			label = "Voxel stack",
+			text = "a wobbly stack of voxels",
+			parts = {
+				P("block", { 1.9, 1.0, 1.9 }, "root", { 0, 0.55, 0 }, "skin"),
+				P("block", { 1.5, 1.0, 1.5 }, "root", { 0.2, 1.55, 0 }, "skin"),
+				P("block", { 1.25, 1.0, 1.25 }, "root", { -0.1, 2.55, 0 }, "skin"),
+			},
+			head = { pos = { -0.1, 2.5, 0 }, r = { 0.8, 0.6, 0.8 } },
+		},
+	},
+	signatures = {
+		{
+			id = "bitOrbit",
+			slot = "orbit",
+			label = "Orbiting bits",
+			text = "little bits circling it like moons",
+			parts = {
+				P(
+					"block",
+					{ 0.3, 0.3, 0.3 },
+					"body",
+					{ 0, 0.6, 0 },
+					"accent",
+					{ ring = { n = 4, r = 1.9 }, anim = "orbit" }
+				),
+			},
+		},
+		{
+			id = "holoRings",
+			slot = "aura",
+			label = "Hologram rings",
+			text = "hologram rings scanning up and down it",
+			parts = {
+				P("cyl", { 0.05, 3.2, 3.2 }, "body", { 0, 0.9, 0 }, "#22D3EE", { rot = { 0, 0, 90 }, tr = 0.55 }),
+				P("cyl", { 0.05, 3.2, 3.2 }, "body", { 0, -0.7, 0 }, "#22D3EE", { rot = { 0, 0, 90 }, tr = 0.55 }),
+			},
+		},
+		{
+			id = "bracketCrown",
+			slot = "top",
+			label = "Bracket crown",
+			text = "a pair of code brackets floating over its head",
+			parts = {
+				P(
+					"block",
+					{ 0.12, 0.5, 0.12 },
+					"top",
+					{ 0.42, 0.45, 0 },
+					"#FF5CE1",
+					{ mirror = true, rot = { 0, 0, -25 } }
+				),
+				P("ball", { 0.16, 0.16, 0.16 }, "top", { 0, 0.45, 0 }, "#FFFFFF", { neon = true }),
+			},
+		},
+		{
+			id = "glitchShards",
+			slot = "side",
+			label = "Glitch shards",
+			text = "chunks of itself that glitched loose",
+			parts = {
+				P("block", { 0.35, 0.35, 0.35 }, "side", { 0.35, 0.4, 0 }, "#FF5CE1", { anim = "float" }),
+				P("block", { 0.22, 0.22, 0.22 }, "side", { 0.6, -0.15, -0.2 }, "#22D3EE", { anim = "float" }),
+			},
+		},
+	},
+	features = {
+		{
+			id = "antennaDish",
+			slot = "crown",
+			label = "Antenna dish",
+			text = "a tiny antenna dish on its head",
+			parts = {
+				P("cyl", { 0.5, 0.08, 0.08 }, "top", { -0.35, 0.25, 0 }, "#C8D0E0", { rot = { 0, 0, 90 } }),
+				P("cyl", { 0.08, 0.5, 0.5 }, "top", { -0.35, 0.55, 0 }, "#E8F0FF", { rot = { 0, 0, 60 } }),
+			},
+		},
+		{
+			id = "monoPixel",
+			slot = "eyes",
+			label = "One big pixel",
+			text = "one big square pixel eye",
+			parts = {},
+			face = { eyes = 1 },
+		},
+		{
+			id = "pixelCheeks",
+			slot = "cheeks",
+			label = "Pixel cheeks",
+			text = "pink pixel blush",
+			parts = {
+				P("block", { 0.22, 0.22, 0.06 }, "face", { 0.55, -0.38, 0.04 }, "#FF5CE1", { mirror = true }),
+			},
+		},
+		{
+			id = "cableTail",
+			slot = "tail",
+			label = "Cable tail",
+			text = "a cable for a tail, plug and all",
+			parts = {
+				P("cyl", { 0.8, 0.14, 0.14 }, "back", { 0, -0.55, 0.55 }, "#1A2240", { rot = { 0, 90, 0 } }),
+				P("cyl", { 0.6, 0.14, 0.14 }, "back", { 0.15, -0.65, 1.1 }, "#1A2240", { rot = { 0, 60, 0 } }),
+				P("block", { 0.22, 0.18, 0.3 }, "back", { 0.3, -0.65, 1.45 }, "#C8D0E0"),
+			},
+		},
+		{
+			id = "circuitLines",
+			slot = "pattern",
+			label = "Circuit lines",
+			text = "circuit lines traced across its front",
+			parts = {
+				P("block", { 0.9, 0.05, 0.04 }, "front", { 0, 0.25, 0.02 }, "#22D3EE"),
+				P("block", { 0.05, 0.5, 0.04 }, "front", { 0.42, 0.02, 0.02 }, "#22D3EE"),
+				P("block", { 0.6, 0.05, 0.04 }, "front", { 0.15, -0.22, 0.02 }, "#22D3EE"),
+				P("ball", { 0.1, 0.1, 0.06 }, "front", { -0.45, 0.25, 0.03 }, "#FFFFFF", { neon = true }),
+			},
+		},
+		{
+			id = "loadingRing",
+			slot = "halo",
+			label = "Loading ring",
+			text = "a loading ring that never finishes",
+			parts = {
+				P("block", { 0.14, 0.14, 0.14 }, "above", { 0, -0.3, 0 }, "#7FE8FF", { ring = { n = 8, r = 0.6 } }),
+				P("block", { 0.15, 0.15, 0.15 }, "above", { 0, -0.3, -0.6 }, "#FFFFFF", { neon = true }),
+			},
+		},
+		{
+			id = "hoverBase",
+			slot = "base",
+			label = "Hover base",
+			text = "a hovering base of light under it",
+			parts = {
+				P("cyl", { 0.12, 2.6, 2.6 }, "root", { 0, 0.06, 0 }, "#22D3EE", { rot = { 0, 0, 90 }, tr = 0.5 }),
+			},
+		},
+	},
+	props = concat(
+		props({
+			id = "floppyDisk",
+			label = "floppy disk",
+			text = "saves its memories on a %s floppy disk",
+			parts = {
+				P("block", { 0.8, 0.8, 0.08 }, "beside", { 0, 0.45, 0 }, "prop", { rot = { -10, 0, 0 } }),
+				P("block", { 0.4, 0.25, 0.1 }, "beside", { 0, 0.72, 0 }, "#C8D0E0", { rot = { -10, 0, 0 } }),
+			},
+		}, { { "Blue", "Blue", "#3A6AE0" }, { "Black", "Black", "#22242C" }, { "Pink", "Pink", "#FF7AD8" } }),
+		props({
+			id = "gamepad",
+			label = "gamepad",
+			text = "plays games on a %s gamepad",
+			parts = {
+				P("block", { 0.8, 0.2, 0.45 }, "beside", { 0, 0.15, 0 }, "prop"),
+				P("block", { 0.25, 0.2, 0.3 }, "beside", { 0.35, 0.15, 0.1 }, "prop", { mirror = true }),
+				P("ball", { 0.1, 0.06, 0.1 }, "beside", { 0.2, 0.27, -0.05 }, "#FF5CE1"),
+			},
+		}, { { "White", "White", "#E8ECF4" }, { "Purple", "Purple", "#7A5CFF" }, { "Teal", "Teal", "#22B3C0" } }),
+		props({
+			id = "serverTower",
+			label = "server tower",
+			text = "runs on a %s server tower",
+			parts = {
+				P("block", { 0.6, 1.4, 0.7 }, "beside", { 0, 0.7, 0 }, "prop"),
+				P("block", { 0.4, 0.06, 0.04 }, "beside", { 0, 0.5, -0.36 }, "#22D3EE"),
+				P("ball", { 0.08, 0.08, 0.05 }, "beside", { 0.18, 1.2, -0.36 }, "#7CFF4A", { neon = true }),
+			},
+		}, { { "Black", "Black", "#22242C" }, { "Silver", "Silver", "#B8C0D0" }, { "Navy", "Navy", "#1A2240" } }),
+		props({
+			id = "laptop",
+			label = "laptop",
+			text = "types on a %s laptop",
+			parts = {
+				P("block", { 0.9, 0.06, 0.6 }, "beside", { 0, 0.03, 0 }, "prop"),
+				P("block", { 0.9, 0.6, 0.06 }, "beside", { 0, 0.33, 0.3 }, "prop", { rot = { -15, 0, 0 } }),
+				P("block", { 0.75, 0.45, 0.02 }, "beside", { 0, 0.33, 0.26 }, "#9AF0FF", { rot = { -15, 0, 0 } }),
+			},
+		}, { { "Silver", "Silver", "#C8D0DC" }, { "Gold", "Gold", "#E0C060" }, { "Graphite", "Graphite", "#3A3E48" } }),
+		props({
+			id = "joystick",
+			label = "joystick",
+			text = "steers with a %s joystick",
+			parts = {
+				P("block", { 0.6, 0.2, 0.6 }, "beside", { 0, 0.1, 0 }, "#22242C"),
+				P("cyl", { 0.5, 0.08, 0.08 }, "beside", { 0, 0.42, 0 }, "#C8D0E0", { rot = { 0, 0, 90 } }),
+				P("ball", { 0.24, 0.24, 0.24 }, "beside", { 0, 0.7, 0 }, "prop"),
+			},
+		}, { { "Red", "Red", "#E04A4A" }, { "Yellow", "Yellow", "#FFD24A" }, { "Green", "Green", "#4ACB6A" } }),
+		props({
+			id = "usbStick",
+			label = "USB stick",
+			text = "carries a %s USB stick everywhere",
+			parts = {
+				P("block", { 0.3, 0.7, 0.15 }, "beside", { 0, 0.35, 0 }, "prop"),
+				P("block", { 0.2, 0.2, 0.1 }, "beside", { 0, 0.8, 0 }, "#C8D0E0"),
+			},
+		}, { { "Orange", "Orange", "#FF9A3A" }, { "Blue", "Blue", "#3A8AE0" }, { "Lime", "Lime", "#9AE04A" } }),
+		props({
+			id = "retroTv",
+			label = "retro TV",
+			text = "watches static on a %s retro TV",
+			parts = {
+				P("block", { 0.9, 0.75, 0.7 }, "beside", { 0, 0.4, 0 }, "prop"),
+				P("block", { 0.65, 0.5, 0.04 }, "beside", { 0, 0.42, -0.36 }, "#B8F0FF"),
+				P("cyl", { 0.4, 0.04, 0.04 }, "beside", { 0.15, 0.95, 0 }, "#5A5A64", { rot = { 0, 0, 60 } }),
+			},
+		}, { { "Wood", "Wooden", "#8A5A3A" }, { "White", "White", "#E8ECF4" }, { "Teal", "Teal", "#3AB0B0" } })
+	),
+	-- Techy compounds ("Qubitron"). Legendary: "Omega <name>".
+	names = {
+		first = {
+			"Qubit",
+			"Byte",
+			"Pixel",
+			"Vox",
+			"Data",
+			"Cache",
+			"Proxy",
+			"Nano",
+			"Hexa",
+			"Tera",
+			"Giga",
+			"Zeta",
+			"Cyber",
+			"Holo",
+			"Kilo",
+			"Quark",
+			"Photon",
+			"Syn",
+			"Zip",
+			"Logi",
+		},
+		second = {
+			"tron",
+			"bot",
+			"on",
+			"ex",
+			"oid",
+			"bit",
+			"matic",
+			"plex",
+			"core",
+			"node",
+			"grid",
+			"loop",
+			"zap",
+			"ware",
+			"wave",
+		},
+		title = "Omega",
+	},
+	idle = "phase",
+	idleVariants = { "Quantum Leap", "Superposition", "Bit Shift" },
+	habitats = {
+		"Was downloaded into an egg by mistake",
+		"Exists in two pens at once, but only on weekends",
+		"Was spotted buffering behind the Egg Shop",
+		"Hatched exactly when someone looked at it",
+	},
+	funFacts = {
+		"%s is in two places at once. Both of them are your pen.",
+		"%s runs faster on a full moon. Nobody knows why.",
+		"A group of %ss is called a 'network'.",
+		"%s once divided by zero. It said it was fine.",
+		"%s has a save point behind the fountain.",
+		"%s blinks in binary. It's usually saying hi.",
+		"%s can count to 1, then starts over at 0.",
+		"%s lags a little when it's excited.",
+	},
+}
+
 -- Tier order (the egg tiers, Config/Eggs). Rarity budgets: features per species (the signature
 -- counts as one); Epic and Legendary also get a unique prop; Legendary a named idle variant and
 -- a bigger base size.
-Style.order = { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic" }
+Style.order = { "Starter", "Swamp", "Lab", "Toxic", "Void", "Cosmic", "Magma", "Quantum" }
 Style.budget = {
 	Common = { features = 1, prop = false },
 	Uncommon = { features = 2, prop = false },
@@ -2176,6 +2845,10 @@ Style.idles = {
 	drip = { amp = 0.1, speed = 2.2 },
 	hover = { amp = 0.3, speed = 1.4, lift = 0.4 },
 	orbit = { amp = 0.15, speed = 1.0, spin = 0.25 },
+	-- A quake: a fast small shake with a heavier thump every couple of seconds.
+	rumble = { amp = 0.06, speed = 22, thump = 0.18 },
+	-- A still hover that glitches sideways for an instant now and then.
+	phase = { amp = 0.35, speed = 1.2, lift = 0.25 },
 }
 Style.variantBoost = { amp = 1.6, speed = 1.25 }
 

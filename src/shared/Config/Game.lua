@@ -89,6 +89,8 @@ return {
 			[300] = { eggs = { Cosmic = 1 } },
 			[400] = { luck = 0.1 },
 			[500] = { gems = 100 }, -- the 500-species roster's top milestone (no more luck)
+			[600] = { eggs = { Magma = 1 } }, -- with Magma and Quantum (2026-11-03): 676 species
+			[675] = { gems = 200 },
 		},
 	},
 

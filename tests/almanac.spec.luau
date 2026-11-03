@@ -13,7 +13,7 @@ return function(t)
 	local WIDTH = UI.panelWidth - 2 * UI.contentPad
 	local every = Game.almanacMilestones.every
 	local lastAt = (TOTAL // every) * every
-	local FOUNDS = { 0, 5, 24, 25, 26, 99, 100, 101, 399, 400, 499, 500, 510 }
+	local FOUNDS = { 0, 5, 24, 25, 26, 99, 100, 101, 399, 400, 499, 500, 510, 599, 600, 674, 675, 676 }
 	-- Desktop label size, and the size small phones need (on-screen scale ~0.56).
 	local FONTS = { UI.labelSize, Track.fontSize(0.559) }
 
@@ -88,6 +88,9 @@ return function(t)
 				[101] = { 4, 100, 125, 0.04 },
 				[399] = { 15, 375, 400, 0.96 },
 				[499] = { 19, 475, 500, 0.96 },
+				[510] = { 20, 500, 525, 0.4 },
+				[599] = { 23, 575, 600, 0.96 },
+				[674] = { 26, 650, 675, 0.96 },
 			}
 			for found, w in want do
 				local l = Track.layout(found, TOTAL, WIDTH, UI.labelSize)
@@ -98,7 +101,7 @@ return function(t)
 				t.ok(not l.allPassed, "not all passed at " .. found)
 				t.near(l.fillWidth, w[4] * (l.segEnd - l.segStart), 1e-9)
 			end
-			for _, found in { 500, 510 } do
+			for _, found in { 675, 676 } do
 				local l = Track.layout(found, TOTAL, WIDTH, UI.labelSize)
 				t.ok(l.allPassed, "all passed at " .. found)
 				t.eq(l.next, nil)
@@ -217,6 +220,7 @@ return function(t)
 				[300] = "300 · Cosmic Egg",
 				[400] = "400 · +10% luck",
 				[500] = "500 · 100 Gems",
+				[600] = "600 · Magma Egg",
 			}
 			-- Desktop, the next milestone well clear of every big one: all in full.
 			for _, found in { 0, 5, 24, 99, 101, 175, 399, 480 } do
@@ -234,13 +238,18 @@ return function(t)
 			t.eq(shown(60, UI.labelSize)[75], "75 · 25 Gems")
 			-- Crowded by its neighbours, a big label keeps its number, centered.
 			t.eq(shown(200, UI.labelSize)[300], "300")
+			-- The last one (675) sits close to 600: its number while 600's label shows, in full once
+			-- 600's label is hidden by the next one.
+			t.eq(shown(5, UI.labelSize)[675], "675")
+			t.eq(shown(560, UI.labelSize)[675], "675 · 200 Gems")
 			-- Small phones (bigger font): the next one and some big ones in full, the rest numbers.
 			local s = shown(5, Track.fontSize(0.559))
 			t.eq(s[25], "25 · 25 Gems")
 			t.eq(s[100], "100")
 			t.eq(s[200], full[200])
 			t.eq(s[400], full[400])
-			t.eq(s[500], full[500])
+			t.eq(s[500], "500")
+			t.eq(s[600], full[600])
 		end,
 		["tap targets: nearest marker, no overlaps, at least the marker, capped"] = function()
 			for _, hit in { UI.hitWidth, 80 } do

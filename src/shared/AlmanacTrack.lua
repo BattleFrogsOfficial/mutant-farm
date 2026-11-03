@@ -243,12 +243,12 @@ function AlmanacTrack.layout(
 	end
 	local laterMin = laterCount * laterPitch
 	local segMin = if allPassed then 0 else 2 * nextExtent
-	-- Passed markers are passedSize, shrinking (to laterBigSize at most) only when that many
-	-- of them can't fit beside everything else.
+	-- Passed markers are passedSize, shrinking (to laterSize at most) only when that many of
+	-- them can't fit beside everything else (26 passed of 27, on a phone's bigger labels).
 	local passedSize = UIConfig.passedSize
 	while
 		passed > 0
-		and passedSize > UIConfig.laterBigSize
+		and passedSize > UIConfig.laterSize
 		and passed * (AlmanacTrack.extent(passedSize) + gap) > span - segMin - laterMin
 	do
 		passedSize -= 1

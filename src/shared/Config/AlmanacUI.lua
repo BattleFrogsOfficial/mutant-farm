@@ -4,7 +4,9 @@
 -- Logic: shared/AlmanacTrack.lua (track math), client/UI/Almanac.lua (drawing).
 
 return {
-	panelWidth = 760,
+	-- 876 = the 900 canvas less the 12 px panel margin each side: room for 9 tabs (8 tiers + the
+	-- Pumpkin) and a 27-milestone track (676 species, 2026-11-03).
+	panelWidth = 876,
 	panelHeight = 480, -- panels stay <= 480 tall
 	contentTop = 72, -- C.panel's default: content starts under the header
 	contentPad = 16, -- C.panel's side/bottom padding around the content
@@ -82,12 +84,12 @@ return {
 	tabsGap = 8, -- track -> tabs
 	tabHeight = 42,
 	-- A tab: the tier name on top, its found / total count on a smaller line under it, each at its
-	-- full size (a 7th tab makes them 98 wide; text never shrinks to fit).
-	tabTextInset = 7,
-	tabName = { y = 2, height = 19, text = 17 },
+	-- full size (9 tabs are 88 wide: "QUANTUM" at 14 px is ~77; text never shrinks to fit).
+	tabTextInset = 4,
+	tabName = { y = 2, height = 19, text = 14 },
 	tabCount = { y = 21, height = 18, text = 16 },
 	gridGap = 8, -- tabs -> grid
-	cellWidth = 110, -- 6 x 110 + 5 x 8 = 700 <= content width (728)
+	cellWidth = 110, -- 6 x 110 + 5 x 8 = 700 <= content width (844)
 	cellHeight = 97,
 	cellGap = 8,
 	pagerHeight = 48,

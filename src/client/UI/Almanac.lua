@@ -569,7 +569,7 @@ local function build()
 			SortOrder = Enum.SortOrder.LayoutOrder,
 		}),
 	}
-	-- Tabs share the content width (728): 6 tiers fit at 112, more get narrower.
+	-- Tabs share the content width (844): up to 7 fit at 112, more get narrower (9: 88).
 	local tabWidth = math.min(112, math.floor((CONTENT_W - 6 * (#TABS - 1)) / #TABS))
 	for i, tierId in TABS do
 		local tierName = (Eggs.tiers[tierId].name:gsub(" Egg$", ""))

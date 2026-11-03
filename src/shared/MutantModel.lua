@@ -779,6 +779,13 @@ local TINTED_EYES: { [string]: any } = {
 		pupilColor = Color3.fromHex("#C8FF3A"),
 		neon = true,
 	},
+	-- Magma: dark eyes with a small glowing orange pupil (an ember; small, so Neon is fine).
+	ember = {
+		sclera = Color3.fromHex("#1A0F0A"),
+		pupil = { 0.34, 0.34 },
+		pupilColor = Color3.fromHex("#FF8A2A"),
+		neon = true,
+	},
 	-- Pale lavender eyes, a deep-blue pupil and a star glint (reads on the dark cosmic skins).
 	starlit = {
 		sclera = Color3.fromHex("#DCD4FF"),
@@ -860,6 +867,16 @@ local function buildStyledFace(ctx: Ctx, face: { [string]: any }, set: { [string
 					DARK
 				)
 			end
+		elseif style == "pixel" then
+			-- Quantum: a square pale-cyan eye with a square navy pupil, set a little forward.
+			newPart(ctx.model, "Eye", Vector3.new(0.62, 0.62, 0.3) * eyeScale, cf, Color3.fromHex("#E8FBFF"))
+			newPart(
+				ctx.model,
+				"Pupil",
+				Vector3.new(0.28, 0.28, 0.1) * eyeScale,
+				cf * CFrame.new(0.06 * eyeScale, -0.04 * eyeScale, -0.15 * eyeScale),
+				Color3.fromHex("#1A2240")
+			)
 		elseif style == "hollow" then
 			newPart(
 				ctx.model,
@@ -1275,6 +1292,18 @@ function MutantModel.idlePose(tier: string, variant: string?, t: number, scale: 
 		pose = CFrame.new(0, wave * amp * scale, 0)
 	elseif kind == "hover" then
 		pose = CFrame.new(0, (def.lift + wave * def.amp) * scale * (amp / def.amp), 0)
+	elseif kind == "rumble" then
+		-- A quake: a fast small shake, and a heavier thump (a hop) once every ~2.5 s.
+		local shake = math.sin(t * speed) * amp
+		local phase = (t * 0.4) % 1
+		local thump = if phase < 0.1 then math.sin(phase / 0.1 * math.pi) * def.thump * (amp / def.amp) else 0
+		pose = CFrame.new(shake * scale, thump * scale, 0) * CFrame.Angles(0, 0, math.rad(shake * 8))
+	elseif kind == "phase" then
+		-- Hovers still, and for an instant every ~2 s it glitches sideways (a quantum jump).
+		local lift = (def.lift + math.sin(t * speed) * 0.08) * scale
+		local phase = (t * 0.5) % 1
+		local jump = if phase < 0.06 then (if math.floor(t * 0.5) % 2 == 0 then 1 else -1) * amp else 0
+		pose = CFrame.new(jump * scale, lift, 0)
 	else -- orbit
 		pose = CFrame.new(0, wave * amp * scale, 0) * CFrame.Angles(0, t * (def.spin or 0), 0)
 	end
@@ -1437,6 +1466,53 @@ function MutantModel.buildEgg(eggId: string, progress: number, mutations: { stri
 			).Material =
 				Enum.Material.Neon
 		end
+	elseif pattern == "magma" then
+		-- Magma: thin glowing lava veins running up a dark crust (Neon only on the thin veins)
+		-- and a few rough rock nubs.
+		for c = 0, 5 do
+			local a = c / 6 * math.pi * 2 + 0.25
+			local y = 0.35
+			for seg = 0, 3 do
+				local dy = 0.42
+				local da = (if (seg + c) % 2 == 0 then 0.22 else -0.16)
+				local p0 = onShell(a, y).Position
+				local p1 = onShell(a + da, y + dy).Position
+				local vein = newPart(
+					model,
+					"Vein",
+					Vector3.new(0.08 * s, 0.08 * s, (p1 - p0).Magnitude),
+					CFrame.lookAt((p0 + p1) / 2, p1),
+					accent
+				)
+				vein.Material = Enum.Material.Neon
+				a += da
+				y += dy
+			end
+		end
+		for i = 0, 4 do
+			newPart(
+				model,
+				"Rock",
+				Vector3.new(0.34, 0.26, 0.2) * s,
+				onShell(i * 1.3 + 0.6, 0.55 + (i * 0.41) % 1.4) * CFrame.Angles(0, 0, math.rad(i * 25)),
+				shellColor:Lerp(DARK, 0.3)
+			)
+		end
+	elseif pattern == "pixels" then
+		-- Quantum: square pixel tiles scattered over a pale shell, cyan and magenta, and a thin
+		-- scan band.
+		local magenta = Color3.fromHex("#FF5CE1")
+		for i = 0, 15 do
+			local tile = newPart(
+				model,
+				"Pixel",
+				Vector3.new(0.24, 0.24, 0.08) * s,
+				onShell(i * 2.4 + 0.3, 0.3 + (i * 0.53) % 1.85),
+				if i % 3 == 0 then magenta else accent
+			)
+			tile.Material = Enum.Material.SmoothPlastic
+		end
+		ring("Scan", 1.2, 0.06, accent).Transparency = 0.3
 	elseif pattern == "jack" then
 		-- Jack-o'-lantern: darker ridges down the shell, a carved face on the front (dark, not
 		-- Neon: no glow on a big surface) and a stem on top.
