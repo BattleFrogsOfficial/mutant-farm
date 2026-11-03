@@ -92,6 +92,8 @@ return function(t)
 			world:send(player, "Sell", item.id)
 			local got = data.cash - before
 			t.ok(got >= 300 and got <= 340, "sold for " .. got)
+			local notes = world:received(player, "Notify")
+			t.eq(notes[#notes][1], "$320! Buy more eggs and grow your farm.", "the first sale's toast")
 			-- The next hatch is a normal one (the guaranteed Rare: the 2nd egg planted).
 			world:send(player, "Plant", 1, "Starter")
 			world:advance(3600, 5)

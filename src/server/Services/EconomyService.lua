@@ -10,6 +10,7 @@ local Eggs = require(Shared.Config.Eggs)
 local Valuation = require(Shared.Valuation)
 local ShopRules = require(Shared.ShopRules)
 local Format = require(Shared.Format)
+local OnboardingConfig = require(Shared.Config.Onboarding)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
 local GroupRewardService = require(script.Parent.GroupRewardService)
@@ -185,15 +186,25 @@ local function onBuyEgg(player: Player, data: Types.Profile, eggId: any, quantit
 	DataService.changed(player)
 end
 
+-- The sale's toast; an onboarding profile's very first sale says what to do next
+-- (Config/Onboarding.firstSaleToast: "$320! Buy more eggs and grow your farm.").
+local function saleToast(data: Types.Profile, soldBefore: number, amount: number, default: string): string
+	if data.onboarding.active and soldBefore == 0 then
+		return string.format(OnboardingConfig.firstSaleToast, Format.cash(amount))
+	end
+	return default
+end
+
 local function onSell(player: Player, data: Types.Profile, itemId: any)
 	if not Validate.string(itemId, 16) or not data.inventory[itemId] then
 		return
 	end
 	GroupRewardService.beforeSale(player, data)
+	local soldBefore = data.stats.sold
 	local value = EconomyService.sellItem(player, data, itemId)
 	if value then
 		Analytics.funnel(player, data, "FirstSell")
-		Net.notify(player, "Sold for " .. Format.cash(value), "success")
+		Net.notify(player, saleToast(data, soldBefore, value, "Sold for " .. Format.cash(value)), "success")
 		GroupRewardService.afterSale(player, data)
 	end
 end
@@ -201,6 +212,7 @@ end
 -- Sells the whole bag except pinned mutants.
 local function onSellAll(player: Player, data: Types.Profile)
 	GroupRewardService.beforeSale(player, data)
+	local soldBefore = data.stats.sold
 	local total, count = 0, 0
 	for itemId, item in table.clone(data.inventory) do
 		local value = if item.pinned then nil else EconomyService.sellItem(player, data, itemId)
@@ -211,7 +223,8 @@ local function onSellAll(player: Player, data: Types.Profile)
 	end
 	if count > 0 then
 		Analytics.funnel(player, data, "FirstSell")
-		Net.notify(player, string.format("Sold %d for %s", count, Format.cash(total)), "success")
+		local default = string.format("Sold %d for %s", count, Format.cash(total))
+		Net.notify(player, saleToast(data, soldBefore, total, default), "success")
 		GroupRewardService.afterSale(player, data)
 	end
 end
