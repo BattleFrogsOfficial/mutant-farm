@@ -41,7 +41,8 @@ return function(t)
 		["advancing in pieces equals advancing once"] = function()
 			local w = Growth.water(40, 6, true)
 			local once = Growth.advance(0, 0, 100, w, 1.5)
-			local pieces = Growth.advance(Growth.advance(Growth.advance(0, 0, 25, w, 1.5), 25, 70, w, 1.5), 70, 100, w, 1.5)
+			local pieces =
+				Growth.advance(Growth.advance(Growth.advance(0, 0, 25, w, 1.5), 25, 70, w, 1.5), 70, 100, w, 1.5)
 			t.near(pieces, once, 1e-9)
 		end,
 		["seconds remaining inverts advance"] = function()
