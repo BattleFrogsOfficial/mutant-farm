@@ -129,7 +129,7 @@ return function(t)
 			data.slots = {}
 			data.eggs = { Starter = 10, Swamp = 2 }
 			local function plantAt(hatches, eggId)
-				data.stats.harvested = hatches
+				data.stats.hatchesThisLife = hatches
 				data.stats.eggsPlanted = 5 -- past the guaranteed Rare
 				world:send(player, "Plant", 1, eggId)
 				local slot = data.slots["1"]
@@ -144,11 +144,68 @@ return function(t)
 			t.eq(base, nil, "no ramp from hatch 30")
 			t.eq(required, Growth.requiredSeconds("Starter", rarity))
 			t.eq((plantAt(1, "Swamp")), nil, "Starter only")
-			-- A returning profile's Starter eggs never ramp.
+			-- Every profile ramps (2026-11-04), returning ones too, by hatches this life.
 			local p2, d2 = world:join(2, { grantedStarterEggs = true, eggs = { Starter = 1 } })
 			d2.stats.eggsPlanted = 5
 			world:send(p2, "Plant", 1, "Starter")
-			t.eq(d2.slots["1"].baseGrow, nil)
+			t.eq(d2.slots["1"].baseGrow, 10)
+		end,
+
+		["the grow ramp restarts each life"] = function()
+			local world = t.server()
+			local player, data = world:join(1, {
+				grantedStarterEggs = true,
+				cash = 800_000,
+				eggs = { Starter = 2 },
+				stats = { cashEarnedThisLife = 800_000, hatchesThisLife = 40, harvested = 40, eggsPlanted = 40 },
+			})
+			world:send(player, "Plant", 1, "Starter")
+			t.eq(data.slots["1"].baseGrow, nil, "past the ramp this life")
+			world:send(player, "Rebirth")
+			t.eq(data.rebirths, 1)
+			t.eq(data.stats.hatchesThisLife, 0)
+			t.eq(data.stats.harvested, 40, "lifetime count kept")
+			world:send(player, "Plant", 1, "Starter")
+			t.eq(data.slots["1"].baseGrow, 10, "fast again in the new life")
+		end,
+
+		["rebirth needs Cash EARNED this life: banked mutants can't chain rebirths"] = function()
+			local world = t.server()
+			local inventory = {}
+			for i = 1, 8 do
+				inventory[tostring(i)] = mutant(i, "Starter", "Common", { pinned = true })
+			end
+			-- $5.5M in two bagged Lab Legendaries (2.75M each), nothing earned yet this life.
+			inventory["9"] = mutant(9, "Lab", "Legendary")
+			inventory["10"] = mutant(10, "Lab", "Legendary")
+			local player, data = world:join(1, {
+				grantedStarterEggs = true,
+				inventory = inventory,
+				nextItemId = 11,
+				stats = { cashEarnedThisLife = 0 },
+			})
+			t.eq(Valuation.sellValue(data.inventory["9"], 1), 2_750_000)
+			world:send(player, "Rebirth")
+			t.eq(data.rebirths, 0, "$0 earned this life: refused")
+			world:send(player, "RebirthNow")
+			t.eq(data.rebirths, 0, "Rebirth Now too")
+			-- Selling one earns 2.75M: exactly one rebirth (700K).
+			world:send(player, "Sell", "9")
+			t.eq(data.stats.cashEarnedThisLife, 2_750_000)
+			local lifetime = data.stats.totalCashEarned
+			world:send(player, "Rebirth")
+			t.eq(data.rebirths, 1)
+			-- The rebirth sold the other Legendary: counted for the lifetime total, never this life.
+			t.eq(data.inventory["10"], nil, "bag sold")
+			t.eq(data.stats.totalCashEarned - lifetime, 2_750_000)
+			t.eq(data.stats.cashEarnedThisLife, 0)
+			world:send(player, "Rebirth")
+			world:send(player, "Rebirth")
+			t.eq(data.rebirths, 1, "no chain of rebirths from banked value")
+			-- Cash held doesn't count either.
+			data.cash = 50_000_000
+			world:send(player, "Rebirth")
+			t.eq(data.rebirths, 1)
 		end,
 
 		["the Starter Bundle waits for the first Rare across a rejoin"] = function()
@@ -289,7 +346,7 @@ return function(t)
 				rebirths = 0,
 				inventory = inventory,
 				nextItemId = 12,
-				stats = { totalCashEarned = 1_000_000 },
+				stats = { totalCashEarned = 1_000_000, cashEarnedThisLife = 800_000 },
 			})
 			local expected = 0
 			for _, id in { "9", "10", "11" } do
@@ -484,7 +541,8 @@ return function(t)
 			end
 			inventory["9"] = mutant(9, "Swamp", "Epic")
 			local player, data = world:join(1, {
-				cash = 400_000, -- 57% of the 700K first rebirth
+				cash = 400_000,
+				stats = { cashEarnedThisLife = 400_000 }, -- 57% of the 700K first rebirth
 				gems = 150,
 				inventory = inventory,
 				nextItemId = 10,
@@ -512,16 +570,19 @@ return function(t)
 
 		["Rebirth Now: not below 50% of the cost, not without the Gems, works when restricted"] = function()
 			local world = t.server()
-			local poor, poorData = world:join(1, { cash = 340_000, gems = 500 }) -- 48.6%
+			local poor, poorData =
+				world:join(1, { cash = 340_000, gems = 500, stats = { cashEarnedThisLife = 340_000 } }) -- 48.6%
 			world:send(poor, "RebirthNow")
 			t.eq(poorData.rebirths, 0)
 			t.eq(poorData.gems, 500)
-			local broke, brokeData = world:join(2, { cash = 600_000, gems = 99 })
+			local broke, brokeData =
+				world:join(2, { cash = 600_000, gems = 99, stats = { cashEarnedThisLife = 600_000 } })
 			world:send(broke, "RebirthNow")
 			t.eq(brokeData.rebirths, 0)
 			t.eq(brokeData.cash, 600_000, "nothing reset")
 			world.restricted[3] = true -- no randomness: not policy-gated
-			local restricted, data = world:join(3, { cash = 350_000, gems = 100 })
+			local restricted, data =
+				world:join(3, { cash = 350_000, gems = 100, stats = { cashEarnedThisLife = 350_000 } })
 			world:send(restricted, "RebirthNow")
 			t.eq(data.rebirths, 1)
 			t.eq(data.gems, 0)
@@ -529,7 +590,8 @@ return function(t)
 
 		["Gem upgrades: Gems spent, Pen Slots once per rebirth level, all kept through rebirth"] = function()
 			local world = t.server()
-			local player, data = world:join(1, { gems = 5_000, cash = 800_000 })
+			local player, data =
+				world:join(1, { gems = 5_000, cash = 800_000, stats = { cashEarnedThisLife = 800_000 } })
 			local DataService = world.service.DataService
 			local cap = DataService.penCapacity(data)
 			world:send(player, "BuyGemUpgrade", "penSlots")

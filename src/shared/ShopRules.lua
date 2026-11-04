@@ -99,10 +99,16 @@ function ShopRules.canBuyPotion(paidRandomRestricted: boolean): boolean
 	return not paidRandomRestricted
 end
 
--- Rebirth Now is offered (Rebirth panel, Rebirth Altar sign) while Cash is from minFraction (50%)
--- of the next rebirth's cost up to just under it. The server accepts it from minFraction up.
-function ShopRules.rebirthNowOffered(cash: number, cost: number): boolean
-	return cost > 0 and cash >= cost * Products.gems.RebirthNow.minFraction and cash < cost
+-- Rebirth is gated by Cash earned this life (stats.cashEarnedThisLife), not Cash held (2026-11-04).
+function ShopRules.canRebirth(earnedThisLife: number, cost: number): boolean
+	return cost > 0 and earnedThisLife >= cost
+end
+
+-- Rebirth Now is offered (Rebirth panel, Rebirth Altar sign) while Cash earned this life is from
+-- minFraction (50%) of the next rebirth's cost up to just under it. The server accepts it from
+-- minFraction up.
+function ShopRules.rebirthNowOffered(earnedThisLife: number, cost: number): boolean
+	return cost > 0 and earnedThisLife >= cost * Products.gems.RebirthNow.minFraction and earnedThisLife < cost
 end
 
 -- Instant Weather is a paid mutation-odds boost too: gated exactly like the Luck Potion.

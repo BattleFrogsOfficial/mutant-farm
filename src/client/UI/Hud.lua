@@ -389,7 +389,7 @@ local function rebirthStrip()
 		if not snap or not snap.rebirthCost then
 			return 0
 		end
-		return math.clamp(snap.cash / snap.rebirthCost, 0, 1)
+		return math.clamp((snap.earnedThisLife or 0) / snap.rebirthCost, 0, 1) -- earned this life
 	end)
 	return New("Frame")({
 		Name = "RebirthStrip",

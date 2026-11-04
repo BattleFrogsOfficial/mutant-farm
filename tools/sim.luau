@@ -135,6 +135,8 @@ type Player = {
 	lastTier: { [number]: string }, -- the last egg planted on each patch (Auto-Harvest replants it)
 	pen: { Mutant }, -- kept mutants: pay pen income, survive rebirth
 	earned: number, -- lifetime Cash earned (unlocks Lab at Rebirth 0)
+	life: number, -- Cash earned this life (the rebirth requirement since 2026-11-04)
+	lifeHatches: number, -- hatches this life (the grow ramp restarts each life)
 	leftAt: number,
 	-- stats
 	rebirthAt: { number }, -- time (s) each rebirth happened
@@ -177,6 +179,8 @@ local function newPlayer(seed: number, passes: { [string]: boolean }, onboarding
 		lastTier = {},
 		pen = {},
 		earned = 0,
+		life = 0,
+		lifeHatches = 0,
 		leftAt = 0,
 		rebirthAt = {},
 		activeAt = {},
@@ -248,7 +252,7 @@ local function plant(p: Player, index: number, tierId: string)
 	p.planted += 1
 	local rarity = if p.planted == GUARANTEED_RARE_PLANT then "Rare" else Rolls.rollRarity(p.rng, tierId, luckOf(p))
 	-- Onboarding's grow ramp (early Starter eggs): the same rule as GrowthService.
-	local ramp = if p.onboarding then Onboarding.rampSeconds(tierId, p.harvests) else nil
+	local ramp = Onboarding.rampSeconds(tierId, p.lifeHatches)
 	local required = if ramp
 		then Growth.slotRequired({ eggId = tierId, rarity = rarity, baseGrow = ramp })
 		else Growth.requiredSeconds(tierId, rarity)
@@ -264,6 +268,7 @@ end
 
 local function harvestMutant(p: Player, slot: Slot): Mutant
 	p.harvests += 1
+	p.lifeHatches += 1
 	if slot.scripted then
 		-- The scripted first hatch: a fixed outcome with its value scaled (Valuation).
 		local f = Onboarding.firstHatchFields()
@@ -290,6 +295,7 @@ local function sell(p: Player, m: Mutant)
 	local value = Valuation.sellValue(m, cashMultiplier(p))
 	p.cash += value
 	p.earned += value
+	p.life += value
 end
 
 -- A new mutant: into the pen if it's worth more than the pen's worst (which is then sold),
@@ -328,6 +334,7 @@ local function penIncome(p: Player, dt: number, online: boolean)
 	end
 	p.cash += perMinute * dt / 60
 	p.earned += perMinute * dt / 60
+	p.life += perMinute * dt / 60
 end
 
 -- Best tier by expected profit per second among unlocked, affordable tiers.
@@ -340,7 +347,7 @@ local function bestTier(p: Player, budget: number): string?
 		if ShopRules.isUnlocked(id, p.rebirths, p.earned) and tier.cost <= budget then
 			local value, time = eggEV(id, luckOf(p), oddsBonus)
 			-- Onboarding's ramp shortens early Starter eggs (the expected time scales with it).
-			local ramp = if p.onboarding then Onboarding.rampSeconds(id, p.harvests) else nil
+			local ramp = Onboarding.rampSeconds(id, p.lifeHatches)
 			if ramp then
 				time *= ramp / tier.growTime
 			end
@@ -445,11 +452,14 @@ local function fullRate(p: Player): number
 end
 
 local function doRebirth(p: Player, now: number)
-	-- The bag outside the pen is sold first (counted as earned); then Cash resets.
+	-- The bag outside the pen is sold first (counted as earned, never toward the new life); then
+	-- Cash resets.
 	for _, m in p.pending do
 		sell(p, m)
 	end
 	p.pending = {}
+	p.life = 0
+	p.lifeHatches = 0
 	p.rebirths += 1
 	p.rebirthAt[p.rebirths] = now
 	p.activeAt[p.rebirths] = p.activeSeconds
@@ -544,7 +554,7 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 				actions += 1
 			end
 		end
-		if p.cash >= rebirthCost(p.rebirths) then
+		if p.life >= rebirthCost(p.rebirths) then
 			doRebirth(p, now)
 			return
 		end

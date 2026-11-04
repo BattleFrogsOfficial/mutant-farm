@@ -44,4 +44,24 @@ function NextUp.labGoal(
 	}
 end
 
+-- The rebirth goal, from half the next rebirth's cost earned this life (Cash earned, not held):
+-- "Rebirth 2: $1.2M / $4.55M earned this life".
+function NextUp.rebirthGoal(rebirths: number, earnedThisLife: number, cost: number): Goal?
+	if cost <= 0 or earnedThisLife < cost * 0.5 then
+		return nil
+	end
+	if earnedThisLife >= cost then
+		return { text = string.format("Rebirth %d is ready: step on the Rebirth Altar", rebirths + 1), progress = 1 }
+	end
+	return {
+		text = string.format(
+			"Rebirth %d: %s / %s earned this life",
+			rebirths + 1,
+			Format.cash(earnedThisLife),
+			Format.cash(cost)
+		),
+		progress = math.clamp(earnedThisLife / cost, 0, 1),
+	}
+end
+
 return NextUp

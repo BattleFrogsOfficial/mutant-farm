@@ -36,11 +36,13 @@ end
 function AltarSign.new(): Frame
 	local offerNow = Computed(function()
 		local snap = State.snapshot:get()
-		return snap ~= nil and ShopRules.rebirthNowOffered(snap.cash, snap.rebirthCost or 0)
+		return snap ~= nil and ShopRules.rebirthNowOffered(snap.earnedThisLife or 0, snap.rebirthCost or 0)
 	end)
 	local progress = Computed(function()
 		local snap = State.snapshot:get()
-		return if snap and (snap.rebirthCost or 0) > 0 then math.clamp(snap.cash / snap.rebirthCost, 0, 1) else 0
+		return if snap and (snap.rebirthCost or 0) > 0
+			then math.clamp((snap.earnedThisLife or 0) / snap.rebirthCost, 0, 1)
+			else 0
 	end)
 	return New("Frame")({
 		Name = "AltarSign",

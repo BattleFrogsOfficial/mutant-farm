@@ -1,8 +1,9 @@
 --!strict
--- Rebirth: pay Costs.rebirth(n) Cash to start over with a permanent +0.5x Cash multiplier and the
--- next egg tier. First the bag is sold at full value through EconomyService (logged, and counted
--- in stats.totalCashEarned), except the mutants standing in the pen (pinned ones always are).
--- Then it resets Cash (to startingCash, so the sale's Cash goes with the rest), bought slots,
+-- Rebirth: once Cash earned this life (stats.cashEarnedThisLife) reaches Costs.rebirth(n), start
+-- over with a permanent +0.5x Cash multiplier and the next egg tier. Cash held isn't checked.
+-- First the bag is sold at full value through EconomyService (logged, and counted in
+-- stats.totalCashEarned), except the mutants standing in the pen (pinned ones always are); that
+-- sale never counts toward the new life (cashEarnedThisLife is reset after it). Then it resets Cash (to startingCash, so the sale's Cash goes with the rest), bought slots,
 -- upgrades, eggs (back to the starter eggs) and growing plants. Keeps the pen, passes, Gems, the
 -- Almanac and the daily streak. Rebirth Now (Products.gems.RebirthNow) does the same from 50% of
 -- the cost, for Gems.
@@ -14,6 +15,7 @@ local GameConfig = require(Shared.Config.Game)
 local Upgrades = require(Shared.Config.Upgrades)
 local Eggs = require(Shared.Config.Eggs)
 local Costs = require(Shared.Costs)
+local ShopRules = require(Shared.ShopRules)
 local Products = require(Shared.Config.Products)
 local Types = require(Shared.Types)
 local DataService = require(script.Parent.DataService)
@@ -37,6 +39,9 @@ local function rebirth(player: Player, data: Types.Profile)
 	end
 	data.inventory = keep
 	EconomyService.resetCash(player, data, GameConfig.startingCash)
+	-- A new life: the bag sale above belongs to the old one, and the grow ramp starts again.
+	data.stats.cashEarnedThisLife = 0
+	data.stats.hatchesThisLife = 0
 	data.rebirths += 1
 	data.slotCount = Upgrades.slots.base
 	-- Gem eggs were bought with Gems: they survive the reset, including ones still growing.
@@ -81,7 +86,7 @@ local function rebirth(player: Player, data: Types.Profile)
 end
 
 local function onRebirth(player: Player, data: Types.Profile)
-	if data.cash < Costs.rebirth(data.rebirths) then
+	if not ShopRules.canRebirth(data.stats.cashEarnedThisLife, Costs.rebirth(data.rebirths)) then
 		return
 	end
 	rebirth(player, data)
@@ -91,7 +96,7 @@ end
 -- sold first, the usual resets), then the Gems are taken (checked first, so it can't half-happen).
 local function onRebirthNow(player: Player, data: Types.Profile)
 	local offer = Products.gems.RebirthNow
-	if data.cash < Costs.rebirth(data.rebirths) * offer.minFraction then
+	if data.stats.cashEarnedThisLife < Costs.rebirth(data.rebirths) * offer.minFraction then
 		return
 	end
 	if data.gems < offer.cost then

@@ -360,7 +360,8 @@ local function progressOf(sn: any, base: string): (number, string)
 		return 0, string.format("%s · %d rebirths to go", tier.name, away)
 	end
 	local cost = sn.rebirthCost or Costs.rebirth(sn.rebirths)
-	return math.clamp(sn.cash / cost, 0, 1), string.format("%s · Rebirth %d", tier.name, tier.unlockRebirth)
+	return math.clamp((sn.earnedThisLife or 0) / cost, 0, 1),
+		string.format("%s · Rebirth %d", tier.name, tier.unlockRebirth)
 end
 
 -- "ENDS IN 3d 4h" for a limited egg's ribbon.

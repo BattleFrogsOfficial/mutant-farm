@@ -94,13 +94,19 @@ return function()
 		local snap = State.snapshot:get()
 		return if snap then snap.rebirthCost or 0 else 0
 	end)
+	-- Progress is Cash earned this life (not Cash held): read from the snapshot directly.
+	local earned = Computed(function()
+		local snap = State.snapshot:get()
+		return if snap then snap.earnedThisLife or 0 else 0
+	end)
 	local progress = Computed(function()
-		local c = cost:get()
-		return if c > 0 then math.clamp(State.cash:get() / c, 0, 1) else 0
+		local snap = State.snapshot:get()
+		local c = if snap then snap.rebirthCost or 0 else 0
+		return if c > 0 and snap then math.clamp((snap.earnedThisLife or 0) / c, 0, 1) else 0
 	end)
 	local offerNow = Computed(function()
 		local snap = State.snapshot:get()
-		return snap ~= nil and ShopRules.rebirthNowOffered(snap.cash, snap.rebirthCost or 0)
+		return snap ~= nil and ShopRules.rebirthNowOffered(snap.earnedThisLife or 0, snap.rebirthCost or 0)
 	end)
 	local unlock = Computed(function()
 		for _, eggId in Eggs.order do
@@ -155,10 +161,9 @@ return function()
 					C.label({
 						Text = Computed(function()
 							return string.format(
-								"%s / %s  ·  %d%%",
-								Format.cash(State.cash:get()),
-								Format.cash(cost:get()),
-								math.floor(progress:get() * 100)
+								"EARNED THIS LIFE %s / %s",
+								Format.cash(earned:get()),
+								Format.cash(cost:get())
 							)
 						end),
 						Size = UDim2.new(1, -10, 1, -6),
@@ -168,7 +173,7 @@ return function()
 					}),
 				},
 			}),
-			-- Rebirth Now, beside the bar while 50% <= Cash < cost.
+			-- Rebirth Now, beside the bar while 50% <= earned this life < cost.
 			C.button({
 				Name = "RebirthNow",
 				AnchorPoint = Vector2.new(1, 0.5),
@@ -229,6 +234,16 @@ return function()
 				line(2, "Bought soil patches", Theme.colors.cream),
 				line(3, "Bag is sold (your pen stays)", Theme.colors.cream),
 			}),
+			C.label({
+				Name = "SellNote",
+				Text = "Rebirth sells everything you're not keeping in your pen.",
+				AnchorPoint = Vector2.new(0.5, 1),
+				Position = UDim2.new(0.5, 0, 1, -70),
+				Size = UDim2.new(1, 0, 0, 20),
+				TextColor3 = Theme.colors.cream,
+				MaxTextSize = 14,
+				ZIndex = 3,
+			}),
 			C.button({
 				AnchorPoint = Vector2.new(0.5, 1),
 				Position = UDim2.new(0.5, 0, 1, 0),
@@ -247,7 +262,7 @@ return function()
 				ZIndex = 4,
 				Text = Computed(function()
 					if progress:get() < 1 then
-						return "NEED " .. Format.cash(math.max(0, cost:get() - State.cash:get())) .. " MORE"
+						return "EARN " .. Format.cash(math.max(0, cost:get() - earned:get())) .. " MORE"
 					end
 					return if confirming:get() then "TAP AGAIN TO CONFIRM" else "REBIRTH NOW"
 				end),

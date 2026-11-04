@@ -48,6 +48,7 @@ function EconomyService.addCash(
 	local lockedBefore = ShopRules.nextLocked(data.rebirths, data.stats.totalCashEarned)
 	data.cash += amount
 	data.stats.totalCashEarned += amount
+	data.stats.cashEarnedThisLife += amount
 	-- An earnings-gated tier (Lab) unlocking right now.
 	if lockedBefore and ShopRules.isUnlocked(lockedBefore, data.rebirths, data.stats.totalCashEarned) then
 		Net.notify(player, Eggs.tiers[lockedBefore].name .. " unlocked at the Egg Shop!", "success")

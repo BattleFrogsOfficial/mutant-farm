@@ -72,6 +72,8 @@ export type Profile = {
 		harvested: number,
 		sold: number,
 		totalCashEarned: number, -- lifetime Cash earned (every source); never reduced by spending
+		cashEarnedThisLife: number, -- the same since the last rebirth: the rebirth requirement
+		hatchesThisLife: number, -- hatches since the last rebirth (the grow ramp)
 		waters: number, -- growth circle taps
 		padVisits: number, -- times stepped onto the water pad
 		slotsBought: number,
@@ -136,6 +138,7 @@ export type Snapshot = {
 	totalSlots: number, -- bought slots + pass slots (slotCount is bought only)
 	ownedPasses: { [string]: boolean },
 	rebirthCost: number,
+	earnedThisLife: number, -- stats.cashEarnedThisLife: progress toward rebirthCost
 	bundleOfferEndsAt: number, -- 0 when not on offer
 	fastHatch: boolean,
 	potionUntil: number,

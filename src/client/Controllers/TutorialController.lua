@@ -205,6 +205,10 @@ local function currentStep(snap: Types.Snapshot): Step
 	if lab then
 		return { text = lab.text, progress = lab.progress }
 	end
+	local rebirth = NextUp.rebirthGoal(snap.rebirths, snap.earnedThisLife or 0, snap.rebirthCost or 0)
+	if rebirth then
+		return rebirth
+	end
 	if snap.nextSlotCost then
 		local cost = snap.nextSlotCost :: number
 		return {

@@ -19,6 +19,8 @@ return function(t)
 			t.eq(ShopRules.rebirthNowOffered(350_000, 700_000), true)
 			t.eq(ShopRules.rebirthNowOffered(699_999, 700_000), true)
 			t.eq(ShopRules.rebirthNowOffered(700_000, 700_000), false, "can rebirth with Cash")
+			t.eq(ShopRules.canRebirth(699_999, 700_000), false)
+			t.eq(ShopRules.canRebirth(700_000, 700_000), true)
 		end,
 		["the Rebirth Altar names what each rebirth unlocks"] = function()
 			t.eq(ShopRules.unlockedAtRebirth(1), "Toxic")

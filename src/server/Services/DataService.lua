@@ -72,6 +72,10 @@ local TEMPLATE: Types.Profile = {
 		harvested = 0,
 		sold = 0,
 		totalCashEarned = 0,
+		-- Cash earned since the last rebirth (every addCash source, like totalCashEarned): the
+		-- rebirth requirement. Reset to 0 by the rebirth, after its bag sale.
+		cashEarnedThisLife = 0,
+		hatchesThisLife = 0, -- hatches since the last rebirth (the grow ramp restarts each life)
 		waters = 0,
 		padVisits = 0,
 		slotsBought = 0,
@@ -322,6 +326,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		almanacLuck = data.almanacLuck,
 		ownedPasses = data.ownedPasses,
 		rebirthCost = Costs.rebirth(data.rebirths),
+		earnedThisLife = data.stats.cashEarnedThisLife,
 		vipGemsReady = DataService.vipGemsReady(data),
 		seenLimited = data.seenLimited,
 		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt
@@ -376,7 +381,14 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 	profile:AddUserId(player.UserId)
+	-- Profiles from before cashEarnedThisLife (2026-11-04) keep their progress: what they held
+	-- was the old requirement. Seeded once, below, after Reconcile adds the field.
+	local seedLife = profile.Data.grantedStarterEggs == true
+		and (profile.Data.stats == nil or profile.Data.stats.cashEarnedThisLife == nil)
 	profile:Reconcile()
+	if seedLife then
+		profile.Data.stats.cashEarnedThisLife = math.max(0, profile.Data.cash or 0)
+	end
 	-- Nobody is standing on a pad when they join (and the growth since leaving was dry).
 	profile.Data.onPad = false
 	-- Renamed stat: carry the old lifetime total over once.
