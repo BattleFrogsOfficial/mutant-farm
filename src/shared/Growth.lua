@@ -57,12 +57,8 @@ function Growth.requiredSeconds(tierId: string, rarity: string): number
 	return Eggs.tiers[tierId].growTime * Rarities.info[rarity].growMultiplier
 end
 
--- A planted slot's grow time: the tier's, or the onboarding ramp's `baseGrow` (seconds as a
--- Common) when the slot carries one; rarity stretches either.
-function Growth.slotRequired(slot: { eggId: string, rarity: string, baseGrow: number? }): number
-	if slot.baseGrow then
-		return slot.baseGrow * Rarities.info[slot.rarity].growMultiplier
-	end
+-- A planted slot's grow time: its tier's, stretched by its rarity (no grow ramp since 2026-11-05).
+function Growth.slotRequired(slot: { eggId: string, rarity: string }): number
 	return Growth.requiredSeconds(slot.eggId, slot.rarity)
 end
 

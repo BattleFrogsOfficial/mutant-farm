@@ -39,9 +39,8 @@ local function rebirth(player: Player, data: Types.Profile)
 	end
 	data.inventory = keep
 	EconomyService.resetCash(player, data, GameConfig.startingCash)
-	-- A new life: the bag sale above belongs to the old one, and the grow ramp starts again.
+	-- A new life: the bag sale above belongs to the old one.
 	data.stats.cashEarnedThisLife = 0
-	data.stats.hatchesThisLife = 0
 	data.rebirths += 1
 	data.slotCount = Upgrades.slots.base
 	-- Gem eggs were bought with Gems: they survive the reset, including ones still growing.

@@ -14,7 +14,6 @@ export type Slot = {
 	rollsDone: number,
 	lastRollAt: number,
 	weatherRolled: { [string]: boolean }?, -- weather events that gave this egg its one roll (WeatherRules.key)
-	baseGrow: number?, -- onboarding grow ramp: seconds as a Common instead of the tier's
 	scripted: string?, -- "firstHatch": the scripted first hatch (no rolls; fixed outcome)
 	firstRare: boolean?, -- the guaranteed Rare (the 2nd egg): its reveal offers the Starter Bundle
 }
@@ -73,7 +72,6 @@ export type Profile = {
 		sold: number,
 		totalCashEarned: number, -- lifetime Cash earned (every source); never reduced by spending
 		cashEarnedThisLife: number, -- the same since the last rebirth: the rebirth requirement
-		hatchesThisLife: number, -- hatches since the last rebirth (the grow ramp)
 		waters: number, -- growth circle taps
 		padVisits: number, -- times stepped onto the water pad
 		slotsBought: number,

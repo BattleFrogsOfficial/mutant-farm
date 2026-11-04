@@ -22,15 +22,6 @@ return {
 	-- The first sale's toast ($115 + the $100 start buys 2 Starter eggs; patch 7 at $200 is next).
 	firstSaleToast = "%s! Buy more eggs and grow your farm.",
 
-	-- Starter eggs planted before the Nth hatch grow in `seconds` (as a Common; rarity still
-	-- stretches it) instead of the tier's 60 s; from hatch 30 on, the normal time.
-	rampEgg = "Starter",
-	growRamp = {
-		{ hatches = 10, seconds = 10 },
-		{ hatches = 20, seconds = 20 },
-		{ hatches = 30, seconds = 30 },
-	},
-
 	-- The tutorial's "buy eggs" step: a BUY button on the egg tray (the usual BuyEgg intent) until
 	-- the player has opened the Egg Shop once.
 	trayBuy = { egg = "Starter", quantity = 2 },

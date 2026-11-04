@@ -149,7 +149,6 @@ type Player = {
 	pen: { Mutant }, -- kept mutants: pay pen income, survive rebirth
 	earned: number, -- lifetime Cash earned (unlocks Lab at Rebirth 0)
 	life: number, -- Cash earned this life (the rebirth requirement since 2026-11-04)
-	lifeHatches: number, -- hatches this life (the grow ramp restarts each life)
 	leftAt: number,
 	-- stats
 	rebirthAt: { number }, -- time (s) each rebirth happened
@@ -196,7 +195,6 @@ local function newPlayer(seed: number, passes: { [string]: boolean }, onboarding
 		pen = {},
 		earned = 0,
 		life = 0,
-		lifeHatches = 0,
 		leftAt = 0,
 		rebirthAt = {},
 		activeAt = {},
@@ -270,11 +268,7 @@ local function plant(p: Player, index: number, tierId: string)
 	p.lastTier[index] = tierId
 	p.planted += 1
 	local rarity = if p.planted == GUARANTEED_RARE_PLANT then "Rare" else Rolls.rollRarity(p.rng, tierId, luckOf(p))
-	-- Onboarding's grow ramp (early Starter eggs): the same rule as GrowthService.
-	local ramp = Onboarding.rampSeconds(tierId, p.lifeHatches)
-	local required = if ramp
-		then Growth.slotRequired({ eggId = tierId, rarity = rarity, baseGrow = ramp })
-		else Growth.requiredSeconds(tierId, rarity)
+	local required = Growth.requiredSeconds(tierId, rarity)
 	p.slots[index] = {
 		tier = tierId,
 		rarity = rarity,
@@ -287,7 +281,6 @@ end
 
 local function harvestMutant(p: Player, slot: Slot): Mutant
 	p.harvests += 1
-	p.lifeHatches += 1
 	if slot.scripted then
 		-- The scripted first hatch: a fixed outcome with its value scaled (Valuation).
 		local f = Onboarding.firstHatchFields()
@@ -365,11 +358,6 @@ local function bestTier(p: Player, budget: number): string?
 		local tier = Eggs.tiers[id]
 		if ShopRules.isUnlocked(id, p.rebirths, p.earned) and tier.cost <= budget then
 			local value, time = eggEV(id, luckOf(p), oddsBonus)
-			-- Onboarding's ramp shortens early Starter eggs (the expected time scales with it).
-			local ramp = Onboarding.rampSeconds(id, p.lifeHatches)
-			if ramp then
-				time *= ramp / tier.growTime
-			end
 			local rate = (value * mult - tier.cost) / time
 			if rate > bestRate then
 				best, bestRate = id, rate
@@ -479,7 +467,6 @@ local function doRebirth(p: Player, now: number)
 	end
 	p.pending = {}
 	p.life = 0
-	p.lifeHatches = 0
 	p.rebirths += 1
 	p.rebirthAt[p.rebirths] = now
 	p.activeAt[p.rebirths] = p.activeSeconds

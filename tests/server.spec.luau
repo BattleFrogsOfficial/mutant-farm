@@ -122,33 +122,40 @@ return function(t)
 			t.eq(data.onboarding.bundle, true)
 		end,
 
-		["the grow ramp: Starter only, 10 / 20 / 30 s by hatches so far, gone from hatch 30"] = function()
+		["no grow ramp: every egg grows at its tier time x rarity from the first plant"] = function()
 			local world = t.server()
 			local player, data = world:join(1)
 			local Growth = world:modulesRequire("src/shared/Growth")
 			data.slots = {}
 			data.eggs = { Starter = 10, Swamp = 2 }
-			local function plantAt(hatches, eggId)
-				data.stats.hatchesThisLife = hatches
-				data.stats.eggsPlanted = 5 -- past the guaranteed Rare
+			for _, eggId in { "Starter", "Starter", "Swamp" } do
 				world:send(player, "Plant", 1, eggId)
 				local slot = data.slots["1"]
+				t.eq(slot.baseGrow, nil, "no slot carries baseGrow")
+				t.eq(Growth.slotRequired(slot), Growth.requiredSeconds(eggId, slot.rarity))
 				data.slots["1"] = nil
-				return slot.baseGrow, Growth.slotRequired(slot), slot.rarity
 			end
-			t.eq((plantAt(1, "Starter")), 10)
-			t.eq((plantAt(9, "Starter")), 10)
-			t.eq((plantAt(10, "Starter")), 20)
-			t.eq((plantAt(29, "Starter")), 30)
-			local base, required, rarity = plantAt(30, "Starter")
-			t.eq(base, nil, "no ramp from hatch 30")
-			t.eq(required, Growth.requiredSeconds("Starter", rarity))
-			t.eq((plantAt(1, "Swamp")), nil, "Starter only")
-			-- Every profile ramps (2026-11-04), returning ones too, by hatches this life.
-			local p2, d2 = world:join(2, { grantedStarterEggs = true, eggs = { Starter = 1 } })
-			d2.stats.eggsPlanted = 5
-			world:send(p2, "Plant", 1, "Starter")
-			t.eq(d2.slots["1"].baseGrow, 10)
+			-- Saved slots from before lose the field on load.
+			local _, old = world:join(2, {
+				grantedStarterEggs = true,
+				slots = {
+					["1"] = {
+						eggId = "Starter",
+						rarity = "Common",
+						mutations = {},
+						size = 1,
+						plantedAt = world.now,
+						growth = 0,
+						updatedAt = world.now,
+						rollsDone = 0,
+						lastRollAt = world.now,
+						baseGrow = 10,
+					},
+				},
+				stats = { hatchesThisLife = 3 },
+			})
+			t.eq(old.slots["1"].baseGrow, nil)
+			t.eq(old.stats.hatchesThisLife, nil)
 		end,
 
 		["OpenedAlmanac ends the tutorial only on its last step (the server re-derives it)"] = function()
@@ -165,12 +172,8 @@ return function(t)
 			t.eq(data.tutorialDone, true)
 		end,
 
-		["existing profiles: the ramp isn't restarted mid-life, offline pen income is paid past the sale cap"] = function()
+		["offline pen income is paid past the single-sale cap"] = function()
 			local world = t.server()
-			local _, veteran = world:join(1, { grantedStarterEggs = true, rebirths = 3, stats = { harvested = 400 } })
-			t.ok(veteran.stats.hatchesThisLife >= 30, "past the ramp")
-			local _, early = world:join(2, { grantedStarterEggs = true, rebirths = 0, stats = { harvested = 12 } })
-			t.eq(early.stats.hatchesThisLife, 12, "first life: its hatches so far")
 			-- A long absence with a pen whose offline income passes the single-sale cap.
 			local inventory = {}
 			for i = 1, 8 do
@@ -187,24 +190,6 @@ return function(t)
 			t.ok(expected > Valuation.maxSingleSale(0, DataService.cashMultiplier(back)), "past the cap")
 			t.near(back.cash, expected, 2, "paid in full, in chunks")
 			local _ = data
-		end,
-
-		["the grow ramp restarts each life"] = function()
-			local world = t.server()
-			local player, data = world:join(1, {
-				grantedStarterEggs = true,
-				cash = 800_000,
-				eggs = { Starter = 2 },
-				stats = { cashEarnedThisLife = 800_000, hatchesThisLife = 40, harvested = 40, eggsPlanted = 40 },
-			})
-			world:send(player, "Plant", 1, "Starter")
-			t.eq(data.slots["1"].baseGrow, nil, "past the ramp this life")
-			world:send(player, "Rebirth")
-			t.eq(data.rebirths, 1)
-			t.eq(data.stats.hatchesThisLife, 0)
-			t.eq(data.stats.harvested, 40, "lifetime count kept")
-			world:send(player, "Plant", 1, "Starter")
-			t.eq(data.slots["1"].baseGrow, 10, "fast again in the new life")
 		end,
 
 		["rebirth needs Cash EARNED this life: banked mutants can't chain rebirths"] = function()

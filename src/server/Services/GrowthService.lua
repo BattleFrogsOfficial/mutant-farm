@@ -203,9 +203,6 @@ local function plant(player: Player, data: Types.Profile, key: string, eggId: st
 		updatedAt = now,
 		rollsDone = 0,
 		lastRollAt = now,
-		-- The grow ramp (Config/Onboarding.growRamp): the first Starter eggs of every life grow
-		-- faster (2026-11-04: every profile, restarting at each rebirth).
-		baseGrow = Onboarding.rampSeconds(eggId, data.stats.hatchesThisLife),
 		firstRare = if data.stats.eggsPlanted == GUARANTEED_RARE_PLANT then true else nil,
 	}
 	Analytics.funnel(player, data, "FirstPlant")
@@ -340,7 +337,6 @@ local function harvest(player: Player, data: Types.Profile, key: string, opts: H
 	data.inventory[id] = item
 	data.slots[key] = nil
 	data.stats.harvested += 1
-	data.stats.hatchesThisLife += 1
 	Analytics.funnel(player, data, "FirstHatch", DataService.secondsSinceJoin(player))
 
 	-- Almanac: first sighting, count, biggest size.

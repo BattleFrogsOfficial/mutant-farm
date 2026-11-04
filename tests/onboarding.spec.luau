@@ -27,17 +27,6 @@ return function(t)
 	end
 
 	return {
-		["the grow ramp: Starter only, 10 / 20 / 30 s, gone from hatch 30"] = function()
-			t.eq(Onboarding.rampSeconds("Starter", 0), 10)
-			t.eq(Onboarding.rampSeconds("Starter", 9), 10)
-			t.eq(Onboarding.rampSeconds("Starter", 10), 20)
-			t.eq(Onboarding.rampSeconds("Starter", 19), 20)
-			t.eq(Onboarding.rampSeconds("Starter", 20), 30)
-			t.eq(Onboarding.rampSeconds("Starter", 29), 30)
-			t.eq(Onboarding.rampSeconds("Starter", 30), nil)
-			t.eq(Onboarding.rampSeconds("Swamp", 0), nil)
-			t.eq(Onboarding.rampSeconds("StarterGem", 0), nil)
-		end,
 		["the first hatch is worth $115 with the real arithmetic: $13 base, Glitched +8 (x9)"] = function()
 			local f = Onboarding.firstHatchFields()
 			local item = {

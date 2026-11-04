@@ -75,7 +75,6 @@ local TEMPLATE: Types.Profile = {
 		-- Cash earned since the last rebirth (every addCash source, like totalCashEarned): the
 		-- rebirth requirement. Reset to 0 by the rebirth, after its bag sale.
 		cashEarnedThisLife = 0,
-		hatchesThisLife = 0, -- hatches since the last rebirth (the grow ramp restarts each life)
 		waters = 0,
 		padVisits = 0,
 		slotsBought = 0,
@@ -387,19 +386,16 @@ local function onPlayerAdded(player: Player)
 	-- was the old requirement. Seeded once, below, after Reconcile adds the field.
 	-- Profiles from before the tutorial card (2026-11-04) that are past its hatch steps skip it.
 	local seedTutorial = profile.Data.grantedStarterEggs == true and profile.Data.tutorialDone == nil
-	-- ...and of hatchesThisLife: a profile mid-life doesn't restart the grow ramp (its first life
-	-- counts its hatches so far; later lives are taken as past the ramp).
-	local seedHatches = profile.Data.grantedStarterEggs == true
-		and (profile.Data.stats == nil or profile.Data.stats.hatchesThisLife == nil)
 	local seedLife = profile.Data.grantedStarterEggs == true
 		and (profile.Data.stats == nil or profile.Data.stats.cashEarnedThisLife == nil)
 	profile:Reconcile()
 	if seedTutorial and (profile.Data.stats.harvested or 0) >= 2 then
 		profile.Data.tutorialDone = true
 	end
-	if seedHatches then
-		local stats = profile.Data.stats
-		stats.hatchesThisLife = if (profile.Data.rebirths or 0) == 0 then stats.harvested or 0 else 1000
+	-- The grow ramp is gone (2026-11-05): its fields leave saved data.
+	profile.Data.stats.hatchesThisLife = nil
+	for _, slot in profile.Data.slots do
+		slot.baseGrow = nil
 	end
 	if seedLife then
 		profile.Data.stats.cashEarnedThisLife = math.max(0, profile.Data.cash or 0)
