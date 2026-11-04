@@ -48,7 +48,7 @@ local function option(eventId: string, order: number)
 			}),
 			C.label({
 				Text = string.format(
-					"%s chance per egg · %s +%d",
+					"%s per egg · %s +%d",
 					Format.percent(event.chancePerRoll * 100),
 					string.upper(event.mutation),
 					Mutations.info[event.mutation].bonus

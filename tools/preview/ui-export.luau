@@ -658,10 +658,11 @@ capture("instantWeather")
 set(State.panel, "none")
 set(State.weather, { nextId = "AcidRain", nextAt = 1_800_000_000 + 252, id = "", endsAt = 0 })
 
--- Rebirth Now: Cash at 64% of the next rebirth, in the Rebirth panel and on the Altar sign.
+-- Rebirth Now: Cash earned this life at 64% of the next rebirth, in the Rebirth panel and on the Altar sign.
 do
 	local nearly = table.clone(snapshot)
 	nearly.cash = 450_000
+	nearly.earnedThisLife = 450_000 -- the requirement is Cash earned this life
 	set(State.snapshot, nearly)
 	set(State.panel, "rebirth")
 	captureHud("rebirth-now")

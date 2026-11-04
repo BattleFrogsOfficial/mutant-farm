@@ -1,4 +1,4 @@
-# Handoff — 2026-11-04 (the scripted first five minutes), 2026-11-03 (progression: 1.5x pass, x6.5 rebirths, Magma + Quantum tiers; watering rework), 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
+# Handoff — 2026-11-04 (Studio-pass fixes A-F; the scripted first five minutes), 2026-11-03 (progression: 1.5x pass, x6.5 rebirths, Magma + Quantum tiers; watering rework), 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
 
 Read `CLAUDE.md` first (rules, conventions, live numbers, commands) and `docs/DESIGN.md` (intent; dated
 rule changes at the top). This file is what a fresh session needs on top of them: what changed in the
@@ -9,6 +9,66 @@ Place file: `rojo build default.project.json -o MutantFarm.rbxl`.
 
 **The Pumpkin Egg window is open now** (2026-10-29 00:00 EDT to 11-05 23:59 EST). The M5 build and
 everything below have still not been published or played in Studio; see "Next tasks".
+
+## 2026-11-04: Studio-pass fixes (speed, mutations, weather, rebirth gating, tutorial)
+
+The owner's spec, parts A-F. Config-driven, server-authoritative.
+
+| Commit | Part |
+|---|---|
+| `6bf024a` | A: timers show time left at 1x and count at the total speed (`Growth.displayRemaining`, `Growth.totalSpeed`), blue bar + total chip; the growth circle only on the pad, TapBoost refused off it, then back to 2x; glass bubbles over the pad; the "STAND HERE / 2x GROWTH" sign |
+| `649421e` | B + C (one commit: the C edits landed in the same files before B was committed): additive mutation bonuses, labels "GOLDEN +2" / "x11", offline rolls x0.25, the $115 first hatch, tray BUY 2; hourly weather, one roll per egg per event (`slot.weatherRolled`), new chances, cap 0.6 |
+| `58d9b3d` | D: `stats.cashEarnedThisLife` gates Rebirth / Rebirth Now, reset after the bag sale; existing profiles seeded from Cash held; panel / Altar / strip / shop card / Next Up read it; the ramp by `stats.hatchesThisLife` for everyone |
+| `e8cd717` | E: the tutorial card (`Config/Tutorial`, Hud `nextUp`, `TutorialController`, `OpenedAlmanac` -> `profile.tutorialDone`), gold beam + outline, Swamp focus, WEATHER! card; growth circle 88 px to fit; F (part): harness tests, sim `--bank` / `--max`, Cosmic +12 |
+| (this one) | F: preview fixes, docs, review fixes |
+
+Choices made where the spec left room or contradicted itself:
+- **B4: `valueScale` 0.2 stays.** "Remove valueScale" and "$13 -> x9 -> about $115" can't both hold:
+  80 x 0.8 x 9 = $576 without it. Kept the scale so the numbers match ($115; tests 100-130).
+- The growth circle (your answer): the pad is 2x; a tapped bubble sets the plot to its offer for 5 s,
+  then it's back to 2x; the circle shows only while standing on the pad.
+- C2: an egg is marked with the event's key when it gets its roll, so eggs planted mid-event get theirs
+  on the next tick and nothing rolls twice; mature eggs get none.
+- D: profiles from before the change are seeded once with the Cash they hold (the old requirement), so
+  nobody loses progress; `tutorialDone` is seeded true for older profiles with 2+ hatches.
+- E: the 9 progress pips became a 3 px strip along the card's bottom ("STAND ON THE WATER PAD" left no
+  room on the title row); the instruction line is 16 px when it shows a price (CLAUDE.md text rule).
+  The card's 50 px height left the growth circle's band 103 px, so the circle is 88 px (was 104).
+  Next Up goals now have a title ("LAB EGG", "NEXT SOIL PATCH", "REBIRTH 2") and a line ("$420 / $675").
+  The first-tap circle toast stays (it answers the tap, an event); the solo Solar Flare's toast is gone.
+- F3: the max bot rebirths under 60 min, so Cosmic is +12 (ceiling x28). Rebirth 1 is under 35 min,
+  so Solar Flare / Golden stay. Nothing else tuned (rarity tables, egg prices, rebirth costs untouched).
+
+**Sim, 60 runs each (`--runs 60 --autoharvest --bank --max`, `--onboarding --first`, `--first --taps 0`):**
+
+| Bot | Rebirth 1 | Rebirth 4 | Rebirth 10 | Target |
+|---|---|---|---|---|
+| Free | 9 sim-min (23 pad only) | day 2 | not in 30 days (R8 day 13) | 25 min / day 3 / day 20-25 |
+| Paying (2x Luck) | 0.1 h | day 1 | not in 30 days (R8 day 9) | day 10-12 |
+| Paying + Auto-Harvest | 0.1 h | day 1 | not in 30 days (R9 day 23) | |
+| `--onboarding` | 9.1 min (+4.6% vs without: PASS) | | | idle gap 76 s worst (FAIL, <= 20); first sale 4 s (PASS) |
+| `--bank` (7 days) | 7 rebirths = default 7: PASS | | | <= default |
+| `--max` (5 h) | 3 sim-min, 7 rebirths in 5 h: FAIL | | | > 60 min |
+
+**Checks:** check 139 files · test 176 passed · stylua clean · world checker 0 issues (and with the
+limited decor) · UI preview: HUD overlap 0, shop 0, panels 0, text 0, extra checks 0 after the fixes in
+this commit (the Rebirth Now scenes needed `earnedThisLife`, the Instant Weather line was shortened).
+**Not played in Studio.**
+
+**Studio list:**
+1. Timer motion at 2x (pad) and 4x+ (pad + a boost, or 3x with the 1.5x pass): the time text reads the
+   1x time and counts down faster; stepping on / off never makes it jump; the bar and text turn blue
+   with the chip ("2x", "3x", "15x"); no chip at 1x.
+2. The pad: bubbles only while you stand on it (true round, small, slow, not glowing), the sign readable
+   from the gate; the circle appears only on the pad, a tap gives the offer for 5 s, then 2x.
+3. The tutorial card on a phone (667x375 and 844x390): every step readable, the check on completion,
+   hidden while a panel is open, the gold outline on the target, beam to the sell / shop pads, the
+   Egg Shop opening on Swamp, OPEN THE ALMANAC ending it for good (rejoin: no card, Next Up instead).
+4. The first hatch reveal: COMMON $13, then GLITCHED +8 · x9 = $115; the sale toast "$115! ..."; BUY 2.
+5. A rebirth with a full bag and a pinned pen: the panel says EARNED THIS LIFE and "Rebirth sells
+   everything ..."; the bag sells; the pinned pen stays; the strip restarts at 0%; an older profile
+   keeps its progress (seeded from Cash held).
+6. Weather: one event an hour at :05; eggs get at most one roll each; Glitch Storm gives Radioactive.
 
 ## 2026-11-04: The scripted first five minutes
 
@@ -435,6 +495,16 @@ M5 / reconciliation / Egg Shop lists in `git show 53b4844:docs/HANDOFF.md` (the 
 end first).
 
 ## Open decisions
+
+- **Pacing after the Studio-pass rules (2026-11-04):** the sim misses every F2 target and the spec's
+  allowed levers can't reach them: free Rebirth 1 at 9 sim-min tapping (23 pad only; target 25), the
+  max bot at 3 sim-min (target > 60), and Rebirth 10 out of reach in 30 days for free and paying
+  (targets day 20-25 / 10-12). Early is too fast (the per-life ramp, earned-not-held gating and the
+  4.94x tap boost), late too slow (additive mutations cap at x28, weather is a sixth as frequent).
+  Levers outside the spec's list: rebirth costs (early cheaper-to-reach vs late steep: e.g. a higher
+  `firstCost` with a lower `costGrowth`), the ramp only in the first life, softer tap offers, or larger
+  additive bonuses for the rare mutations. Nothing changed without your choice.
+- **Onboarding idle gap** still fails (76 s worst vs 20); the first-rebirth check now passes (+4.6%).
 
 - **Onboarding (2026-11-04):** two `--onboarding` sim checks fail: the idle gap in the first 5 min
   (92 s worst / 34 s median vs 20) and the first rebirth (-12.7% tapping every boost vs 5%).
