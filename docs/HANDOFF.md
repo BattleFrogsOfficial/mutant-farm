@@ -1,4 +1,4 @@
-# Handoff — 2026-11-03 (progression: 1.5x pass, x6.5 rebirths, Magma + Quantum tiers; watering rework), 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
+# Handoff — 2026-11-04 (the scripted first five minutes), 2026-11-03 (progression: 1.5x pass, x6.5 rebirths, Magma + Quantum tiers; watering rework), 2026-11-02 (mutant roster regeneration), 2026-11-01 (Auto-Harvest rework, $/min fix), 2026-10-30 (HUD unification)
 
 Read `CLAUDE.md` first (rules, conventions, live numbers, commands) and `docs/DESIGN.md` (intent; dated
 rule changes at the top). This file is what a fresh session needs on top of them: what changed in the
@@ -9,6 +9,79 @@ Place file: `rojo build default.project.json -o MutantFarm.rbxl`.
 
 **The Pumpkin Egg window is open now** (2026-10-29 00:00 EDT to 11-05 23:59 EST). The M5 build and
 everything below have still not been published or played in Studio; see "Next tasks".
+
+## 2026-11-04: The scripted first five minutes
+
+The owner's spec, items 1-10: a scripted opening that shows the whole loop inside 90 seconds,
+config-driven (`Config/Onboarding.lua`), server-authoritative, sim-checked. New profiles only
+(`profile.onboarding.active`, set on the first load); returning profiles get none of it.
+
+| Commit | Item |
+|---|---|
+| `016d098` | 1-2: pre-planted Starter 10 s from hatching (+1 in the bag); the scripted first hatch (Common, 0.8, Glitched, valueScale 0.2 = $320); full reveal (no Fast Hatch, no Skip), FIRST HATCH BONUS ribbon on the reveal and the Almanac card / page, Glitched flicker + beam in the cutscene; `Analytics.hatch` (Hatch_ / Mutation_ events) skips scripted items, Top Pens skips them, their sale's sku is `Sell_Scripted_firstHatch` |
+| `fe489ac` | 3: the first sale's toast "$320! Buy more eggs and grow your farm." |
+| `78f9052` | 4: grow ramp 10 / 20 / 30 s for Starter eggs planted before hatch 10 / 20 / 30 (`slot.baseGrow`, `Growth.slotRequired` everywhere the grow time is read) |
+| `a26f6dd`, `76b64ab` | 5: the tray's BUY 5 / STARTER / $250 tile during the buy step; `OpenedShop` retires it for good |
+| `f7b011b` | 6: the free solo Solar Flare (2:30 of play, 3 growing, no global event within 5 min; once) via `WeatherService.startPlotEvent` |
+| `f55bd8a` | 7: Starter Bundle window starts on the guaranteed Rare's reveal (pink BUNDLE button on it), not on join; survives a rejoin |
+| `62776be` | 8: tutorial order `Onboarding.tutorialStep` (unit-tested), the TutorialController's texts, HUD preview scenes |
+| `7bc9afe` | 9: `tools/sim --onboarding` and its three checks |
+| `8885b13` | 10: funnel FirstHatch (was FirstHarvest) / FirstSell carry seconds since join |
+| (this one) | 10: docs |
+
+Choices I made where the spec left room:
+- The pre-planted egg counts as egg 1, so "the player's 2nd egg" (the guaranteed Rare) is the
+  first egg the player plants themselves (the first of the five).
+- The reveal's first beat shows `$13`: 320 / 25 rounded (the floored plain value is $12; the
+  reveal already divides the final value by the multiplier and rounds).
+- The ramp keeps the rarity stretch (a Rare Starter in the 10 s band takes 15 s).
+- The solo weather waits (doesn't give up) while a global event is near; it fires at the next
+  moment the conditions hold. Play time counts online seconds only.
+- The BUY tile shows only during the buy step (and before the first shop open); after a shop open
+  the buy step points to the Egg Shop instead.
+- "Mutation analytics" didn't exist yet: `Analytics.hatch` adds them (one custom event per hatch
+  rarity and per mutation), with scripted outcomes excluded, so the rule is real and tested.
+
+**Sim (`lune run tools/sim -- --runs 30 --onboarding --first`): 2 of 3 checks FAIL** (three
+strikes on the idle check, so committed as is and reported):
+- PASS first sale: 4 s worst run (target < 60).
+- FAIL longest wait with nothing to do in the first 5 min: 92 s worst run, 34 s median (target
+  <= 20). "Nothing to do" = nothing to hatch, no affordable egg for an empty patch, no affordable
+  patch or upgrade. The perfect bot finishes the tutorial in ~10 s, then fills its patches with
+  Swamp eggs (5 min, ~60 s at its 4.94x boost) on no spare Cash and waits. Levers to decide:
+  extend the ramp to Swamp (e.g. 60 / 120 s for the first few), keep the tutorial on Starters
+  longer (more steps before "first Swamp egg"), or count growth-circle taps as something to do.
+- FAIL first rebirth within 5%: -12.7% tapping every boost (9.4 vs 10.8 sim-min), +1.5% at half
+  the boosts, -5.5% pad only. The opening's extra early Cash ($320 + the ramped Starters) shortens
+  the first rebirth most for a perfect tapper. Lever: a shorter ramp (e.g. 10 / 20 / 30 until hatch
+  15 / 20 / 25), or nudge `Rebirths.firstCost` (~770K) to absorb it.
+- The baseline also changed slightly: the sim now models the guaranteed Rare for everyone (first
+  rebirth 11 sim-min tapping every boost, 24 on the pad only).
+
+**Checks:** check 137 files · test 167 passed (harness: pre-plant, the scripted hatch exactly once
+and $300-340, valueScale only on it, analytics / Top Pens exclusion, ramp Starter-only and ending
+at hatch 30, BUY tile flag, solo weather once and waiting for global events, bundle on the 2nd-egg
+Rare and across a rejoin, returning profiles get nothing; unit: ramp, $320 arithmetic, weather
+trigger, tutorial order) · stylua clean · world checker 0 issues · UI preview 0 issues (480
+scenes, new `hud-plot-traybuy` and `hatch-first`). **Not played in Studio.**
+
+**Studio list (on a phone first, timed, end to end, with a fresh profile: a new UserId or a
+cleared DataStore entry):**
+1. Join: patch 1 has an egg about 10 s from HATCH, 1 Starter in the tray, Next Up "TAP HATCH".
+   Time it: hatch in ~10 s.
+2. The reveal: COMMON · Worth $13, then GLITCHED x25 = $320 with the flicker and the beam, FIRST
+   HATCH BONUS ribbon, no Skip, never the short cutscene; it reads correctly on a 667x375 phone.
+3. Next Up: WALK TO THE SELL PAD; sell; toast "$320! Buy more eggs and grow your farm."; time to
+   first sale (target under 60 s; the funnel logs it).
+4. Back on the farm: the tray's BUY 5 / STARTER / $250 tile; tap it; 5 eggs. Open the Egg Shop
+   once on another profile first and check the tile never comes back.
+5. PLANT ALL 5 (timers read 10-15 s), WATER (circle or pad), HATCH: the first one is the Rare, and
+   its reveal shows the pink BUNDLE button; the bundle ribbon's 10:00 starts then.
+6. After 2:30 with 3+ eggs growing: the solo Solar Flare (rain + cloud over your island only,
+   the toast). Check it doesn't fire while a global event is within 5 min.
+7. The Almanac: the first hatch's card and page wear FIRST HATCH BONUS.
+8. Hatch 10, 20, 30: Starter timers become 20 s, 30 s, then 60 s.
+9. A returning profile (any existing save): nothing of the above.
 
 ## 2026-11-03: Progression lengthened (1.5x Growth pass, rebirths x6.5, Magma + Quantum tiers)
 
@@ -362,6 +435,10 @@ M5 / reconciliation / Egg Shop lists in `git show 53b4844:docs/HANDOFF.md` (the 
 end first).
 
 ## Open decisions
+
+- **Onboarding (2026-11-04):** two `--onboarding` sim checks fail: the idle gap in the first 5 min
+  (92 s worst / 34 s median vs 20) and the first rebirth (-12.7% tapping every boost vs 5%).
+  Levers in the 2026-11-04 section; nothing changed without the owner's choice.
 
 - **Progression (2026-11-03):** free Rebirth 10 ~74 h of play (was ~23); the every-pass gap ~3.9x
   at Rebirth 10 (VIP 1.25x would make it ~3x); Quantum at Rebirth 11 (offered as 12; moved so
