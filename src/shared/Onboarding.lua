@@ -25,7 +25,7 @@ function Onboarding.soloWeatherDue(done: boolean, played: number, growing: numbe
 end
 
 -- The tutorial card's step for where the player is, each completed by the real event: TAP HATCH
--- -> SELL IT -> BUY 2 EGGS -> PLANT THEM -> STAND ON THE WATER PAD -> HATCH -> BUY A SOIL PATCH ->
+-- -> SELL IT -> BUY 2 EGGS -> PLANT THEM -> STAND ON THE WATER PAD -> TAP THE CIRCLE -> HATCH -> BUY A SOIL PATCH ->
 -- GET A SWAMP EGG -> OPEN THE ALMANAC (Config/Tutorial); nil once profile.tutorialDone (Next Up
 -- shows the nearest goal). "plantFirst" only for a profile without the pre-planted egg.
 export type TutorialState = {
@@ -50,6 +50,7 @@ export type Step =
 	| "buy"
 	| "plant"
 	| "water"
+	| "circle"
 	| "hatch2"
 	| "patch"
 	| "swamp"
@@ -67,8 +68,10 @@ function Onboarding.tutorialStep(s: TutorialState): Step?
 	elseif s.harvested < 2 then
 		if s.eggsInBag > 0 and s.emptyPatch then
 			return "plant"
-		elseif s.waters == 0 and s.padVisits == 0 and s.growing > 0 then
-			return "water"
+		elseif s.padVisits == 0 and s.growing > 0 then
+			return "water" -- at once, while they grow
+		elseif s.waters == 0 and s.growing > 0 then
+			return "circle" -- ends on the first TapBoost only
 		end
 		return "hatch2"
 	elseif s.slotsBought == 0 and s.canBuySlot then
@@ -87,12 +90,13 @@ local ORDER = {
 	buy = 3,
 	plant = 4,
 	water = 5,
-	hatch2 = 6,
-	patch = 7,
-	swamp = 8,
-	almanac = 9,
+	circle = 6,
+	hatch2 = 7,
+	patch = 8,
+	swamp = 9,
+	almanac = 10,
 }
-Onboarding.stepCount = 9
+Onboarding.stepCount = 10
 function Onboarding.stepIndex(step: Step): number
 	return ORDER[step] or 1
 end

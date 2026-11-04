@@ -2,8 +2,8 @@
 -- The tutorial card (Config/Tutorial, drawn by UI/Hud's card in the Next Up slot). Works out the
 -- current step from the player's stats (so it survives rejoins; order in
 -- shared/Onboarding.tutorialStep: TAP HATCH -> SELL IT -> BUY 2 EGGS -> PLANT THEM -> STAND ON THE
--- WATER PAD -> HATCH -> BUY A SOIL PATCH -> GET A SWAMP EGG -> OPEN THE ALMANAC), points the guide
--- beam at the step's target (patch, water pad, sell pad, shop pad) and gives the target a slow gold
+-- WATER PAD -> TAP THE CIRCLE -> HATCH -> BUY A SOIL PATCH -> GET A SWAMP EGG -> OPEN THE ALMANAC), points the guide
+-- beam at the step's target (patch, water pad, sell pad, shop pad; the circle's rim turns gold) and gives the target a slow gold
 -- outline pulse. A completed step shows a check for Tutorial.checkSeconds. The solo Solar Flare
 -- shows "WEATHER!" while it hits. Once profile.tutorialDone, the same card is Next Up: Lab's earned
 -- gate once a Swamp egg is owned (shared/NextUp), the rebirth goal from half its cost earned this
@@ -197,6 +197,9 @@ local function currentStep(snap: Types.Snapshot): Step
 		return card("plant", { target = emptySlot, soil = true })
 	elseif step == "water" then
 		return card("water", { target = waterPad })
+	elseif step == "circle" then
+		-- The circle is on the HUD: its rim turns gold (ui = "Boost"); no world target.
+		return card("circle", { ui = "Boost" })
 	elseif step == "hatch2" then
 		return card("hatch2", { ui = "Hatch", target = plantedSlot })
 	elseif step == "patch" then

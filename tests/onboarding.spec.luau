@@ -56,7 +56,7 @@ return function(t)
 			t.ok(not Onboarding.soloWeatherDue(false, 300, 5, true), "a global event is near")
 			t.ok(not Onboarding.soloWeatherDue(true, 300, 5, false), "once")
 		end,
-		["tutorial: HATCH -> SELL -> BUY 2 -> PLANT -> WATER PAD -> HATCH -> patch -> Swamp -> Almanac"] = function()
+		["tutorial: HATCH -> SELL -> BUY 2 -> PLANT -> WATER PAD -> CIRCLE -> HATCH -> patch -> Swamp -> Almanac"] = function()
 			t.eq(Onboarding.tutorialStep(state()), "hatch")
 			t.eq(Onboarding.tutorialStep(state({ eggsPlanted = 0 })), "plantFirst")
 			t.eq(Onboarding.tutorialStep(state({ harvested = 1 })), "sell")
@@ -65,11 +65,20 @@ return function(t)
 			local bought = { harvested = 1, sold = 1, eggsBought = 5, eggsInBag = 5 }
 			t.eq(Onboarding.tutorialStep(state(bought)), "plant")
 			bought.eggsInBag = 0
-			t.eq(Onboarding.tutorialStep(state(bought)), "water", "all planted")
+			t.eq(Onboarding.tutorialStep(state(bought)), "water", "all planted: the pad at once")
+			bought.padVisits = 1
+			t.eq(Onboarding.tutorialStep(state(bought)), "circle", "then the circle")
+			-- Only a TapBoost (stats.waters) ends the circle step: more pad visits, plants or time don't.
+			bought.padVisits = 5
+			bought.eggsPlanted = 9
+			t.eq(Onboarding.tutorialStep(state(bought)), "circle")
 			bought.waters = 1
 			t.eq(Onboarding.tutorialStep(state(bought)), "hatch2")
-			bought.waters, bought.padVisits = 0, 1
-			t.eq(Onboarding.tutorialStep(state(bought)), "hatch2", "the pad counts as watering")
+			-- With nothing growing (eggs already ripe) the pad and circle steps step aside.
+			t.eq(
+				Onboarding.tutorialStep(state({ harvested = 1, sold = 1, eggsBought = 2, eggsInBag = 0, growing = 0 })),
+				"hatch2"
+			)
 			bought.harvested = 2
 			t.eq(Onboarding.tutorialStep(state(bought)), "patch")
 			bought.slotsBought = 1
@@ -81,8 +90,9 @@ return function(t)
 			-- The card's "n / 9".
 			t.eq(Onboarding.stepIndex("hatch"), 1)
 			t.eq(Onboarding.stepIndex("water"), 5)
-			t.eq(Onboarding.stepIndex("almanac"), 9)
-			t.eq(Onboarding.stepCount, 9)
+			t.eq(Onboarding.stepIndex("circle"), 6)
+			t.eq(Onboarding.stepIndex("almanac"), 10)
+			t.eq(Onboarding.stepCount, 10)
 			-- A full farm with eggs left over still moves on to watering.
 			t.eq(
 				Onboarding.tutorialStep(

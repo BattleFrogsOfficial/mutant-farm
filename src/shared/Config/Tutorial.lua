@@ -17,7 +17,7 @@ return {
 		line = { y = 24, height = 18, text = 14, priceText = 16 }, -- 16 when the line shows a price
 		-- The progress strip along the bottom: one segment per step (done gold, current cream).
 		strip = { y = 44, height = 3, gap = 2 },
-		countWidth = 44, -- "3 / 9" at 16 px, top right
+		countWidth = 64, -- "10 / 10" at 16 px, top right
 		-- In the hub the card sits above SHOP's row: its bottom edge this far above the screen
 		-- bottom (SHOP 80 + shadow 4 + the edge margin + 8 px as drawn + outlines).
 		hubBottom = 108,
@@ -40,7 +40,8 @@ return {
 			lineShop = "At the Egg Shop in the market",
 		},
 		{ id = "plant", title = "PLANT THEM", line = "Tap your empty soil patches" },
-		{ id = "water", title = "STAND ON THE WATER PAD", line = "2x growth: watch the chip on your egg" },
+		{ id = "water", title = "STAND ON THE WATER PAD", line = "Eggs grow 2x while you stand here" },
+		{ id = "circle", title = "TAP THE CIRCLE", line = "Tap for a growth boost" },
 		{ id = "hatch2", title = "HATCH", line = "Tap HATCH when your eggs are ready" },
 		{
 			id = "patch",

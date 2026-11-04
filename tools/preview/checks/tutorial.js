@@ -1,5 +1,5 @@
 // The tutorial card (scenes tools/preview/scenes/tutorial.luau): shown in both zones, the right
-// chrome (gold stripe, star or check glyph), title in CAPS, "n / 9" on the title row clear of the
+// chrome (gold stripe, star or check glyph), title in CAPS, "n / 10" on the title row clear of the
 // title, one instruction line that fits its label on one line, and in the hub above SHOP's row
 // (when SHOP sits bottom-right). The HUD overlap check covers the rest.
 registerCheck({
@@ -30,12 +30,12 @@ registerCheck({
     const tutorial = !s.includes("nextup");
     const count = q("StepCount");
     if (tutorial) {
-      if (!count || count.offsetParent === null) problems.push(`${s}: no "n / 9"`);
+      if (!count || count.offsetParent === null) problems.push(`${s}: no "n / 10"`);
       else {
-        if (!/^\d \/ 9$/.test(textOf(count).trim())) problems.push(`${s}: step count reads "${textOf(count)}"`);
+        if (!/^\d+ \/ 10$/.test(textOf(count).trim())) problems.push(`${s}: step count reads "${textOf(count)}"`);
         const ts = title.querySelector("span");
         if (ts && overlap(ts.getBoundingClientRect(), count.querySelector("span").getBoundingClientRect()))
-          problems.push(`${s}: the title runs into "n / 9"`);
+          problems.push(`${s}: the title runs into "n / 10"`);
       }
     } else if (count && count.offsetParent !== null) problems.push(`${s}: Next Up shows a step count`);
     // In the hub, above SHOP's row when SHOP is bottom-right (8 px as drawn: both 3 px outlines).
