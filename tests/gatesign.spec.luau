@@ -1,7 +1,6 @@
 return function(t)
 	local GateSign = t.require("src/shared/GateSign")
 	local NextUp = t.require("src/shared/NextUp")
-	local Eggs = t.require("src/shared/Config/Eggs")
 	return {
 		["gate sign: the income while eggs grow, cents under $10, a hatch / plant hint when none grow"] = function()
 			t.eq(GateSign.incomeText(0, 0, 0), "$0/min · PLANT EGGS")
@@ -22,23 +21,6 @@ return function(t)
 			local ready = NextUp.rebirthGoal(1, 5_000_000, 3_150_000)
 			t.eq(ready.title, "REBIRTH 2 READY")
 			t.eq(ready.progress, 1)
-		end,
-		["next up: Lab's earned gate once Swamp is owned, from the Eggs config"] = function()
-			local need = Eggs.tiers.Lab.unlockEarned
-			local goal = NextUp.labGoal(0, 12_400, { Swamp = 1 }, {})
-			t.ok(goal, "goal with a Swamp egg in the bag")
-			t.eq(goal.title, "LAB EGG")
-			t.eq(goal.text, "$12.4K / $25K earned")
-			t.near(goal.progress, 12_400 / need, 1e-9)
-			-- A Swamp egg growing in a slot counts too.
-			local growing = NextUp.labGoal(0, 600, { Starter = 2 }, { ["1"] = { eggId = "Swamp" } })
-			t.ok(growing, "goal with a Swamp egg growing")
-			t.eq(growing.text, "$600 / $25K earned")
-			-- No Swamp yet: no Lab goal (Next soil patch instead).
-			t.eq(NextUp.labGoal(0, 12_400, { Starter = 3, Swamp = 0 }, { ["1"] = { eggId = "Starter" } }), nil)
-			-- Lab unlocked (earned enough) or past Rebirth 0: no Lab goal.
-			t.eq(NextUp.labGoal(0, need, { Swamp = 1 }, {}), nil)
-			t.eq(NextUp.labGoal(1, 0, { Swamp = 1 }, {}), nil)
 		end,
 	}
 end

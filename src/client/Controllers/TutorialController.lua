@@ -6,7 +6,7 @@
 -- beam at the step's target (patch, water pad, sell pad, shop pad; the circle's rim turns gold) and gives the target a slow gold
 -- outline pulse. A completed step shows a check for Tutorial.checkSeconds. The solo Solar Flare
 -- shows "WEATHER!" while it hits. Once profile.tutorialDone, the same card is Next Up: Lab's earned
--- gate once a Swamp egg is owned (shared/NextUp), the rebirth goal from half its cost earned this
+-- the rebirth goal from half its cost earned this
 -- life, else the next soil patch.
 
 local Players = game:GetService("Players")
@@ -221,10 +221,8 @@ local function currentStep(snap: Types.Snapshot): Step
 		return card("almanac", { ui = "Almanac", hub = true })
 	end
 	-- After the tutorial: Next Up, the nearest goal.
-	local lab = NextUp.labGoal(snap.rebirths, snap.stats.totalCashEarned or 0, snap.eggs, snap.slots)
-	if lab then
-		return { title = lab.title or Tutorial.nextUpTitle, text = lab.text, progress = lab.progress }
-	end
+	-- (No Lab goal here since 2026-11-05: the owner found it odd; Lab's progress card is in the
+	-- Egg Shop.)
 	local rebirth = NextUp.rebirthGoal(snap.rebirths, snap.earnedThisLife or 0, snap.rebirthCost or 0)
 	if rebirth then
 		return {

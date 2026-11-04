@@ -13,11 +13,11 @@ return {
 	-- and the plot grows at the offered multiplier for `boostSeconds` (the higher of the boost and
 	-- the pad applies, they don't multiply). Then the circle vanishes for a gap the server rolls
 	-- uniformly in [gapMin, gapMax] seconds and comes back somewhere else with a new offer.
-	-- Offers are rolled by the server from `tapOffers` ({ multiplier, weight }: 2x 30%, 3x 30%,
-	-- 4x 20%, 5x 12%, 7x 5%, 10x 3%, 3.55x on average; 2026-11-05). A tap up to `tapGrace` s early
-	-- (latency) still counts. Both stack with the Growth Speed pass and the Growth Speed upgrade.
-	-- Off the pad neither the circle nor a running boost counts (1x). Nothing runs offline. With a
-	-- perfect tapper the pad + circle cycle is ~2.7x.
+	-- Offers are rolled by the server from `tapOffers` ({ multiplier, weight }: 3x 43%, 4x 29%,
+	-- 5x 17%, 7x 7%, 10x 4%, 4.21x on average; 2026-11-05, no 2x: the pad already is). A tap up to
+	-- `tapGrace` s early (latency) still counts. Both stack with the Growth Speed pass and the
+	-- Growth Speed upgrade. Off the pad neither the circle nor a running boost counts (1x).
+	-- Nothing runs offline. With a perfect tapper the pad + circle cycle is ~3.05x.
 	water = {
 		padMultiplier = 2,
 		padPollSeconds = 0.25,
@@ -26,8 +26,8 @@ return {
 		gapMin = 3,
 		gapMax = 8,
 		tapGrace = 0.3,
+		-- No 2x offer (2026-11-05): the pad is already 2x, so a 2x boost on it did nothing.
 		tapOffers = {
-			{ 2, 30 },
 			{ 3, 30 },
 			{ 4, 20 },
 			{ 5, 12 },

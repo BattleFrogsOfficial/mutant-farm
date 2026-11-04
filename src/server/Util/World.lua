@@ -68,9 +68,10 @@ local SLOT_SIZE = 3.6
 local SLOT_SPACING = 4.2
 local SLOT_COLUMNS = 8
 local GATE_HALF = 5 -- gate opening is 10 wide
--- The water pad (WaterService: stand on it, the plot grows 2x): in the front corner by the gate,
--- clear of the soil grid (|x| <= 16.5, z >= -15.8) and the side fence (x = 23).
-local WATER_PAD = { x = 19, z = -19, radius = 2.4 }
+-- The water pad (WaterService: stand on it, the plot grows 2x): outside the fence, just in front
+-- of the gate beside the path (left of it as you walk up from the hub; the path is 7 wide), on
+-- the valley floor. Still inside ZoneController's margin, so the plot HUD stays up on it.
+local WATER_PAD = { x = 10.5, z = -27.2, radius = 2.4 }
 
 -- Surface heights (tops).
 local Y = {
@@ -1278,9 +1279,9 @@ local function buildPlot(index: number, parent: Instance): Plot
 		slots[i] = slot
 	end
 
-	-- Water pad: a blue disc on a stone rim, a "STAND HERE / 2x GROWTH" sign at its back edge
-	-- (facing the gate), and a little sprinkler on the rim's fence side. PlotService watches the
-	-- owner's feet on it.
+	-- Water pad, outside the fence beside the path: a blue disc on a stone rim sunk into the valley
+	-- floor, a "STAND HERE / 2x GROWTH" sign on its far side facing the path, and a little
+	-- sprinkler on the path side. PlotService watches the owner's feet on it.
 	local padModel = group("WaterPad", model)
 	local padCenter = world(WATER_PAD.x, WATER_PAD.z)
 	local r = WATER_PAD.radius
@@ -1288,7 +1289,7 @@ local function buildPlot(index: number, parent: Instance): Plot
 		{ Name = "Rim", Color = COLORS.stone, Material = Enum.Material.Slate, Parent = padModel },
 		padCenter,
 		r + 0.5,
-		0.6,
+		1.4, -- reaches below the valley floor (top 0)
 		Y.waterRim
 	)
 	local waterPad = disc({
@@ -1300,12 +1301,12 @@ local function buildPlot(index: number, parent: Instance): Plot
 	waterPad:SetAttribute("Radius", r)
 	padModel.PrimaryPart = waterPad
 	local padSign = group("WaterSign", model)
-	local signAt = world(WATER_PAD.x, WATER_PAD.z + r + 1.1)
-	local facing = world(0, -h + 3)
+	local signAt = world(WATER_PAD.x + r + 1.2, WATER_PAD.z)
+	local facing = world(0, WATER_PAD.z - 6)
 	part({
 		Name = "Post",
-		Size = Vector3.new(0.35, 2.6, 0.35),
-		CFrame = CFrame.new(signAt + Vector3.new(0, Y.plotBase + 1.3, 0)),
+		Size = Vector3.new(0.35, 3.2, 0.35),
+		CFrame = CFrame.new(signAt + Vector3.new(0, Y.valley + 1.1, 0)), -- sunk 0.5 into the ground
 		Color = COLORS.darkWood,
 		Material = Enum.Material.Wood,
 		Parent = padSign,
@@ -1314,8 +1315,8 @@ local function buildPlot(index: number, parent: Instance): Plot
 		Name = "Board",
 		Size = Vector3.new(3.2, 1.5, 0.25),
 		CFrame = CFrame.lookAt(
-			signAt + Vector3.new(0, Y.plotBase + 2.9, 0),
-			Vector3.new(facing.X, Y.plotBase + 2.9, facing.Z)
+			signAt + Vector3.new(0, Y.valley + 2.5, 0),
+			Vector3.new(facing.X, Y.valley + 2.5, facing.Z)
 		) * CFrame.new(0, 0, -0.3),
 		Color = COLORS.water,
 		Material = Enum.Material.WoodPlanks,
@@ -1324,7 +1325,7 @@ local function buildPlot(index: number, parent: Instance): Plot
 	padSign.PrimaryPart = board
 	signText(board, Enum.NormalId.Front, "STAND HERE\n2x GROWTH")
 	local sprinkler = group("Sprinkler", model)
-	local sprinklerAt = world(WATER_PAD.x + r + 0.25, WATER_PAD.z)
+	local sprinklerAt = world(WATER_PAD.x - r - 0.25, WATER_PAD.z)
 	part({
 		Name = "Pipe",
 		Size = Vector3.new(0.3, 1.1, 0.3),

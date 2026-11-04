@@ -133,12 +133,12 @@ registerCheck({
   },
 });
 
-// Next Up's Lab goal (scenes hud-plot-lab*, world.luau) in the tutorial card's chrome: shown on the
-// plot, "LAB EGG" / "$12.4K / $25K earned", the line at 16 px (a price) inside its label, the title
-// clear of the progress segments.
+// Next Up's rebirth goal (scenes hud-plot-nextup*, world.luau) in the tutorial card's chrome: shown
+// on the plot, "REBIRTH 1" / "$420K / $700K earned this life", the line at 16 px (a price) inside
+// its label, the title clear of the progress segments.
 registerCheck({
   name: "world-nextup",
-  match: (s) => s.startsWith("hud-plot-lab"),
+  match: (s) => s.startsWith("hud-plot-nextup"),
   run: (W, H, s) => {
     const nu = document.querySelector('.gui [title="NextUp"]');
     if (!nu || nu.offsetParent === null) return [`${s}: Next Up not shown`];
@@ -146,14 +146,14 @@ registerCheck({
     if (!nu.querySelector('[title="Glyph"]')) return [`${s}: Next Up has no star glyph`];
     if (!span || !title) return [`${s}: Next Up has no goal text`];
     const problems = [];
-    if (title.textContent.trim() !== "LAB EGG") problems.push(`${s}: Next Up title reads "${title.textContent}"`);
+    if (title.textContent.trim() !== "REBIRTH 1") problems.push(`${s}: Next Up title reads "${title.textContent}"`);
     const text = span.textContent.trim();
-    if (!/^\$[\d.]+[KMBT]? \/ \$[\d.]+[KMBT]? earned$/.test(text)) problems.push(`${s}: Next Up reads "${text}"`);
+    if (!/^\$[\d.]+[KMBT]? \/ \$[\d.]+[KMBT]? earned this life$/.test(text)) problems.push(`${s}: Next Up reads "${text}"`);
     const el = span.closest(".g");
     const designPx = parseFloat(getComputedStyle(span.parentElement).fontSize);
-    if (designPx < 16) problems.push(`${s}: Lab goal at ${designPx.toFixed(1)} design px (< 16 for a price)`);
+    if (designPx < 16) problems.push(`${s}: goal at ${designPx.toFixed(1)} design px (< 16 for a price)`);
     const sr = span.getBoundingClientRect(), lr = el.getBoundingClientRect();
-    if (sr.right > lr.right + 0.5 || sr.left < lr.left - 0.5) problems.push(`${s}: Lab goal spills out of its label`);
+    if (sr.right > lr.right + 0.5 || sr.left < lr.left - 0.5) problems.push(`${s}: goal spills out of its label`);
     const seg = nu.querySelector('[title="Segments"]');
     const gr = seg && seg.offsetParent !== null ? paintedRect(seg) : null;
     if (!gr) problems.push(`${s}: progress segments missing`);

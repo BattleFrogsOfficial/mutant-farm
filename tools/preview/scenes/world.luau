@@ -157,19 +157,19 @@ return function(api)
 	api.restoreRoot()
 	api.reset()
 
-	-- Next Up's longest goal, Lab's earned gate (TutorialController via shared/NextUp), on the plot
-	-- HUD at every preview size (mouse and touch), so the HUD overlap check and world.js's font
-	-- check see it. The default scenes all use "Next soil patch: $675".
+	-- Next Up's rebirth goal (TutorialController via shared/NextUp), on the plot HUD at every
+	-- preview size (mouse and touch), so the HUD overlap check and world.js's font check see it.
+	-- (The Lab goal is gone since 2026-11-05.)
 	local NextUp = api.requireModule(Shared.NextUp)
-	local lab = NextUp.labGoal(0, 12_400, { Swamp = 1 }, {})
-	assert(lab, "labGoal should apply at R0 with a Swamp egg and $12.4K earned")
+	local goal = NextUp.rebirthGoal(0, 420_000, 700_000)
+	assert(goal, "the rebirth goal applies from half the cost")
 	-- The main UI mount (scene files start from it).
 	api.restoreRoot()
 	api.set(api.State.zone, "plot")
-	api.set(api.State.objective, { title = lab.title, text = lab.text, progress = lab.progress })
-	api.captureHud("hud-plot-lab")
+	api.set(api.State.objective, { title = goal.title, text = goal.text, progress = goal.progress })
+	api.captureHud("hud-plot-nextup")
 	api.set(api.State.touch, true)
-	api.captureHud("hud-plot-lab-touch")
+	api.captureHud("hud-plot-nextup-touch")
 	api.restoreRoot()
 	api.reset()
 end

@@ -177,7 +177,21 @@ local function onWaterPad(player: Player, plot: World.Plot): boolean
 	return flat <= radius + GameConfig.water.padTolerance and offset.Y >= 0 and offset.Y <= 6
 end
 
+-- A new Baseplate place comes with a Baseplate (its top at y = 0, the valley floor's height:
+-- they z-fight) and a SpawnLocation. The game builds its own ground, so drop them.
+local function clearTemplateParts()
+	for _, name in { "Baseplate", "SpawnLocation" } do
+		local ok, found = pcall(function()
+			return workspace:FindFirstChild(name)
+		end)
+		if ok and found and found:IsA("BasePart") then
+			found:Destroy()
+		end
+	end
+end
+
 function PlotService.Init()
+	clearTemplateParts()
 	plots = World.build()
 	Players.CharacterAutoLoads = false
 end

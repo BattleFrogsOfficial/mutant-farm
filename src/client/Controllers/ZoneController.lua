@@ -17,7 +17,8 @@ local Observer = Fusion.Observer
 
 local ZoneController = {}
 
-local MARGIN = 6 -- studs past the plot's edge that still count as "at your plot"
+local MARGIN = 8 -- studs past the plot's edge that still count as "at your plot" (the water pad
+-- sits just outside the gate, up to 7.4 studs out)
 
 local function zoneNow(): string
 	local character = Players.LocalPlayer.Character

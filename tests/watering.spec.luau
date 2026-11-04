@@ -4,16 +4,17 @@ return function(t)
 	local Watering = t.require("src/shared/Watering")
 	local GameConfig = t.require("src/shared/Config/Game")
 	return {
-		["offers: 2x 30%, 3x 30%, 4x 20%, 5x 12%, 7x 5%, 10x 3% (3.55x on average; the spec said 3.47)"] = function()
+		["offers: 3x / 4x / 5x / 7x / 10x by weight 30 / 20 / 12 / 5 / 3, no 2x (the pad already is)"] = function()
 			local odds = Watering.odds()
-			local want = { [2] = 0.3, [3] = 0.3, [4] = 0.2, [5] = 0.12, [7] = 0.05, [10] = 0.03 }
+			local want = { [3] = 30 / 70, [4] = 20 / 70, [5] = 12 / 70, [7] = 5 / 70, [10] = 3 / 70 }
 			local sum = 0
 			for mult, p in want do
 				t.near(odds[mult], p, 1e-9, mult .. "x")
 				sum += odds[mult]
 			end
 			t.near(sum, 1, 1e-9)
-			t.near(Watering.averageOffer(), 3.55, 1e-9)
+			t.eq(odds[2], nil, "no 2x offer")
+			t.near(Watering.averageOffer(), 295 / 70, 1e-9)
 		end,
 		["10,000 rolled offers average the table's 3.55x +- 0.05"] = function()
 			local Rng = t.require("src/shared/Rng")
@@ -25,9 +26,9 @@ return function(t)
 			t.near(total / 10_000, Watering.averageOffer(), 0.05)
 		end,
 		["offerFor walks the weights"] = function()
-			t.eq(Watering.offerFor(0), 2)
-			t.eq(Watering.offerFor(0.2999), 2)
-			t.eq(Watering.offerFor(0.3), 3)
+			t.eq(Watering.offerFor(0), 3)
+			t.eq(Watering.offerFor(30 / 70 - 0.0001), 3)
+			t.eq(Watering.offerFor(30 / 70 + 0.0001), 4)
 			t.eq(Watering.offerFor(0.9999), 10)
 		end,
 		["after a boost the circle vanishes for 3-8 s; taps wait for it (a little latency is fine)"] = function()
@@ -48,8 +49,8 @@ return function(t)
 			t.ok(Watering.canTap(ready - w.tapGrace, ready), "just inside the grace")
 			t.ok(Watering.canTap(100, 0), "never tapped")
 		end,
-		["a perfect tapper's cycle on the pad: ~2.7x"] = function()
-			t.near(Watering.cycleRate(2), 2.74, 0.01)
+		["a perfect tapper's cycle on the pad: ~3.05x"] = function()
+			t.near(Watering.cycleRate(2), 3.05, 0.01)
 		end,
 		["the circle never comes back on the same spot"] = function()
 			for count = 2, 7 do
