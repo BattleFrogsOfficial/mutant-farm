@@ -118,26 +118,33 @@ function SlotTimer.new(): Timer
 	return { root = root, bar = bar, fill = fill, text = text, chip = chip }
 end
 
--- progress 0..1; ready = gold "HATCH!"; a watering `multiplier` above 1 = its chip ("2x", "7x")
--- and a water-blue fill.
+-- "2x", "1.5x", "3.3x", "23x" (one decimal under 10, a trailing .0 dropped).
+function SlotTimer.multiplierText(m: number): string
+	if m >= 10 then
+		return string.format("%dx", math.floor(m + 0.5))
+	end
+	local r = math.floor(m * 10 + 0.5) / 10
+	return (if r == math.floor(r) then tostring(math.floor(r)) else string.format("%.1f", r)) .. "x"
+end
+
+-- progress 0..1; ready = gold "HATCH!"; a total speed `multiplier` above 1 (the pass, upgrades,
+-- the pad, a boost) = its chip ("2x", "3x") and a water-blue bar and time; none at 1x.
 function SlotTimer.set(timer: Timer, progress: number, ready: boolean, multiplier: number, timeText: string)
-	local watered = multiplier > 1
+	local fast = multiplier > 1 + 1e-6
 	timer.fill.Size = UDim2.fromScale(math.clamp(progress, 0, 1), 1)
 	if ready then
 		timer.fill.BackgroundColor3 = Theme.colors.gold
 		timer.text.Text = "HATCH!"
+		timer.text.TextColor3 = Theme.colors.white
 	else
-		timer.fill.BackgroundColor3 = if watered then Theme.colors.water else Theme.colors.toxic
+		timer.fill.BackgroundColor3 = if fast then Theme.colors.water else Theme.colors.toxic
 		timer.text.Text = timeText
+		timer.text.TextColor3 = if fast then Theme.colors.water else Theme.colors.white
 	end
-	timer.chip.Visible = watered and not ready
-	if watered then
+	timer.chip.Visible = fast and not ready
+	if fast then
 		local text = (timer.chip :: any).Face.Text :: TextLabel
-		text.Text = (
-			if multiplier == math.floor(multiplier)
-				then tostring(math.floor(multiplier))
-				else string.format("%.1f", multiplier)
-		) .. "x"
+		text.Text = SlotTimer.multiplierText(multiplier)
 	end
 end
 

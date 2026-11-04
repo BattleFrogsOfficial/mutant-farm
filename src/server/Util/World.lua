@@ -1278,8 +1278,9 @@ local function buildPlot(index: number, parent: Instance): Plot
 		slots[i] = slot
 	end
 
-	-- Water pad: a blue disc on a stone rim, "2x GROWTH" on the floor (read from the gate), and a
-	-- little sprinkler on the rim's fence side. PlotService watches the owner's feet on it.
+	-- Water pad: a blue disc on a stone rim, a "STAND HERE / 2x GROWTH" sign at its back edge
+	-- (facing the gate), and a little sprinkler on the rim's fence side. PlotService watches the
+	-- owner's feet on it.
 	local padModel = group("WaterPad", model)
 	local padCenter = world(WATER_PAD.x, WATER_PAD.z)
 	local r = WATER_PAD.radius
@@ -1298,19 +1299,30 @@ local function buildPlot(index: number, parent: Instance): Plot
 	}, padCenter, r, 0.6, Y.waterPad)
 	waterPad:SetAttribute("Radius", r)
 	padModel.PrimaryPart = waterPad
-	local padLabel = part({
-		Name = "Label",
-		Size = Vector3.new(r * 1.6, 0.05, r * 0.7),
-		CFrame = CFrame.lookAt(
-			Vector3.new(padCenter.X, Y.waterPad + 0.03, padCenter.Z),
-			world(0, -h + 3, Y.waterPad + 0.03)
-		),
-		Transparency = 1,
-		CanCollide = false,
-		CanQuery = false,
-		Parent = padModel,
+	local padSign = group("WaterSign", model)
+	local signAt = world(WATER_PAD.x, WATER_PAD.z + r + 1.1)
+	local facing = world(0, -h + 3)
+	part({
+		Name = "Post",
+		Size = Vector3.new(0.35, 2.6, 0.35),
+		CFrame = CFrame.new(signAt + Vector3.new(0, Y.plotBase + 1.3, 0)),
+		Color = COLORS.darkWood,
+		Material = Enum.Material.Wood,
+		Parent = padSign,
 	})
-	signText(padLabel, Enum.NormalId.Top, "2x GROWTH").Rotation = 180
+	local board = part({
+		Name = "Board",
+		Size = Vector3.new(3.2, 1.5, 0.25),
+		CFrame = CFrame.lookAt(
+			signAt + Vector3.new(0, Y.plotBase + 2.9, 0),
+			Vector3.new(facing.X, Y.plotBase + 2.9, facing.Z)
+		) * CFrame.new(0, 0, -0.3),
+		Color = COLORS.water,
+		Material = Enum.Material.WoodPlanks,
+		Parent = padSign,
+	})
+	padSign.PrimaryPart = board
+	signText(board, Enum.NormalId.Front, "STAND HERE\n2x GROWTH")
 	local sprinkler = group("Sprinkler", model)
 	local sprinklerAt = world(WATER_PAD.x + r + 0.25, WATER_PAD.z)
 	part({

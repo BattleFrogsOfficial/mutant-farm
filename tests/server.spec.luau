@@ -575,7 +575,11 @@ return function(t)
 			WaterService.setOnPad(player, false)
 			t.near(slot.growth, 20, 1e-6)
 
-			-- Tap: the offered multiplier for 5 s, then a fresh offer.
+			-- Off the pad a tap does nothing (the boost belongs to the pad).
+			world:send(player, "TapBoost")
+			t.eq(data.stats.waters, 0, "off the pad: refused")
+			-- Tap on the pad: the offered multiplier for 5 s, then the pad's 2x, and a fresh offer.
+			WaterService.setOnPad(player, true)
 			local offer = data.waterOffer
 			local tappedAt = world.now
 			world:send(player, "TapBoost")
@@ -589,19 +593,19 @@ return function(t)
 			world:send(player, "TapBoost")
 			t.eq(data.stats.waters, 1, "ignored on the cooldown")
 			t.eq(data.waterOffer, next)
-			-- After the boost: 5 s at the offer + 5 s dry.
+			-- After the boost: 5 s at the offer, then back to the pad's 2x for 5 s.
 			world:advance(9)
 			world.service.GrowthService.settle(data, world.now)
-			t.near(slot.growth, 20 + offer * water.tapSeconds + 5, 1e-6)
+			t.near(slot.growth, 20 + offer * water.tapSeconds + 2 * 5, 1e-6)
 			world:send(player, "TapBoost")
 			t.eq(data.stats.waters, 2, "a tap after the boost runs out counts")
 
 			-- The pad and the boost don't multiply: the higher applies.
 			local g0 = slot.growth
-			WaterService.setOnPad(player, true)
 			world:advance(water.tapSeconds)
 			world.service.GrowthService.settle(data, world.now)
 			t.near(slot.growth - g0, data.waterMult * water.tapSeconds, 1e-6)
+			WaterService.setOnPad(player, false)
 
 			-- Leaving: nobody's on the pad and nothing is watered while away.
 			world:leave(player)

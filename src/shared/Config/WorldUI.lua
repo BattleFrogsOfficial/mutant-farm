@@ -63,4 +63,15 @@ return {
 		studsAbove = 4.2, -- the bar's center above the patch (the gui is shifted up for the chip)
 		maxDistance = 45,
 	},
+	-- Bubbles over a water pad while its owner stands on it (PlotController): round glass spheres,
+	-- `minSize`-`maxSize` studs, `perSecond` of them rising `riseSpeed` studs/s for `lifetime` s.
+	bubbles = {
+		minSize = 0.3,
+		maxSize = 0.6,
+		perSecond = 5,
+		riseSpeed = 0.9,
+		lifetime = 2.6,
+		sway = 0.15,
+		transparency = 0.35,
+	},
 }

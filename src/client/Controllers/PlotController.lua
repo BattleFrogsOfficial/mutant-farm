@@ -1,7 +1,7 @@
 --!strict
 -- Draws every plot from the attributes the server replicates: eggs growing in the soil (with their
 -- mutations showing), timers on your own plot (UI/SlotTimer, with the watering multiplier's chip),
--- the sprinkler spraying over a water pad while its owner stands on it, a
+-- bubbles rising over a water pad while its owner stands on it, a
 -- marker on each empty or buyable patch of your own soil (UI/SoilMarker: "+" or the price), and
 -- each owner's best mutants roaming their pen.
 -- Turns clicks on your own soil into Plant / Harvest / BuySlot intents. All visuals are client-only.
@@ -290,9 +290,10 @@ local function updateSlot(v: SlotVisual, now: number, t: number)
 	gui.Enabled = true
 	local water = plotWater(v.plot)
 	local speed = (v.plot:GetAttribute("Speed") or 1) :: number
-	local timeText = if ready then "" else Format.duration(Growth.secondsRemaining(growth, required, now, water, speed))
-	-- The watering multiplier's chip ("2x" on the pad, "7x" boosted) while the egg is still growing.
-	SlotTimer.set(v.timer :: SlotTimer.Timer, progress, ready, Growth.waterRate(water, now), timeText)
+	-- The time left at 1x (required - growth): it counts down at the current speed and never jumps
+	-- when the speed changes. The chip shows the total speed ("2x", "3x" with the pass).
+	local timeText = if ready then "" else Format.duration(math.max(0, required - growth))
+	SlotTimer.set(v.timer :: SlotTimer.Timer, progress, ready, Growth.totalSpeed(water, now, speed), timeText)
 end
 
 local function onSlotClicked(plot: Model, slot: BasePart)
@@ -498,32 +499,55 @@ local function watchSlot(plot: Model, slot: Instance)
 	end
 end
 
--- The sprinkler sprays while the plot's owner stands on the water pad (the OnPad attribute): soft
--- blue drops, no light (the art rules), the same for everyone watching.
-local function watchSprinkler(plot: Model)
-	local sprinkler = plot:WaitForChild("Sprinkler", 10)
-	local head = sprinkler and sprinkler:FindFirstChild("Head") :: BasePart?
-	if not head then
+-- Bubbles over a plot's water pad while its owner stands on it (the OnPad attribute): true
+-- spheres, non-Neon glass (the art rules), 0.3-0.6 studs, rising slowly with a little sway and
+-- fading out; client-only (Config/WorldUI.bubbles), the same for everyone watching.
+local function watchBubbles(plot: Model)
+	local padModel = plot:WaitForChild("WaterPad", 10)
+	local pad = padModel and padModel:IsA("Model") and padModel.PrimaryPart
+	if not pad then
 		return
 	end
-	local spray = Instance.new("ParticleEmitter")
-	spray.Name = "Spray"
-	spray.Color = ColorSequence.new(Theme.colors.water)
-	spray.LightEmission = 0
-	spray.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.25), NumberSequenceKeypoint.new(1, 0.1) })
-	spray.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1) })
-	spray.Lifetime = NumberRange.new(0.6, 0.9)
-	spray.Speed = NumberRange.new(6, 8)
-	spray.SpreadAngle = Vector2.new(40, 40)
-	spray.Acceleration = Vector3.new(0, -24, 0)
-	spray.EmissionDirection = Enum.NormalId.Top
-	spray.Rate = 60
-	spray.Parent = head
-	local function update()
-		spray.Enabled = plot:GetAttribute("OnPad") == true
-	end
-	plot:GetAttributeChangedSignal("OnPad"):Connect(update)
-	update()
+	local cfg = WorldUI.bubbles
+	local radius = ((pad:GetAttribute("Radius") or 2) :: number) * 0.8
+	local base = pad.Position + Vector3.new(0, pad.Size.X / 2, 0) -- the disc's top (cylinders run along X)
+	task.spawn(function()
+		while plot.Parent do
+			if plot:GetAttribute("OnPad") == true then
+				local a, d = math.random() * math.pi * 2, math.sqrt(math.random()) * radius
+				local size = cfg.minSize + math.random() * (cfg.maxSize - cfg.minSize)
+				local start = base + Vector3.new(math.cos(a) * d, size / 2 + 0.1, math.sin(a) * d)
+				local bubble = Instance.new("Part")
+				bubble.Name = "Bubble"
+				bubble.Shape = Enum.PartType.Ball
+				bubble.Size = Vector3.one * size
+				bubble.Material = Enum.Material.Glass
+				bubble.Color = Theme.colors.water:Lerp(Color3.new(1, 1, 1), 0.45)
+				bubble.Transparency = cfg.transparency
+				bubble.Reflectance = 0.15
+				bubble.Anchored = true
+				bubble.CanCollide = false
+				bubble.CanQuery = false
+				bubble.CanTouch = false
+				bubble.CastShadow = false
+				bubble.CFrame = CFrame.new(start)
+				bubble.Parent = folder
+				local phase = math.random() * math.pi * 2
+				task.spawn(function()
+					local t0 = os.clock()
+					while bubble.Parent and os.clock() - t0 < cfg.lifetime do
+						local t = os.clock() - t0
+						local sway = math.sin(t * 2.2 + phase) * cfg.sway
+						bubble.CFrame = CFrame.new(start + Vector3.new(sway, t * cfg.riseSpeed, sway * 0.6))
+						bubble.Transparency = cfg.transparency + (1 - cfg.transparency) * (t / cfg.lifetime) ^ 2
+						task.wait()
+					end
+					bubble:Destroy()
+				end)
+			end
+			task.wait(1 / cfg.perSecond)
+		end
+	end)
 end
 
 local function watchPlot(plot: Instance)
@@ -531,7 +555,7 @@ local function watchPlot(plot: Instance)
 		return
 	end
 	pens[plot] = { plot = plot, key = "", roamers = {} }
-	task.spawn(watchSprinkler, plot)
+	task.spawn(watchBubbles, plot)
 	local slotsFolder = plot:WaitForChild("Slots")
 	slotsFolder.ChildAdded:Connect(function(slot)
 		watchSlot(plot, slot)

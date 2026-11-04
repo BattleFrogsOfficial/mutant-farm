@@ -105,7 +105,7 @@ return function(api)
 	local PHONES = { { 844, 390 }, { 667, 375 }, { 800, 360 } }
 	for spot = 1, #Hud.boost.spots do
 		set(State.boostSpot, spot)
-		set(State.snapshot, snapWith({ Starter = 3, Swamp = 2 }, 12_400, { waterOffer = 10 }))
+		set(State.snapshot, snapWith({ Starter = 3, Swamp = 2 }, 12_400, { waterOffer = 10, onPad = true }))
 		api.captureHud("hud-plot-boost" .. spot, MOUSE)
 		set(State.touch, true)
 		api.captureHud("hud-plot-boost" .. spot .. "-touch", PHONES)
@@ -115,6 +115,7 @@ return function(api)
 	local boosted = snapWith({ Starter = 3, Swamp = 2 }, 12_400, {
 		wateredUntil = NOW + GameConfig.water.tapSeconds - 1,
 		waterMult = 7,
+		onPad = true,
 	})
 	set(State.snapshot, boosted)
 	api.captureHud("hud-plot-boosted", { { 1280, 720 }, { 800, 600 } })

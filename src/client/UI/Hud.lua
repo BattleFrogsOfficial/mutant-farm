@@ -1452,9 +1452,11 @@ local function boostCircle()
 			local screen, spot = State.screen:get(), boostSpot:get()
 			return UDim2.new(0.5, BOOST.spots[spot] or 0, 0, boostCenterY(screen))
 		end),
+		-- Only while you stand on your water pad (the boost counts only there) and an egg grows.
 		Visible = Computed(function()
-			local plot, ready, isActive = atPlot:get(), State.nextReadyIn:get(), active:get()
-			return plot and (ready ~= nil or isActive)
+			local plot, ready, isActive, snap =
+				atPlot:get(), State.nextReadyIn:get(), active:get(), State.snapshot:get()
+			return plot and snap ~= nil and snap.onPad == true and (ready ~= nil or isActive)
 		end),
 		[OnEvent("Activated")] = function()
 			local snap = State.snapshot:get(false)

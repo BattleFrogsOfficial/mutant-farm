@@ -49,7 +49,8 @@ end
 -- Ignored while the last boost is still running (the circle is on its cooldown).
 local function onTapBoost(player: Player, data: Types.Profile)
 	local now = DataService.now()
-	if not Watering.canTap(now, data.wateredUntil) then
+	-- The boost belongs to the pad: only while standing on it.
+	if not data.onPad or not Watering.canTap(now, data.wateredUntil) then
 		return
 	end
 	ensureOffer(data)

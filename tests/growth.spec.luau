@@ -23,14 +23,22 @@ return function(t)
 			t.eq(Growth.advance(0, 100, 110, pad, 2), 40)
 			t.eq(Growth.waterRate(pad, 100), 2)
 		end,
-		["a tapped boost runs at its multiplier only inside its window"] = function()
-			-- 7x until 105: 5 s at 7x + 55 s at 1x
-			local boost = Growth.water(105, 7, false)
-			t.eq(Growth.advance(0, 100, 160, boost, 1), 90)
+		["a tapped boost runs at its multiplier only inside its window, then back to the pad's 2x"] = function()
+			-- 7x until 105 on the pad: 5 s at 7x + 55 s at 2x
+			local boost = Growth.water(105, 7, true)
+			t.eq(Growth.advance(0, 100, 160, boost, 1), 35 + 110)
 			t.eq(Growth.waterRate(boost, 104.9), 7)
-			t.eq(Growth.waterRate(boost, 105), 1)
+			t.eq(Growth.waterRate(boost, 105), 2)
 			-- the boost and the pass multiply
 			t.eq(Growth.advance(0, 100, 105, boost, 2), 70)
+		end,
+		["the boost belongs to the pad: off it, 1x"] = function()
+			local off = Growth.water(105, 7, false)
+			t.eq(Growth.advance(0, 100, 160, off, 1), 60)
+			t.eq(Growth.waterRate(off, 101), 1)
+			t.eq(Growth.totalSpeed(off, 101, 1.5), 1.5, "the pass alone")
+			t.eq(Growth.totalSpeed(Growth.water(105, 7, true), 101, 1.5), 10.5, "boost x pass")
+			t.eq(Growth.totalSpeed(Growth.water(0, 1, true), 101, 1.5), 3, "pad x pass")
 		end,
 		["boost and pad: the higher one applies, they don't multiply"] = function()
 			-- 5x boost while on the pad: 5 s at 5x, then the pad's 2x

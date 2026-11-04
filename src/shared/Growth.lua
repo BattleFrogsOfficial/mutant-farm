@@ -2,10 +2,11 @@
 -- Growth is a pure function of timestamps: no per-frame work, offline progress for free,
 -- and the client can run the exact same math to draw timers between server updates.
 --
--- A slot stores `growth` (effective seconds grown) as of `updatedAt`. Speed is constant
--- between events except for watering (`Water`): standing on your plot's water pad grows at
--- `padMultiplier` for as long as you stand there, and a tapped boost grows at its multiplier
--- until `boostUntil`; the higher of the two applies (they don't stack with each other). Every
+-- A slot stores `growth` (effective seconds grown, i.e. seconds at 1x) as of `updatedAt`; timers
+-- show required - growth, the time left at 1x, counting down at the current speed, so they never
+-- jump when the speed changes. Speed is constant between events except for watering (`Water`):
+-- standing on your plot's water pad grows at `padMultiplier` for as long as you stand there, and
+-- a tapped boost (only on the pad) grows at its multiplier until `boostUntil`, then back to 2x. Every
 -- plot-wide speed change (stepping on or off the pad, a tap) settles all slots first, so a window
 -- always starts after the slot's `updatedAt`.
 
@@ -29,10 +30,21 @@ function Growth.water(boostUntil: number?, boostMult: number?, onPad: boolean?):
 	return { boostUntil = boostUntil or 0, boostMult = boostMult or 1, onPad = onPad == true }
 end
 
--- Watering multipliers: `low` outside the boost window (the pad's, or 1), `high` inside it.
+-- Watering multipliers: `low` outside the boost window (the pad's, or 1), `high` inside it. The
+-- growth circle's boost belongs to the pad: it counts only while you stand on it (off the pad,
+-- 1x either way), and when it runs out the pad's 2x is back.
 local function rates(water: Water): (number, number)
-	local low = if water.onPad then GameConfig.water.padMultiplier else 1
+	if not water.onPad then
+		return 1, 1
+	end
+	local low = GameConfig.water.padMultiplier
 	return low, math.max(low, water.boostMult)
+end
+
+-- The total speed shown on a timer's chip: the pass and upgrades x the watering at `t` ("2x",
+-- "3x" with the 1.5x pass, "7x" boosted).
+function Growth.totalSpeed(water: Water, t: number, speed: number): number
+	return speed * Growth.waterRate(water, t)
 end
 
 -- The watering multiplier at time `t` (1 when dry).
