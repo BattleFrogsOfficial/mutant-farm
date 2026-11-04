@@ -9,7 +9,8 @@ local Analytics = {}
 Analytics.Funnel = {
 	Joined = 1,
 	FirstPlant = 2,
-	FirstHarvest = 3,
+	FirstHatch = 3, -- (was FirstHarvest) carries seconds since join
+
 	FirstSell = 4,
 	FirstRebirth = 5, -- M4
 	FirstPurchasePrompt = 6,
@@ -22,17 +23,28 @@ Analytics.OtherFunnels = {
 	FirstLimitedEgg = "LimitedEggs",
 }
 
-function Analytics.funnel(player: Player, data: any, stepName: string)
+-- Tests: called with (player, stepName, seconds?) for every funnel step logged (nil in the game).
+Analytics.funnelObserver = nil :: ((Player, string, number?) -> ())?
+
+-- `seconds` (optional): seconds since the player joined, sent as the step's first custom field
+-- (FirstHatch and FirstSell carry it: how fast the opening gets there).
+function Analytics.funnel(player: Player, data: any, stepName: string, seconds: number?)
 	if data.funnel[stepName] then
 		return
 	end
 	data.funnel[stepName] = true
+	if Analytics.funnelObserver then
+		Analytics.funnelObserver(player, stepName, seconds)
+	end
 	pcall(function()
 		local other = Analytics.OtherFunnels[stepName]
 		if other then
 			AnalyticsService:LogFunnelStepEvent(player, other, nil, 1, stepName)
 		else
-			AnalyticsService:LogOnboardingFunnelStepEvent(player, Analytics.Funnel[stepName], stepName)
+			local fields = if seconds
+				then { [Enum.AnalyticsCustomFieldKeys.CustomField01.Name] = "seconds=" .. math.floor(seconds) }
+				else nil
+			AnalyticsService:LogOnboardingFunnelStepEvent(player, Analytics.Funnel[stepName], stepName, fields)
 		end
 	end)
 end

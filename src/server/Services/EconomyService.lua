@@ -203,7 +203,7 @@ local function onSell(player: Player, data: Types.Profile, itemId: any)
 	local soldBefore = data.stats.sold
 	local value = EconomyService.sellItem(player, data, itemId)
 	if value then
-		Analytics.funnel(player, data, "FirstSell")
+		Analytics.funnel(player, data, "FirstSell", DataService.secondsSinceJoin(player))
 		Net.notify(player, saleToast(data, soldBefore, value, "Sold for " .. Format.cash(value)), "success")
 		GroupRewardService.afterSale(player, data)
 	end
@@ -222,7 +222,7 @@ local function onSellAll(player: Player, data: Types.Profile)
 		end
 	end
 	if count > 0 then
-		Analytics.funnel(player, data, "FirstSell")
+		Analytics.funnel(player, data, "FirstSell", DataService.secondsSinceJoin(player))
 		local default = string.format("Sold %d for %s", count, Format.cash(total))
 		Net.notify(player, saleToast(data, soldBefore, total, default), "success")
 		GroupRewardService.afterSale(player, data)

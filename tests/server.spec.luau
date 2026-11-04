@@ -69,8 +69,13 @@ return function(t)
 			local world = t.server()
 			local player, data = world:join(1)
 			local seen = {}
-			world:modulesRequire("src/server/Util/Analytics").observer = function(_, name)
+			local Analytics = world:modulesRequire("src/server/Util/Analytics")
+			Analytics.observer = function(_, name)
 				table.insert(seen, name)
+			end
+			local funnel = {}
+			Analytics.funnelObserver = function(_, step, seconds)
+				funnel[step] = seconds or -1
 			end
 			world:advance(11, 1)
 			world:send(player, "Harvest", 1)
@@ -95,6 +100,9 @@ return function(t)
 			t.ok(got >= 300 and got <= 340, "sold for " .. got)
 			local notes = world:received(player, "Notify")
 			t.eq(notes[#notes][1], "$320! Buy more eggs and grow your farm.", "the first sale's toast")
+			-- The funnel's FirstHatch and FirstSell carry seconds since join.
+			t.near(funnel.FirstHatch, 11, 1.01, "FirstHatch at ~11 s")
+			t.near(funnel.FirstSell, 11, 1.01, "FirstSell at ~11 s")
 			-- The next hatch is a normal one (the guaranteed Rare: the 2nd egg planted).
 			world:send(player, "Plant", 1, "Starter")
 			world:advance(3600, 5)

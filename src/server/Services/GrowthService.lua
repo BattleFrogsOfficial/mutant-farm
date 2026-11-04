@@ -325,7 +325,7 @@ local function harvest(player: Player, data: Types.Profile, key: string, opts: H
 	data.inventory[id] = item
 	data.slots[key] = nil
 	data.stats.harvested += 1
-	Analytics.funnel(player, data, "FirstHarvest")
+	Analytics.funnel(player, data, "FirstHatch", DataService.secondsSinceJoin(player))
 
 	-- Almanac: first sighting, count, biggest size.
 	local speciesId = item.species :: string

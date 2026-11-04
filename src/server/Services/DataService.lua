@@ -239,6 +239,10 @@ DataService.paidRandomRestricted = {} :: { [Player]: boolean }
 -- Server time each online player's session started (funnel steps carry seconds since it).
 DataService.joinedAt = {} :: { [Player]: number }
 
+function DataService.secondsSinceJoin(player: Player): number
+	return DataService.now() - (DataService.joinedAt[player] or DataService.now())
+end
+
 -- Server time of each online player's next pen payout (not saved; restarts on join).
 DataService.nextPayoutAt = {} :: { [Player]: number }
 
