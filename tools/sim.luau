@@ -32,6 +32,8 @@ local ShopRules = harness.require(shared .. "/ShopRules")
 local Format = harness.require(shared .. "/Format")
 local AutoHarvest = harness.require(shared .. "/AutoHarvest")
 local Watering = harness.require(shared .. "/Watering")
+local Onboarding = harness.require(shared .. "/Onboarding")
+local OnboardingConfig = harness.require(shared .. "/Config/Onboarding")
 
 ---------------------------------------------------------------------------- options
 
@@ -47,6 +49,7 @@ local opts = {
 	pen = "sell",
 	autoharvest = false,
 	all = false,
+	onboarding = false,
 	passes = nil :: string?,
 	taps = 1,
 }
@@ -63,6 +66,10 @@ do
 			-- a custom scenario: comma-separated pass ids ("Luck2x,VIP"; "none" = free)
 			opts.passes = args[i + 1]
 			i += 1
+		elseif a == "--onboarding" then
+			-- the scripted opening (Config/Onboarding): a pre-planted egg, the scripted $320 first
+			-- hatch, the guaranteed Rare 2nd egg, the grow ramp; reports and asserts its first 5 min
+			opts.onboarding = true
 		elseif a == "--all" then
 			opts.all = true -- add a scenario that owns every pass
 		elseif a == "--first" then
@@ -104,7 +111,15 @@ end
 
 ---------------------------------------------------------------------------- player model
 
-type Slot = { tier: string, rarity: string, mutations: { string }, growth: number, required: number, mature: boolean }
+type Slot = {
+	tier: string,
+	rarity: string,
+	mutations: { string },
+	growth: number,
+	required: number,
+	mature: boolean,
+	scripted: boolean?, -- onboarding: the scripted first hatch (fixed outcome, no rolls)
+}
 type Mutant = { tier: string, rarity: string, mutations: { string }, size: number }
 
 type Player = {
@@ -125,6 +140,17 @@ type Player = {
 	rebirthAt: { number }, -- time (s) each rebirth happened
 	activeAt: { number }, -- active seconds when each rebirth happened
 	activeSeconds: number,
+	-- onboarding (--onboarding)
+	onboarding: boolean,
+	bag: { [string]: number }, -- eggs owned but not planted (planting uses these first)
+	planted: number, -- eggs planted so far (the 2nd is the guaranteed Rare)
+	harvests: number,
+	firstSellAt: number?, -- active seconds at the first sale
+	eggsBought: number,
+	swampSeen: boolean?, -- has had a Swamp egg (the tutorial's last step)
+	lastActionAt: number, -- active seconds at the last harvest / plant / purchase
+	maxIdleEarly: number, -- the longest wait with nothing to do in the first 5 minutes
+	maxIdleEarlyAt: number?, -- when it ended
 }
 
 local function luckOf(p: Player): number
@@ -135,7 +161,9 @@ local function baseSlots(p: Player): number
 	return Upgrades.slots.base + (if p.passes.PlotSlots10 then 10 else 0)
 end
 
-local function newPlayer(seed: number, passes: { [string]: boolean }): Player
+local GUARANTEED_RARE_PLANT = 2 -- GrowthService: the Nth egg a player ever plants is Rare
+
+local function newPlayer(seed: number, passes: { [string]: boolean }, onboarding: boolean?): Player
 	local p = {
 		rng = Rng.new(seed),
 		passes = passes,
@@ -153,13 +181,44 @@ local function newPlayer(seed: number, passes: { [string]: boolean }): Player
 		rebirthAt = {},
 		activeAt = {},
 		activeSeconds = 0,
+		onboarding = onboarding == true,
+		bag = {},
+		planted = 0,
+		harvests = 0,
+		firstSellAt = nil,
+		eggsBought = 0,
+		swampSeen = nil,
+		lastActionAt = 0,
+		maxIdleEarly = 0,
 	}
 	p.slotCount = baseSlots(p)
+	if p.onboarding then
+		-- The pre-planted egg, a few seconds from its scripted hatch, and the bag's eggs.
+		local pre = OnboardingConfig.preplant
+		local required = Growth.requiredSeconds(pre.egg, OnboardingConfig.firstHatch.rarity)
+		p.slots[pre.slot] = {
+			tier = pre.egg,
+			rarity = OnboardingConfig.firstHatch.rarity,
+			mutations = {},
+			growth = required - pre.secondsLeft,
+			required = required,
+			mature = false,
+			scripted = true,
+		}
+		p.planted = 1
+		for eggId, count in OnboardingConfig.bag do
+			p.bag[eggId] = count
+		end
+		return p
+	end
 	-- starting eggs are planted straight away
 	local i = 1
 	for eggId, count in GameConfig.startingEggs do
 		for _ = 1, count do
-			local rarity = Rolls.rollRarity(p.rng, eggId, luckOf(p))
+			local rarity = if p.planted + 1 == GUARANTEED_RARE_PLANT
+				then "Rare"
+				else Rolls.rollRarity(p.rng, eggId, luckOf(p))
+			p.planted += 1
 			p.slots[i] = {
 				tier = eggId,
 				rarity = rarity,
@@ -179,20 +238,43 @@ local function cashMultiplier(p: Player): number
 end
 
 local function plant(p: Player, index: number, tierId: string)
-	p.cash -= Eggs.tiers[tierId].cost
+	if (p.bag[tierId] or 0) > 0 then
+		p.bag[tierId] -= 1
+	else
+		p.cash -= Eggs.tiers[tierId].cost
+		p.eggsBought += 1
+	end
 	p.lastTier[index] = tierId
-	local rarity = Rolls.rollRarity(p.rng, tierId, luckOf(p))
+	p.planted += 1
+	local rarity = if p.planted == GUARANTEED_RARE_PLANT then "Rare" else Rolls.rollRarity(p.rng, tierId, luckOf(p))
+	-- Onboarding's grow ramp (early Starter eggs): the same rule as GrowthService.
+	local ramp = if p.onboarding then Onboarding.rampSeconds(tierId, p.harvests) else nil
+	local required = if ramp
+		then Growth.slotRequired({ eggId = tierId, rarity = rarity, baseGrow = ramp })
+		else Growth.requiredSeconds(tierId, rarity)
 	p.slots[index] = {
 		tier = tierId,
 		rarity = rarity,
 		mutations = {},
 		growth = 0,
-		required = Growth.requiredSeconds(tierId, rarity),
+		required = required,
 		mature = false,
 	}
 end
 
 local function harvestMutant(p: Player, slot: Slot): Mutant
+	p.harvests += 1
+	if slot.scripted then
+		-- The scripted first hatch: a fixed outcome with its value scaled (Valuation).
+		local f = Onboarding.firstHatchFields()
+		return {
+			tier = slot.tier,
+			rarity = f.rarity,
+			mutations = f.mutations,
+			size = f.size,
+			valueScale = f.valueScale,
+		} :: any
+	end
 	return {
 		tier = slot.tier,
 		rarity = slot.rarity,
@@ -202,6 +284,9 @@ local function harvestMutant(p: Player, slot: Slot): Mutant
 end
 
 local function sell(p: Player, m: Mutant)
+	if p.firstSellAt == nil then
+		p.firstSellAt = p.activeSeconds
+	end
 	local value = Valuation.sellValue(m, cashMultiplier(p))
 	p.cash += value
 	p.earned += value
@@ -254,6 +339,11 @@ local function bestTier(p: Player, budget: number): string?
 		local tier = Eggs.tiers[id]
 		if ShopRules.isUnlocked(id, p.rebirths, p.earned) and tier.cost <= budget then
 			local value, time = eggEV(id, luckOf(p), oddsBonus)
+			-- Onboarding's ramp shortens early Starter eggs (the expected time scales with it).
+			local ramp = if p.onboarding then Onboarding.rampSeconds(id, p.harvests) else nil
+			if ramp then
+				time *= ramp / tier.growTime
+			end
 			local rate = (value * mult - tier.cost) / time
 			if rate > bestRate then
 				best, bestRate = id, rate
@@ -261,6 +351,75 @@ local function bestTier(p: Player, budget: number): string?
 		end
 	end
 	return best
+end
+
+-- Can the player do anything right now: hatch, plant into an empty patch, or buy a patch or an
+-- upgrade? (Growth boosts don't count: they're the waiting itself.)
+local function somethingToDo(p: Player): boolean
+	local cheapestEgg = math.huge
+	for _, id in Eggs.order do
+		if ShopRules.isUnlocked(id, p.rebirths, p.earned) then
+			cheapestEgg = math.min(cheapestEgg, Eggs.tiers[id].cost)
+		end
+	end
+	local bagged = 0
+	for _, n in p.bag do
+		bagged += n
+	end
+	for i = 1, p.slotCount do
+		local slot = p.slots[i]
+		if slot and slot.mature then
+			return true
+		elseif not slot and (bagged > 0 or p.cash >= cheapestEgg) then
+			return true
+		end
+	end
+	local costs = {
+		Costs.slot(p.slotCount + 1, p.rebirths),
+		Costs.upgrade("growthSpeed", p.growthLevel, p.rebirths),
+		Costs.upgrade("mutationOdds", p.oddsLevel, p.rebirths),
+	}
+	for _, c in costs do
+		if c and p.cash >= c then
+			return true
+		end
+	end
+	return false
+end
+
+-- Where the onboarding bot is in the tutorial (the same rule the HUD's Next Up uses).
+local function tutorialStep(p: Player): string?
+	local bagged = 0
+	for _, n in p.bag do
+		bagged += n
+	end
+	local empty, growing, swamp = false, 0, false
+	for i = 1, p.slotCount do
+		local slot = p.slots[i]
+		if not slot then
+			empty = true
+		elseif not slot.mature then
+			growing += 1
+		end
+		if slot and slot.tier == "Swamp" then
+			swamp = true
+		end
+	end
+	p.swampSeen = p.swampSeen or swamp
+	return Onboarding.tutorialStep({
+		harvested = p.harvests,
+		sold = if p.firstSellAt then 1 else 0,
+		eggsBought = p.eggsBought,
+		eggsPlanted = p.planted,
+		eggsInBag = bagged,
+		emptyPatch = empty,
+		growing = growing,
+		waters = 1, -- the bot taps from the start
+		padVisits = 1,
+		slotsBought = p.slotCount - baseSlots(p),
+		canBuySlot = Costs.slot(p.slotCount + 1, p.rebirths) ~= nil,
+		hasSwamp = p.swampSeen == true,
+	})
 end
 
 -- Online watering: the pad all the time, and a growth boost (the higher of the two applies) for
@@ -301,7 +460,9 @@ local function doRebirth(p: Player, now: number)
 	p.oddsLevel = 0
 end
 
-local function buyUpgrades(p: Player)
+-- Buys upgrades while the cheapest costs under a quarter of the Cash; returns how many.
+local function buyUpgrades(p: Player): number
+	local bought = 0
 	while true do
 		local options = {}
 		local slotCost = Costs.slot(p.slotCount + 1, p.rebirths)
@@ -336,10 +497,11 @@ local function buyUpgrades(p: Player)
 		end)
 		local pick = options[1]
 		if not pick or pick.cost > p.cash * 0.25 then
-			return
+			return bought
 		end
 		p.cash -= pick.cost
 		pick.apply()
+		bought += 1
 	end
 end
 
@@ -354,7 +516,7 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 		if not slot.mature then
 			local before = slot.growth
 			slot.growth += speed * dt
-			if rollsAllowed then
+			if rollsAllowed and not slot.scripted then
 				for _ = 1, Growth.rollsCrossed(before, slot.growth, slot.required) do
 					for _, id in Rolls.rollMutations(p.rng, slot.mutations, luck, oddsBonus) do
 						table.insert(slot.mutations, id)
@@ -368,24 +530,57 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 	penIncome(p, dt, online)
 	if online then
 		p.activeSeconds += dt
+		local actions = 0
 		for i, slot in p.slots do
 			if slot.mature then
-				keepOrSell(p, harvestMutant(p, slot))
+				local m = harvestMutant(p, slot)
+				if slot.scripted then
+					sell(p, m) -- the scripted first hatch is sold, never kept
+				else
+					keepOrSell(p, m)
+				end
 				p.slots[i] = nil
+				actions += 1
 			end
 		end
 		if p.cash >= rebirthCost(p.rebirths) then
 			doRebirth(p, now)
 			return
 		end
-		buyUpgrades(p)
+		actions += buyUpgrades(p)
+		-- The onboarding bot follows the tutorial (Onboarding.tutorialStep): Starter eggs until its
+		-- "first Swamp egg" step, then one Swamp; its own choices only once the tutorial is done.
+		local step = if p.onboarding then tutorialStep(p) else nil
 		for i = 1, p.slotCount do
 			if not p.slots[i] then
-				local id = bestTier(p, p.cash)
+				local bagged = nil
+				for eggId, n in p.bag do
+					if n > 0 then
+						bagged = eggId
+					end
+				end
+				local tutorialEgg = if step == "swamp" then "Swamp" elseif step ~= nil then "Starter" else nil
+				if tutorialEgg and Eggs.tiers[tutorialEgg].cost > p.cash and not bagged then
+					break
+				end
+				local id = bagged or tutorialEgg or bestTier(p, p.cash)
 				if not id then
 					break
 				end
 				plant(p, i, id)
+				actions += 1
+			end
+		end
+		-- The longest stretch with nothing to do in the first 5 minutes (--onboarding asserts it
+		-- stays short): no egg to hatch, no egg you can afford for an empty patch, and no patch or
+		-- upgrade you can afford (the bot's own thrift doesn't count as nothing to do).
+		if actions > 0 or somethingToDo(p) then
+			p.lastActionAt = p.activeSeconds
+		elseif p.activeSeconds <= 300 then
+			local gap = p.activeSeconds - p.lastActionAt
+			if gap > p.maxIdleEarly then
+				p.maxIdleEarly = gap
+				p.maxIdleEarlyAt = p.activeSeconds
 			end
 		end
 	elseif opts.autoharvest and p.passes.AutoHarvest and now - p.leftAt < GameConfig.autoHarvestOfflineHours * 3600 then
@@ -420,8 +615,17 @@ local function login(p: Player)
 end
 
 -- Plays `days` days of `hoursPerDay` active play (one session a day) and returns the player.
-local function playDays(seed: number, passes, hoursPerDay: number, days: number, maxRebirths: number, rebirthCost)
-	local p = newPlayer(seed, passes)
+-- `onboarding` (default --onboarding): a new profile with the scripted opening.
+local function playDays(
+	seed: number,
+	passes,
+	hoursPerDay: number,
+	days: number,
+	maxRebirths: number,
+	rebirthCost,
+	onboarding: boolean?
+)
+	local p = newPlayer(seed, passes, if onboarding == nil then opts.onboarding else onboarding)
 	local now = 0
 	local onlineDt, offlineDt = 2, 30
 	for _ = 1, days do
@@ -540,6 +744,66 @@ print(
 		math.floor(opts.taps * 100 + 0.5)
 	)
 )
+
+-- The scripted opening (--onboarding): the first five minutes, asserted, and the first rebirth
+-- against the same bot without it (within 5%).
+if opts.onboarding then
+	local idle, firstSell, withIt, without = {}, {}, {}, {}
+	for run = 1, opts.runs do
+		local p = playDays(run, {}, 24, 1, 1, costTable, true)
+		table.insert(idle, p.maxIdleEarly)
+		if process.env.SIM_TRACE then
+			print(
+				string.format(
+					"run %d: longest gap %.0f s, ending at %.0f s",
+					run,
+					p.maxIdleEarly,
+					p.maxIdleEarlyAt or 0
+				)
+			)
+		end
+		table.insert(firstSell, p.firstSellAt or math.huge)
+		table.insert(withIt, p.activeAt[1] or math.huge)
+		table.insert(without, playDays(run, {}, 24, 1, 1, costTable, false).activeAt[1] or math.huge)
+	end
+	local worstIdle = math.max(table.unpack(idle))
+	local worstSell = math.max(table.unpack(firstSell))
+	local a, b = median(withIt), median(without)
+	local change = (a - b) / b
+	print("Onboarding (the scripted opening), free, continuous play:")
+	print(
+		string.format(
+			"  longest wait with nothing to do in the first 5 min: %.0f s worst run, %.0f s median  [<= 20]",
+			worstIdle,
+			median(table.clone(idle))
+		)
+	)
+	print(string.format("  first sale: %.0f s (worst run)  [< 60]", worstSell))
+	print(
+		string.format(
+			"  first rebirth: %.1f min with it, %.1f min without (%+.1f%%)  [within 5%%]\n",
+			a / 60,
+			b / 60,
+			change * 100
+		)
+	)
+	-- The checks: each reported, and the run fails (exit 1) if any does.
+	local checks = {
+		{ worstIdle <= 20, "never waits more than 20 s with nothing to do in the first 5 min" },
+		{ worstSell < 60, "first sale under 60 s" },
+		{ math.abs(change) <= 0.05, "first rebirth within 5% of the same bot without the opening" },
+	}
+	local failed = false
+	for _, c in checks do
+		print(string.format("  %s  %s", if c[1] then "PASS" else "FAIL", c[2]))
+		failed = failed or not c[1]
+	end
+	print()
+	if failed then
+		print("Onboarding checks FAILED (see above).")
+		process.exit(1)
+	end
+end
 
 -- First session: active minutes to the first rebirth.
 do
