@@ -518,7 +518,8 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 			slot.growth += speed * dt
 			if rollsAllowed and not slot.scripted then
 				for _ = 1, Growth.rollsCrossed(before, slot.growth, slot.required) do
-					for _, id in Rolls.rollMutations(p.rng, slot.mutations, luck, oddsBonus) do
+					local scale = if online then 1 else GameConfig.offlineMutationChanceScale
+					for _, id in Rolls.rollMutations(p.rng, slot.mutations, luck, oddsBonus, scale) do
 						table.insert(slot.mutations, id)
 					end
 				end

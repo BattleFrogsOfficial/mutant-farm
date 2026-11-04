@@ -13,6 +13,7 @@ export type Slot = {
 	updatedAt: number,
 	rollsDone: number,
 	lastRollAt: number,
+	weatherRolled: { [string]: boolean }?, -- weather events that gave this egg its one roll (WeatherRules.key)
 	baseGrow: number?, -- onboarding grow ramp: seconds as a Common instead of the tier's
 	scripted: string?, -- "firstHatch": the scripted first hatch (no rolls; fixed outcome)
 	firstRare: boolean?, -- the guaranteed Rare (the 2nd egg): its reveal offers the Starter Bundle

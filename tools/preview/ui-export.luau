@@ -485,7 +485,7 @@ set(State.weather, { nextId = "AcidRain", nextAt = 1_800_000_000 + 252, id = "",
 set(State.almanac, almanac)
 set(State.objective, { text = "Next soil patch: $675", progress = 0.62 })
 set(State.toasts, {
-	{ id = 1, text = "GOLDEN x5 on your Swamp Egg · worth $4.5K now", kind = "success" },
+	{ id = 1, text = "GOLDEN +2 on your Swamp Egg · worth $2.7K now", kind = "success" },
 })
 set(State.panel, "none")
 -- HUD states, each captured once per screen size (some layout depends on the real screen size,
@@ -704,7 +704,7 @@ do
 		{ text = "x2.31 size", color = Theme.colors.slateLight },
 		{ text = "47 studs tall", color = Theme.colors.slateLight },
 		{
-			text = "GOLDEN x5",
+			text = "GOLDEN +2",
 			color = roblox.Color3.fromHex(Mutations.info.Golden.color):Lerp(Theme.colors.slate, 0.35),
 		},
 	})
@@ -716,7 +716,7 @@ do
 	first.titleGradient.Color =
 		roblox.ColorSequence.new(roblox.Color3.fromHex("#FFFFFF"), roblox.Color3.fromHex("#C8C8D8"))
 	first.title.Text = "COMMON!"
-	first.value.Text = "GLITCHED x25 = $320"
+	first.value.Text = "GLITCHED +8 · x9 = $115"
 	first.name.Text = "Wimpip"
 	first.bonusRibbon.Visible = true
 	first.newRibbon.Visible = true
@@ -724,7 +724,7 @@ do
 		{ text = "x0.80 size", color = Theme.colors.slateLight },
 		{ text = "2 studs tall", color = Theme.colors.slateLight },
 		{
-			text = "GLITCHED x25",
+			text = "GLITCHED +8",
 			color = roblox.Color3.fromHex(Mutations.info.Glitched.color):Lerp(Theme.colors.slate, 0.35),
 		},
 	})

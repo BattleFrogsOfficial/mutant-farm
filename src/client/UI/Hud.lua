@@ -966,7 +966,7 @@ end
 -- On two lines, so the next egg tile stays as narrow as an owned one.
 local NEXT_EGG_SUB = "AT THE\nEGG SHOP"
 
--- Onboarding's buy step (Config/Onboarding.trayBuy): "BUY 5" / "STARTER" with the price, a BuyEgg
+-- Onboarding's buy step (Config/Onboarding.trayBuy): "BUY 2" / "STARTER" with the price, a BuyEgg
 -- intent from the tray, shown during that step until the player has opened the Egg Shop once.
 local TRAY_BUY = OnboardingConfig.trayBuy
 local function trayBuyCard()

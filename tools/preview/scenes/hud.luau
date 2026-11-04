@@ -79,16 +79,16 @@ return function(api)
 	api.captureHud("hud-plot-replant-some-touch", { { 844, 390 }, { 667, 375 } })
 	set(State.touch, false)
 
-	-- Onboarding's buy step: the tray's BUY 5 / STARTER / $250 tile (no eggs in the bag yet), on a
+	-- Onboarding's buy step: the tray's BUY 2 / STARTER / $100 tile (no eggs in the bag yet), on a
 	-- mouse screen and a phone.
-	local onboardingSnap = snapWith({}, 320, {
-		cash = 320,
+	local onboardingSnap = snapWith({}, 215, {
+		cash = 215,
 		slots = {},
 		onboarding = { active = true, shopOpened = false, weather = false },
 	})
 	local objectiveBefore = State.objective:get(false)
 	set(State.snapshot, onboardingSnap)
-	set(State.objective, { text = "BUY 5 EGGS: tap BUY on your egg tray", ui = "TrayBuy" })
+	set(State.objective, { text = "BUY 2 EGGS: tap BUY on your egg tray", ui = "TrayBuy" })
 	api.captureHud("hud-plot-traybuy", { { 1280, 720 }, { 1000, 658 }, { 800, 600 } })
 	set(State.touch, true)
 	api.captureHud("hud-plot-traybuy-touch", { { 844, 390 }, { 667, 375 } })

@@ -38,7 +38,7 @@ return function(t)
 			t.eq(Onboarding.rampSeconds("Swamp", 0), nil)
 			t.eq(Onboarding.rampSeconds("StarterGem", 0), nil)
 		end,
-		["the first hatch is worth $320 with the real arithmetic: $13 base, Glitched x25"] = function()
+		["the first hatch is worth $115 with the real arithmetic: $13 base, Glitched +8 (x9)"] = function()
 			local f = Onboarding.firstHatchFields()
 			local item = {
 				tier = "Starter",
@@ -47,13 +47,15 @@ return function(t)
 				size = f.size,
 				valueScale = f.valueScale,
 			}
-			t.eq(Valuation.sellValue(item, 1), 320)
+			local value = Valuation.sellValue(item, 1)
+			t.eq(value, 115)
+			t.ok(value >= 100 and value <= 130)
 			local plain = table.clone(item)
 			plain.mutations = {}
-			t.eq(math.floor(Valuation.sellValue(plain, 1) * 1 + 0.5), 12) -- floored; the reveal rounds 320 / 25
-			t.eq(math.floor(320 / 25 + 0.5), 13)
-			-- $320 buys 5 Starter eggs ($250) with change; patch 7 ($200) is next.
-			t.ok(320 >= 5 * 50 and 320 - 250 < 200)
+			t.eq(Valuation.sellValue(plain, 1), 12) -- floored; the reveal rounds 115 / 9
+			t.eq(math.floor(115 / 9 + 0.5), 13)
+			-- $115 + the $100 start buys the tray's 2 Starter eggs ($100); patch 7 ($200) is next.
+			t.ok(115 + 100 >= O.trayBuy.quantity * 50 and O.trayBuy.quantity == 2)
 			-- Fresh copies: changing one never changes the config.
 			table.insert(f.mutations, "Shiny")
 			t.eq(#O.firstHatch.mutations, 1)
@@ -65,12 +67,12 @@ return function(t)
 			t.ok(not Onboarding.soloWeatherDue(false, 300, 5, true), "a global event is near")
 			t.ok(not Onboarding.soloWeatherDue(true, 300, 5, false), "once")
 		end,
-		["tutorial: HATCH -> SELL -> BUY 5 -> PLANT ALL -> WATER -> HATCH -> patch -> Swamp"] = function()
+		["tutorial: HATCH -> SELL -> BUY 2 -> PLANT ALL -> WATER -> HATCH -> patch -> Swamp"] = function()
 			t.eq(Onboarding.tutorialStep(state()), "hatch")
 			t.eq(Onboarding.tutorialStep(state({ eggsPlanted = 0 })), "plantFirst")
 			t.eq(Onboarding.tutorialStep(state({ harvested = 1 })), "sell")
 			t.eq(Onboarding.tutorialStep(state({ harvested = 1, sold = 1 })), "buy")
-			t.eq(Onboarding.tutorialStep(state({ harvested = 1, sold = 1, eggsBought = 4 })), "buy", "BUY 5")
+			t.eq(Onboarding.tutorialStep(state({ harvested = 1, sold = 1, eggsBought = 1 })), "buy", "BUY 2")
 			local bought = { harvested = 1, sold = 1, eggsBought = 5, eggsInBag = 5 }
 			t.eq(Onboarding.tutorialStep(state(bought)), "plant")
 			bought.eggsInBag = 0

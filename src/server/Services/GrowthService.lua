@@ -60,9 +60,10 @@ end
 
 type MutationEvent = { slotIndex: number, eggId: string, mutation: string }
 
--- Advances every slot to `now`. Mutation rolls crossed along the way are applied only if
--- `rollsAllowed` (false for the part of an offline span past the cap). Returns what mutated.
-function GrowthService.settle(data: Types.Profile, now: number, rollsAllowed: boolean?): { MutationEvent }
+-- Advances every slot to `now`. Mutation rolls crossed along the way roll at `chanceScale` x
+-- the usual chance (default 1; offline: Game.offlineMutationChanceScale; 0 = no rolls, the part
+-- of an offline span past the cap). Returns what mutated.
+function GrowthService.settle(data: Types.Profile, now: number, chanceScale: number?): { MutationEvent }
 	local events = {}
 	local speed = DataService.speed(data)
 	for key, slot in data.slots do
@@ -72,9 +73,9 @@ function GrowthService.settle(data: Types.Profile, now: number, rollsAllowed: bo
 				math.min(Growth.advance(slot.growth, slot.updatedAt, now, DataService.water(data), speed), required)
 			local rolls = Growth.rollsCrossed(slot.growth, grown, required)
 			-- The scripted first hatch has a fixed outcome: no rolls.
-			if rollsAllowed ~= false and not slot.scripted then
+			if chanceScale ~= 0 and not slot.scripted then
 				for _ = 1, rolls do
-					for _, id in Rolls.rollMutations(rng, slot.mutations, luck(data), oddsBonus(data)) do
+					for _, id in Rolls.rollMutations(rng, slot.mutations, luck(data), oddsBonus(data), chanceScale) do
 						table.insert(slot.mutations, id)
 						table.insert(events, { slotIndex = tonumber(key) :: number, eggId = slot.eggId, mutation = id })
 					end
@@ -131,21 +132,34 @@ end
 
 -- Weather: one roll of the event's mutation on every still-growing egg (once per egg) at the
 -- event's chance x luck (WeatherRules.chance). Returns true if anything changed.
-function GrowthService.weatherRoll(player: Player, data: Types.Profile, eventId: string): boolean
+function GrowthService.weatherRoll(player: Player, data: Types.Profile, eventId: string, key: string): boolean
 	local mutation = (Weather.events :: any)[eventId].mutation
+	-- Cheap check first (this runs every second while an event is on): any egg not rolled yet?
+	local pending = false
+	for _, slot in data.slots do
+		if not slot.scripted and not isMature(slot) and not (slot.weatherRolled and slot.weatherRolled[key]) then
+			pending = true
+			break
+		end
+	end
+	if not pending then
+		return false
+	end
 	local chance = WeatherRules.chance(eventId, luck(data))
 	local events = GrowthService.settle(data, DataService.now())
 	announce(player, data, events)
 	local any = #events > 0
-	for key, slot in data.slots do
-		if not isMature(slot) and not slot.scripted and not table.find(slot.mutations, mutation) then
-			if rng:next() < chance then
+	for k, slot in data.slots do
+		if not slot.scripted and not isMature(slot) and not (slot.weatherRolled and slot.weatherRolled[key]) then
+			slot.weatherRolled = slot.weatherRolled or {}
+			(slot.weatherRolled :: any)[key] = true
+			if not table.find(slot.mutations, mutation) and rng:next() < chance then
 				table.insert(slot.mutations, mutation)
 				any = true
 				announce(
 					player,
 					data,
-					{ { slotIndex = tonumber(key) :: number, eggId = slot.eggId, mutation = mutation } }
+					{ { slotIndex = tonumber(k) :: number, eggId = slot.eggId, mutation = mutation } }
 				)
 			end
 		end
@@ -676,11 +690,13 @@ local function catchUp(player: Player, data: Types.Profile)
 	local events = {}
 	local function settleTo(at: number)
 		local rolled
+		-- Offline rolls run at a share of the online chance, and stop at the cap.
+		local scale = GameConfig.offlineMutationChanceScale
 		if at > capAt then
-			rolled = GrowthService.settle(data, capAt) -- slots planted after the cap are skipped here
-			GrowthService.settle(data, at, false)
+			rolled = GrowthService.settle(data, capAt, scale) -- slots planted after the cap are skipped here
+			GrowthService.settle(data, at, 0)
 		else
-			rolled = GrowthService.settle(data, at)
+			rolled = GrowthService.settle(data, at, scale)
 		end
 		table.move(rolled, 1, #rolled, #events + 1, events)
 	end

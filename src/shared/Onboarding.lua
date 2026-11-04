@@ -39,7 +39,7 @@ function Onboarding.soloWeatherDue(done: boolean, played: number, growing: numbe
 end
 
 -- The tutorial (Next Up) step for where the player is, each completed by the real event (never
--- by opening or closing a panel): TAP HATCH -> SELL -> BUY 5 EGGS -> PLANT ALL 5 -> WATER ->
+-- by opening or closing a panel): TAP HATCH -> SELL -> BUY 2 EGGS -> PLANT THEM -> WATER ->
 -- HATCH -> first soil patch -> first Swamp egg; nil after (Next Up shows the nearest goal).
 -- "plantFirst" only for a profile without the pre-planted egg (the opening switched off).
 export type TutorialState = {

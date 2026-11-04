@@ -38,6 +38,8 @@ return {
 
 	-- Offline: mutation rolls stop this long after the player leaves (unless Offline Mutations is owned).
 	offlineMutationCap = 2 * 60 * 60,
+	-- Offline mutation rolls happen at this share of the online chance (2026-11-04).
+	offlineMutationChanceScale = 0.25,
 
 	-- Auto-Harvest pass: a mature egg of this rarity is sold the moment it's hatched (never kept);
 	-- the rest go to the bag. Offline, the pass replays at most this many hours after you leave.

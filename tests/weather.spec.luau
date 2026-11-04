@@ -48,35 +48,40 @@ return function(t)
 	end
 
 	return {
-		["events last 120 s with a roll every 30 s: 4 rolls"] = function()
+		["events last 120 s and give each egg one roll"] = function()
 			for _, id in Config.order do
 				t.eq(Config.events[id].durationSeconds, 120)
-				t.eq(WeatherRules.rolls(id), 4)
+				t.eq(WeatherRules.rolls(id), 1)
 			end
 		end,
-		["chance per tick 25% / 30% / 10%; over a full event ~68% / 76% / 34%"] = function()
-			t.near(WeatherRules.chance("AcidRain", 1), 0.25, 1e-9)
-			t.near(WeatherRules.chance("SolarFlare", 1), 0.3, 1e-9)
-			t.near(WeatherRules.chance("GlitchStorm", 1), 0.1, 1e-9)
-			t.near(WeatherRules.chanceOverEvent("AcidRain", 1), 0.684, 0.001)
-			t.near(WeatherRules.chanceOverEvent("SolarFlare", 1), 0.760, 0.001)
-			t.near(WeatherRules.chanceOverEvent("GlitchStorm", 1), 0.344, 0.001)
-			t.near(WeatherRules.chance("SolarFlare", 6), Config.maxChance, 1e-9) -- luck is capped
+		["one roll: Acid Rain 20% Radioactive, Solar Flare 25% Golden, Glitch Storm 40% Radioactive"] = function()
+			t.near(WeatherRules.chance("AcidRain", 1), 0.2, 1e-9)
+			t.near(WeatherRules.chance("SolarFlare", 1), 0.25, 1e-9)
+			t.near(WeatherRules.chance("GlitchStorm", 1), 0.4, 1e-9)
+			t.eq(Config.events.AcidRain.mutation, "Radioactive")
+			t.eq(Config.events.SolarFlare.mutation, "Golden")
+			t.eq(Config.events.GlitchStorm.mutation, "Radioactive")
+			t.near(WeatherRules.chanceOverEvent("SolarFlare", 1), 0.25, 1e-9)
+			t.near(WeatherRules.chance("SolarFlare", 2), 0.5, 1e-9) -- luck applies
+			t.near(WeatherRules.chance("SolarFlare", 6), 0.6, 1e-9) -- capped at 0.6
+			t.eq(WeatherRules.key("global", 100), "g100")
+			t.eq(WeatherRules.key("plot", 100), "p100")
 		end,
 
-		["schedule: 25-min buckets, event 5 min in, 120 s long"] = function()
+		["schedule: hourly buckets, event 5 min in, 120 s long"] = function()
 			local e = Weather.eventOf(1_200_000)
-			t.eq(e.startsAt, 1_200_000 * 1500 + 300)
+			t.eq(Config.bucketSeconds, 3600)
+			t.eq(e.startsAt, 1_200_000 * 3600 + 300)
 			t.eq(e.endsAt - e.startsAt, 120)
 			-- During: active; just after: the next bucket's event; before: this one, upcoming.
 			local during = Weather.scheduleAt(e.startsAt + 10)
 			t.ok(during.active and during.startsAt == e.startsAt)
 			t.ok(not Weather.scheduleAt(e.startsAt - 1).active)
 			t.eq(Weather.scheduleAt(e.startsAt - 1).startsAt, e.startsAt)
-			t.eq(Weather.scheduleAt(e.endsAt).startsAt, e.startsAt + 1500)
-			t.eq(Weather.nextAfter(e.startsAt + 10).startsAt, e.startsAt + 1500)
-			-- The grid meets the hour every 5 hours (unix time starts on an hour).
-			t.eq((5 * 3600) % Config.bucketSeconds, 0)
+			t.eq(Weather.scheduleAt(e.endsAt).startsAt, e.startsAt + 3600)
+			t.eq(Weather.nextAfter(e.startsAt + 10).startsAt, e.startsAt + 3600)
+			-- On the hour (unix time starts on an hour): 5 min past every hour.
+			t.eq(e.startsAt % 3600, 300)
 		end,
 		["scheduleAt(t) is identical on two servers"] = function()
 			-- Two harness servers load their own copy of the module.
@@ -101,7 +106,7 @@ return function(t)
 			t.near(n.GlitchStorm / 100, 15, 2, "Glitch Storm %")
 		end,
 
-		["100 Acid Rain events (real WeatherService): 60-75% of fully grown-through eggs mutate"] = function()
+		["100 Acid Rain events (real WeatherService): one roll per egg, 15-25% mutate"] = function()
 			local world = t.server({ now = T0, seed = 2026 })
 			local _, data = world:join(1, { slotCount = 40, slots = cosmicSlots(T0), grantedStarterEggs = true })
 			local eggs, hit = 0, 0
@@ -122,7 +127,44 @@ return function(t)
 				from = e.endsAt
 			end
 			local share = hit / eggs
-			t.ok(share >= 0.6 and share <= 0.75, string.format("Acid Rain hit %.1f%% of eggs", share * 100))
+			t.ok(share >= 0.15 and share <= 0.25, string.format("Acid Rain hit %.1f%% of eggs", share * 100))
+		end,
+		["one roll per event: eggs planted mid-event get theirs; never twice, never a duplicate"] = function()
+			local world = t.server({ now = T0, seed = 7 })
+			local player, data = world:join(1, { slotCount = 40, slots = cosmicSlots(T0), grantedStarterEggs = true })
+			local e = nextOfType("SolarFlare", T0)
+			world:advance(e.startsAt - 3 - world.now)
+			data.slots = cosmicSlots(world.now, 20)
+			-- Half the eggs already have Golden: they're marked rolled but never get it twice.
+			for i = 1, 10 do
+				data.slots[tostring(i)].mutations = { "Golden" }
+			end
+			local GrowthService = world:modulesRequire("src/server/Services/GrowthService")
+			local rolls = 0
+			world:advance(60, 1)
+			-- Plant 20 more mid-event: they get their one roll on the next tick.
+			for i = 21, 40 do
+				data.slots[tostring(i)] = cosmicSlots(world.now, 1)["1"]
+			end
+			world:advance(70, 1)
+			local key = WeatherRules.key("global", e.startsAt)
+			for _, slot in data.slots do
+				t.ok(slot.weatherRolled and slot.weatherRolled[key], "every growing egg had its roll")
+				t.ok(count(slot.mutations, function(m)
+					return m == "Golden"
+				end) <= 1, "no duplicate")
+				rolls += 1
+			end
+			t.eq(rolls, 40)
+			-- A second pass over the same event changes nothing.
+			local before = {}
+			for k, slot in data.slots do
+				before[k] = #slot.mutations
+			end
+			GrowthService.weatherRoll(player, data, "SolarFlare", key)
+			for k, slot in data.slots do
+				t.eq(#slot.mutations, before[k], "one roll per egg per event")
+			end
 		end,
 		["announcements: toast at T-5:00 (+ chat line), T-1:00 and the start"] = function()
 			local e = Weather.eventOf(T0 // Config.bucketSeconds + 3)
@@ -236,8 +278,8 @@ return function(t)
 				end
 				return n
 			end
-			-- 40 eggs at 1 - 0.7^4 = 76%: comfortably above 20; the other plot gets nothing.
-			t.ok(golden(mine.slots) >= 20, "buyer's eggs mutated: " .. golden(mine.slots))
+			-- 40 eggs at one 25% roll each: 10 expected; the other plot gets nothing.
+			t.ok(golden(mine.slots) >= 3 and golden(mine.slots) <= 20, "buyer's eggs mutated: " .. golden(mine.slots))
 			t.eq(golden(theirs.slots), 0, "other plot untouched")
 			t.ok(count(world.economy, function(e)
 				return e.sku == "InstantWeather_SolarFlare" and e.flow == "Sink" and e.amount == 400

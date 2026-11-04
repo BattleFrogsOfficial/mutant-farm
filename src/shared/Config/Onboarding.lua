@@ -12,14 +12,14 @@ return {
 	bag = { Starter = 1 },
 
 	-- The first hatch of a new profile, from this fixed table (not rolled): a Starter Common at
-	-- size 0.8 with Glitched (x25), its value scaled by firstHatchValueScale after everything else
-	-- (Valuation): 80 x 0.8 x 25 x 0.2 = $320. Full cutscene, never Fast Hatch; a FIRST HATCH BONUS
+	-- size 0.8 with Glitched (+8: x9), its value scaled by firstHatchValueScale after everything
+	-- else (Valuation): 80 x 0.8 x 9 x 0.2 = $115 ($13 before the Glitched). Full cutscene, never Fast Hatch; a FIRST HATCH BONUS
 	-- ribbon on the reveal and its Almanac entry. Excluded from mutation analytics and Top Pens.
 	firstHatch = { rarity = "Common", mutations = { "Glitched" }, size = 0.8 },
 	firstHatchValueScale = 0.2,
 	firstHatchRibbon = "FIRST HATCH BONUS",
 
-	-- The first sale's toast ($320 buys 5 Starter eggs with change; patch 7 at $200 is next).
+	-- The first sale's toast ($115 + the $100 start buys 2 Starter eggs; patch 7 at $200 is next).
 	firstSaleToast = "%s! Buy more eggs and grow your farm.",
 
 	-- Starter eggs planted before the Nth hatch grow in `seconds` (as a Common; rarity still
@@ -33,7 +33,7 @@ return {
 
 	-- The tutorial's "buy eggs" step: a BUY button on the egg tray (the usual BuyEgg intent) until
 	-- the player has opened the Egg Shop once.
-	trayBuy = { egg = "Starter", quantity = 5 },
+	trayBuy = { egg = "Starter", quantity = 2 },
 
 	-- A free Solar Flare on the player's own plot (the Instant Weather path, cost 0), once per
 	-- profile: the first moment `minGrowing` eggs are growing after `afterSeconds` of play, unless a

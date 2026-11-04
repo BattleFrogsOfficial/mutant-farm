@@ -16,6 +16,7 @@ local Remotes = require(Shared.Remotes)
 local Format = require(Shared.Format)
 local Rarities = require(Shared.Config.Rarities)
 local Mutations = require(Shared.Config.Mutations)
+local Valuation = require(Shared.Valuation)
 local Eggs = require(Shared.Config.Eggs)
 local Products = require(Shared.Config.Products)
 local GameConfig = require(Shared.Config.Game)
@@ -643,14 +644,12 @@ local function play(h: Hatch)
 		{ text = string.format("%.0f studs tall", height), color = Theme.colors.slateLight },
 	}
 	local mutations = MutantModel.sortedMutations(item.mutations)
-	local totalMultiplier = 1
-	for _, m in mutations do
-		totalMultiplier *= Mutations.info[m].multiplier
-	end
+	-- Additive: 1 + the sum of the bonuses (Golden +2 and Glitched +8 = x11).
+	local totalMultiplier = Valuation.mutationMultiplier(mutations)
 	local baseValue = math.floor(h.value / totalMultiplier + 0.5)
 	local function mutationChip(m: string)
 		return {
-			text = string.format("%s x%d", m:upper(), Mutations.info[m].multiplier),
+			text = Valuation.mutationLabel(m),
 			color = Color3.fromHex(Mutations.info[m].color):Lerp(Theme.colors.slate, 0.35),
 		}
 	end
@@ -679,13 +678,15 @@ local function play(h: Hatch)
 	if not quick and #mutations > 0 then
 		task.spawn(function()
 			local current = baseValue
+			local running = 1 -- the running total multiplier (x1, x3, x11, ...)
 			task.wait(0.9)
 			for i, m in mutations do
 				if hatchId ~= myId then
 					return
 				end
 				local info = Mutations.info[m]
-				local target = if i == #mutations then h.value else current * info.multiplier
+				running += info.bonus
+				local target = if i == #mutations then h.value else baseValue * running
 				table.insert(chips, mutationChip(m))
 				HatchScreen.setChips(screen, chips)
 				Sfx.play("mutate", 0.7, 1.1 + i * 0.1)
@@ -701,9 +702,10 @@ local function play(h: Hatch)
 					if hatchId == myId then
 						screen.valueScale.Scale = 1.7 - 0.7 * backOut(k)
 						screen.value.Text = string.format(
-							"%s x%d = %s",
+							"%s +%d · x%d = %s",
 							m:upper(),
-							info.multiplier,
+							info.bonus,
+							running,
 							Format.cash(math.floor(from + (target - from) * quadOut(k)))
 						)
 					end
@@ -903,10 +905,7 @@ local function onMutated(slotIndex: number, eggId: string, mutation: string, wor
 	-- Cosmic's config color is a deep purple; use a bright one for light effects.
 	local glow = if mutation == "Cosmic" then Color3.fromHex("#B98CFF") else color
 	local worthText = if worth and worth > 0 then " · worth " .. Format.cash(worth) .. " now" else ""
-	State.toast(
-		string.format("%s x%d on your %s%s", mutation:upper(), info.multiplier, tier.name, worthText),
-		"success"
-	)
+	State.toast(string.format("%s on your %s%s", Valuation.mutationLabel(mutation), tier.name, worthText), "success")
 	Sfx.play("mutate", 0.6 + rank * 0.08, 1.4 - rank * 0.1)
 	if rank >= 4 then
 		Sfx.play("hatchLegendary", 0.7, 1)

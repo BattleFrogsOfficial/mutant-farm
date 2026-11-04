@@ -21,10 +21,11 @@ function Expected.sizeMultiplier(luck: number): number
 end
 
 function Expected.mutationMultiplier(luck: number, oddsBonus: number): number
+	-- Additive bonuses: the expectation is 1 + the sum of P(mutation) x its bonus.
 	local ev = 1
 	for _, id in Mutations.order do
 		local p = 1 - (1 - Rolls.mutationChance(id, luck, oddsBonus)) ^ Mutations.rollsPerGrow
-		ev *= 1 + p * (Mutations.info[id].multiplier - 1)
+		ev += p * Mutations.info[id].bonus
 	end
 	return ev
 end

@@ -18,12 +18,28 @@ export type Mutant = {
 	valueScale: number?, -- applied after everything else (the scripted first hatch: 0.2)
 }
 
+-- 1 + the sum of the mutations' bonuses (additive: Golden +2 and Glitched +8 = x11).
 function Valuation.mutationMultiplier(mutations: { string }): number
 	local m = 1
 	for _, id in mutations do
-		m *= Mutations.info[id].multiplier
+		m += Mutations.info[id].bonus
 	end
 	return m
+end
+
+-- "GOLDEN +2": a mutation chip.
+function Valuation.mutationLabel(id: string): string
+	return string.format("%s +%d", string.upper(id), Mutations.info[id].bonus)
+end
+
+-- "x11": the running total of a mutant's mutations.
+function Valuation.totalLabel(mutations: { string }): string
+	return "x" .. Valuation.mutationMultiplier(mutations)
+end
+
+-- Every mutation at once (x36).
+function Valuation.maxMutationMultiplier(): number
+	return Valuation.mutationMultiplier(Mutations.order)
 end
 
 -- Tier x rarity only. Pen income is computed from this so mutations can't inflate income.
@@ -61,10 +77,7 @@ function Valuation.maxSingleSale(rebirths: number, cashMultiplier: number): numb
 			best = math.max(best, tier.baseValue)
 		end
 	end
-	local maxMutation = 1
-	for _, info in Mutations.info do
-		maxMutation *= info.multiplier
-	end
+	local maxMutation = Valuation.maxMutationMultiplier()
 	return best * Rarities.info.Legendary.valueMultiplier * maxMutation * 3 * cashMultiplier
 end
 

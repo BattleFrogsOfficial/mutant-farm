@@ -48,10 +48,10 @@ local function option(eventId: string, order: number)
 			}),
 			C.label({
 				Text = string.format(
-					"%s per tick · %s x%d",
+					"%s chance per egg · %s +%d",
 					Format.percent(event.chancePerRoll * 100),
 					string.upper(event.mutation),
-					Mutations.info[event.mutation].multiplier
+					Mutations.info[event.mutation].bonus
 				),
 				Position = UDim2.fromOffset(84, 44),
 				Size = UDim2.new(1, -290, 0, 24),

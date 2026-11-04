@@ -3,15 +3,35 @@ return function(t)
 	local Costs = t.require("src/shared/Costs")
 	local GameConfig = t.require("src/shared/Config/Game")
 	return {
-		["Golden Legendary Toxic is about 160M"] = function()
+		["Golden Legendary Toxic is 97.5M (130K x 250 x (1 + 2))"] = function()
 			local v =
 				Valuation.sellValue({ tier = "Toxic", rarity = "Legendary", mutations = { "Golden" }, size = 1 }, 1)
-			t.eq(v, 162_500_000)
+			t.eq(v, 97_500_000)
 		end,
-		["mutations multiply, ceiling is x250,000"] = function()
+		["mutations add: value x (1 + sum of bonuses), ceiling x36"] = function()
 			t.eq(Valuation.mutationMultiplier({}), 1)
-			t.eq(Valuation.mutationMultiplier({ "Shiny", "Golden" }), 10)
-			t.eq(Valuation.mutationMultiplier({ "Shiny", "Golden", "Radioactive", "Glitched", "Cosmic" }), 250_000)
+			t.eq(Valuation.mutationMultiplier({ "Shiny" }), 2)
+			t.eq(Valuation.mutationMultiplier({ "Golden", "Glitched" }), 11)
+			t.eq(Valuation.mutationMultiplier({ "Shiny", "Golden", "Radioactive", "Glitched", "Cosmic" }), 36)
+			t.eq(Valuation.maxMutationMultiplier(), 36)
+			-- base x rarity x (1 + bonuses) x size x cash multiplier
+			local v = Valuation.sellValue(
+				{ tier = "Swamp", rarity = "Rare", mutations = { "Golden", "Glitched" }, size = 1.5 },
+				2
+			)
+			t.eq(v, 900 * 10 * 11 * 1.5 * 2)
+		end,
+		["mutation display strings: chips '+N', the running total 'xN'"] = function()
+			t.eq(Valuation.mutationLabel("Golden"), "GOLDEN +2")
+			t.eq(Valuation.mutationLabel("Cosmic"), "COSMIC +20")
+			t.eq(Valuation.totalLabel({ "Golden", "Glitched" }), "x11")
+			t.eq(Valuation.totalLabel({}), "x1")
+		end,
+		["offline rolls: 25% of the online chance"] = function()
+			local Rolls = t.require("src/shared/Rolls")
+			t.eq(GameConfig.offlineMutationChanceScale, 0.25)
+			t.near(Rolls.mutationChance("Shiny", 1, 0, GameConfig.offlineMutationChanceScale), 0.015 * 0.25, 1e-12)
+			t.near(Rolls.mutationChance("Shiny", 1, 0), 0.015, 1e-12)
 		end,
 		["base value ignores mutations and size"] = function()
 			t.eq(Valuation.baseValue({ tier = "Swamp", rarity = "Rare", mutations = { "Cosmic" }, size = 3 }), 9_000)

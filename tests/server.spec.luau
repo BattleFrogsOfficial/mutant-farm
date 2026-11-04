@@ -65,7 +65,7 @@ return function(t)
 			t.eq(data.stats.eggsPlanted, 1, "counts as the first egg, so the next plant is the Rare")
 		end,
 
-		["the scripted first hatch: Starter Common, Glitched, 0.8, sells for ~$320, exactly once"] = function()
+		["the scripted first hatch: Starter Common, Glitched, 0.8, sells for ~$115, exactly once"] = function()
 			local world = t.server()
 			local player, data = world:join(1)
 			local seen = {}
@@ -97,9 +97,9 @@ return function(t)
 			local before = data.cash
 			world:send(player, "Sell", item.id)
 			local got = data.cash - before
-			t.ok(got >= 300 and got <= 340, "sold for " .. got)
+			t.ok(got >= 100 and got <= 130, "sold for " .. got)
 			local notes = world:received(player, "Notify")
-			t.eq(notes[#notes][1], "$320! Buy more eggs and grow your farm.", "the first sale's toast")
+			t.eq(notes[#notes][1], "$115! Buy more eggs and grow your farm.", "the first sale's toast")
 			-- The funnel's FirstHatch and FirstSell carry seconds since join.
 			t.near(funnel.FirstHatch, 11, 1.01, "FirstHatch at ~11 s")
 			t.near(funnel.FirstSell, 11, 1.01, "FirstSell at ~11 s")

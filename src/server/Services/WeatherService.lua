@@ -1,6 +1,6 @@
 --!strict
--- Weather. Two kinds of events, same roll mechanics (a roll on every growing egg when it starts and
--- every Weather.rollEverySeconds after, at chancePerRoll x luck: WeatherRules / GrowthService):
+-- Weather. Two kinds of events, same roll mechanics (ONE roll per growing egg per event, also for
+-- an egg planted mid-event, at chancePerRoll x luck: WeatherRules / GrowthService.weatherRoll):
 --
 -- * Global: the schedule is a pure function of wall-clock time (shared/Weather.lua scheduleAt), so
 --   every server runs the same event at the same moment. Replicated as Workspace attributes
@@ -41,20 +41,13 @@ local serverId = ""
 
 ---------------------------------------------------------------------------- rolls
 
--- Rolls owed by an event `startsAt` at time `now` that haven't happened yet: calls roll() for each.
-local function rollsDue(startsAt: number, done: number, now: number, eventId: string, roll: () -> ()): number
-	local due = math.min(math.floor((now - startsAt) / Config.rollEverySeconds), WeatherRules.rolls(eventId) - 1)
-	for _ = done + 1, due do
-		roll()
-	end
-	return math.max(done, due)
-end
-
-local function rollEveryone(eventId: string)
+-- Every tick while an event runs: each growing egg that hasn't had this event's roll gets it
+-- (GrowthService.weatherRoll marks the egg with the event's key).
+local function rollEveryone(eventId: string, key: string)
 	for _, player in Players:GetPlayers() do
 		local data = DataService.get(player)
 		if data and next(data.slots) then
-			GrowthService.weatherRoll(player, data, eventId)
+			GrowthService.weatherRoll(player, data, eventId, key)
 		end
 	end
 end
@@ -129,7 +122,6 @@ end
 
 local lastNow: number? = nil
 local announced: { [number]: { [string]: boolean } } = {} -- startsAt -> what was said
-local globalRolls: { [number]: number } = {} -- startsAt -> last roll index done
 
 local function tickGlobal(now: number)
 	local current = Weather.scheduleAt(now)
@@ -165,24 +157,13 @@ local function tickGlobal(now: number)
 			if lastNow ~= nil and (lastNow :: number) < current.startsAt then
 				announce(string.format(event.start, event.icon), false)
 			end
-			-- Joined mid-event (server start): only the roll for the current tick, not the past ones.
-			globalRolls[current.startsAt] = math.floor((now - current.startsAt) / Config.rollEverySeconds) - 1
 		end
-		globalRolls[current.startsAt] = rollsDue(
-			current.startsAt,
-			globalRolls[current.startsAt],
-			now,
-			current.id,
-			function()
-				rollEveryone(current.id)
-			end
-		)
+		rollEveryone(current.id, WeatherRules.key("global", current.startsAt))
 	end
 	-- Forget old events.
 	for startsAt in announced do
 		if startsAt < now - 2 * Config.bucketSeconds then
 			announced[startsAt] = nil
-			globalRolls[startsAt] = nil
 		end
 	end
 	lastNow = now
@@ -190,7 +171,7 @@ end
 
 ---------------------------------------------------------------------------- Instant Weather
 
-type PlotEvent = { id: string, startsAt: number, endsAt: number, done: number }
+type PlotEvent = { id: string, startsAt: number, endsAt: number }
 local plotEvents: { [Player]: PlotEvent } = {}
 
 local function endPlotEvent(player: Player)
@@ -229,20 +210,18 @@ local function onBuyInstantWeather(player: Player, data: Types.Profile, eventId:
 end
 
 -- Starts a 120 s event on `player`'s plot only (Instant Weather; also the onboarding's free
--- Solar Flare): the same rolls as a global event, the first one right away. False if one runs.
+-- Solar Flare): the same one roll per egg as a global event, right away. False if one runs.
 function WeatherService.startPlotEvent(player: Player, data: Types.Profile, eventId: string, message: string): boolean
 	local event = (Config.events :: any)[eventId]
 	if not event or plotEvents[player] then
 		return false
 	end
 	local now = DataService.now()
-	plotEvents[player] = { id = eventId, startsAt = now, endsAt = now + event.durationSeconds, done = -1 }
+	plotEvents[player] = { id = eventId, startsAt = now, endsAt = now + event.durationSeconds }
 	player:SetAttribute("PlotWeatherId", eventId)
 	player:SetAttribute("PlotWeatherEndsAt", now + event.durationSeconds)
 	Net.notify(player, message, "success")
-	plotEvents[player].done = rollsDue(now, -1, now, eventId, function()
-		GrowthService.weatherRoll(player, data, eventId)
-	end)
+	GrowthService.weatherRoll(player, data, eventId, WeatherRules.key("plot", now))
 	return true
 end
 
@@ -255,10 +234,8 @@ end
 local function tickPlots(now: number)
 	for player, e in plotEvents do
 		local data = DataService.get(player)
-		if data then
-			e.done = rollsDue(e.startsAt, e.done, now, e.id, function()
-				GrowthService.weatherRoll(player, data, e.id)
-			end)
+		if data and now < e.endsAt then
+			GrowthService.weatherRoll(player, data, e.id, WeatherRules.key("plot", e.startsAt))
 		end
 		if now >= e.endsAt then
 			endPlotEvent(player)

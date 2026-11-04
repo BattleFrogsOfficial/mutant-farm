@@ -38,21 +38,28 @@ function Rolls.rollRarity(rng: any, tierId: string, luck: number): string
 	return rng:weighted(Rarities.order, Rolls.rarityWeights(tierId, luck))
 end
 
--- Chance that one roll grants `mutationId`. oddsBonus is the Mutation Odds upgrade (0.1 per level).
-function Rolls.mutationChance(mutationId: string, luck: number, oddsBonus: number?): number
+-- Chance that one roll grants `mutationId`. oddsBonus is the Mutation Odds upgrade (0.1 per level);
+-- chanceScale scales the result (offline rolls: Game.offlineMutationChanceScale).
+function Rolls.mutationChance(mutationId: string, luck: number, oddsBonus: number?, chanceScale: number?): number
 	local base = Mutations.info[mutationId].chancePerRoll
-	return math.min(1, base * Rolls.clampLuck(luck) * (1 + (oddsBonus or 0)))
+	return math.min(1, base * Rolls.clampLuck(luck) * (1 + (oddsBonus or 0)) * (chanceScale or 1))
 end
 
 -- One mutation roll. Returns the mutation ids newly gained (usually none).
-function Rolls.rollMutations(rng: any, existing: { string }, luck: number, oddsBonus: number?): { string }
+function Rolls.rollMutations(
+	rng: any,
+	existing: { string },
+	luck: number,
+	oddsBonus: number?,
+	chanceScale: number?
+): { string }
 	local has = {}
 	for _, id in existing do
 		has[id] = true
 	end
 	local gained = {}
 	for _, id in Mutations.order do
-		if not has[id] and rng:next() < Rolls.mutationChance(id, luck, oddsBonus) then
+		if not has[id] and rng:next() < Rolls.mutationChance(id, luck, oddsBonus, chanceScale) then
 			table.insert(gained, id)
 		end
 	end
