@@ -19,7 +19,7 @@ return function(t)
 			t.eq(g.title, "REBIRTH 1")
 			t.eq(g.text, "$420K / $700K earned this life")
 			t.near(g.progress, 0.6, 1e-9)
-			local ready = NextUp.rebirthGoal(1, 5_000_000, 4_550_000)
+			local ready = NextUp.rebirthGoal(1, 5_000_000, 3_150_000)
 			t.eq(ready.title, "REBIRTH 2 READY")
 			t.eq(ready.progress, 1)
 		end,

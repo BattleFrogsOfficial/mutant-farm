@@ -69,7 +69,7 @@ return function(api)
 
 	-- After the tutorial: Next Up in the same chrome (the rebirth goal, the longest line).
 	set(State.zone, "plot")
-	set(State.objective, { title = "REBIRTH 2", text = "$1.2M / $4.55M earned this life", progress = 0.26 })
+	set(State.objective, { title = "REBIRTH 2", text = "$1.2M / $3.15M earned this life", progress = 0.38 })
 	api.captureHud("hud-plot-tut-nextup", SIZES)
 	set(State.objective, before)
 end

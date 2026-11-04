@@ -1,15 +1,14 @@
 --!strict
 -- Rebirth costs: Rebirth 1 costs firstCost, each later one costGrowth x the previous
--- (700K, 4.55M, 29.6M, 192M, 1.25B, 8.1B, 52.8B, 343B, 2.23T, 14.5T, 94T, 612T, ...).
--- x6.5 since 2026-11-03 (was x4.5): a player with every pass who taps every growth boost reached
--- Rebirth 10 in ~7 hours of play (one night); now ~19 h (free ~74 h), and the Magma (Rebirth 9)
--- and Quantum (Rebirth 11) tiers give the late game new eggs to reach. 700K keeps the first
--- rebirth where it was (~25 simulator minutes on the water pad, ~10 tapping every boost). Each
--- rebirth adds +cashBonusPerRebirth to the Cash multiplier (additive: Rebirth 4 = 3x, Rebirth
--- 10 = 6x). Check pacing with `lune run tools/sim` (`--all`, `--taps`, `--hours`).
+-- (700K, 3.15M, 14.2M, 63.8M, 287M, 1.29B, 5.81B, 26.2B, 118B, 530B, 2.38T, 10.7T, ...).
+-- x4.5 again since 2026-11-05 (x6.5 from 2026-11-03): the grow ramp is gone and the growth
+-- circle is softer (3.55x offers, a 3-8 s vanish), so the curve goes back to x4.5. The
+-- requirement is Cash earned this life (2026-11-04). Each rebirth adds +cashBonusPerRebirth to
+-- the Cash multiplier (additive: Rebirth 4 = 3x, Rebirth 10 = 6x). Check pacing with
+-- `lune run tools/sim` (`--all`, `--taps`, `--hours`).
 
 return {
 	cashBonusPerRebirth = 0.5,
 	firstCost = 700_000,
-	costGrowth = 6.5,
+	costGrowth = 4.5,
 }
