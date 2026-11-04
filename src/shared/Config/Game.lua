@@ -9,26 +9,28 @@ return {
 	-- Watering (shared/Watering.lua, WaterService). Standing on your plot's water pad grows the
 	-- whole plot at `padMultiplier` for as long as you stand there (the server checks your
 	-- position every `padPollSeconds`; `padTolerance` studs past the pad's edge still count). The
-	-- growth circle on the HUD offers a boost: tap it and the plot grows at the offered multiplier
-	-- for `tapSeconds` (the higher of the boost and the pad applies, they don't multiply), then a
-	-- new offer appears somewhere else on the screen. Offers are rolled by the server from
-	-- `tapOffers` ({ multiplier, weight }; lower is likelier: 3x 30%, 4x 22%, 5x 16%, 6x 11%, 7x 8%,
-	-- 8x 6%, 9x 4%, 10x 3%, 4.94x on average). A tap up to `tapGrace` s early (latency) still counts.
-	-- Both stack with the Growth Speed pass (1.5x) and the Growth Speed upgrade. Nothing runs offline.
+	-- growth circle on the HUD (whenever an egg grows, on or off the pad) offers a boost: tap it
+	-- and the plot grows at the offered multiplier for `boostSeconds` (the higher of the boost and
+	-- the pad applies, they don't multiply). Then the circle vanishes for a gap the server rolls
+	-- uniformly in [gapMin, gapMax] seconds and comes back somewhere else with a new offer.
+	-- Offers are rolled by the server from `tapOffers` ({ multiplier, weight }: 2x 30%, 3x 30%,
+	-- 4x 20%, 5x 12%, 7x 5%, 10x 3%, 3.55x on average; 2026-11-05). A tap up to `tapGrace` s early
+	-- (latency) still counts. Both stack with the Growth Speed pass and the Growth Speed upgrade.
+	-- Nothing runs offline. With a perfect tapper this is ~2.7x on the pad (2.2x off it).
 	water = {
 		padMultiplier = 2,
 		padPollSeconds = 0.25,
 		padTolerance = 0.5,
-		tapSeconds = 5,
+		boostSeconds = 5,
+		gapMin = 3,
+		gapMax = 8,
 		tapGrace = 0.3,
 		tapOffers = {
+			{ 2, 30 },
 			{ 3, 30 },
-			{ 4, 22 },
-			{ 5, 16 },
-			{ 6, 11 },
-			{ 7, 8 },
-			{ 8, 6 },
-			{ 9, 4 },
+			{ 4, 20 },
+			{ 5, 12 },
+			{ 7, 5 },
 			{ 10, 3 },
 		},
 	},

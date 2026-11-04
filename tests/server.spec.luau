@@ -4,6 +4,7 @@ return function(t)
 	local Valuation = t.require("src/shared/Valuation")
 	local GameConfig = t.require("src/shared/Config/Game")
 	local Growth = t.require("src/shared/Growth")
+	local Watering = t.require("src/shared/Watering")
 
 	local function DataService(world)
 		return world.service.DataService
@@ -643,12 +644,12 @@ return function(t)
 			t.eq(poorData.gems, 10)
 		end,
 
-		["watering: the pad grows 2x while you stand on it, a tap boosts at the server's offer for 5 s"] = function()
+		["watering: the pad grows 2x, a tap boosts at the server's offer for 5 s, then the circle vanishes 3-8 s"] = function()
 			local world = t.server()
 			local player, data = world:join(1, { eggs = { Swamp = 1 }, grantedStarterEggs = true })
 			local WaterService = world.service.WaterService
 			local water = GameConfig.water
-			t.ok(data.waterOffer >= 3 and data.waterOffer <= 10, "an offer is rolled on join")
+			t.ok(Watering.odds()[data.waterOffer] ~= nil, "an offer is rolled on join")
 			t.eq(data.onPad, false)
 			world:send(player, "Plant", 1, "Swamp")
 			local slot = data.slots["1"]
@@ -660,36 +661,49 @@ return function(t)
 			WaterService.setOnPad(player, false)
 			t.near(slot.growth, 20, 1e-6)
 
-			-- Off the pad a tap does nothing (the boost belongs to the pad).
-			world:send(player, "TapBoost")
-			t.eq(data.stats.waters, 0, "off the pad: refused")
-			-- Tap on the pad: the offered multiplier for 5 s, then the pad's 2x, and a fresh offer.
-			WaterService.setOnPad(player, true)
+			-- The circle is offered off the pad too: a tap there boosts from 1x.
 			local offer = data.waterOffer
 			local tappedAt = world.now
 			world:send(player, "TapBoost")
+			t.eq(data.stats.waters, 1, "off the pad: accepted")
 			t.eq(data.waterMult, offer)
-			t.near(data.wateredUntil, tappedAt + water.tapSeconds, 1e-9)
-			t.ok(data.waterOffer >= 3 and data.waterOffer <= 10, "a new offer")
-			t.eq(data.stats.waters, 1)
-			-- Tapping again on the cooldown does nothing.
+			t.near(data.wateredUntil, tappedAt + water.boostSeconds, 1e-9)
+			local gap = data.waterReadyAt - data.wateredUntil
+			t.ok(gap >= water.gapMin and gap <= water.gapMax, "gap " .. gap)
+			t.ok(Watering.odds()[data.waterOffer] ~= nil, "a new offer")
+			-- Refused while the boost runs, and during the gap after it.
 			local next = data.waterOffer
 			world:advance(1)
 			world:send(player, "TapBoost")
-			t.eq(data.stats.waters, 1, "ignored on the cooldown")
-			t.eq(data.waterOffer, next)
-			-- After the boost: 5 s at the offer, then back to the pad's 2x for 5 s.
-			world:advance(9)
-			world.service.GrowthService.settle(data, world.now)
-			t.near(slot.growth, 20 + offer * water.tapSeconds + 2 * 5, 1e-6)
+			t.eq(data.stats.waters, 1, "ignored while the boost runs")
+			world:advance(water.boostSeconds) -- past the boost, inside the gap (>= 3 s)
+			t.ok(world.now < data.waterReadyAt - water.tapGrace, "still in the gap")
 			world:send(player, "TapBoost")
-			t.eq(data.stats.waters, 2, "a tap after the boost runs out counts")
-
-			-- The pad and the boost don't multiply: the higher applies.
-			local g0 = slot.growth
-			world:advance(water.tapSeconds)
+			t.eq(data.stats.waters, 1, "ignored during the gap")
+			t.eq(data.waterOffer, next)
 			world.service.GrowthService.settle(data, world.now)
-			t.near(slot.growth - g0, data.waterMult * water.tapSeconds, 1e-6)
+			t.near(slot.growth, 20 + offer * water.boostSeconds + 1 * 1, 1e-6, "5 s boosted, then 1x off the pad")
+
+			-- The gap survives a rejoin.
+			local readyAt = data.waterReadyAt
+			world:leave(player)
+			local rejoined, back = world:join(1)
+			player = rejoined
+			t.eq(back.waterReadyAt, readyAt, "saved")
+			world:send(player, "TapBoost")
+			t.eq(back.stats.waters, 1, "still refused after the rejoin")
+			world:advance(readyAt - world.now + 0.01)
+			world:send(player, "TapBoost")
+			t.eq(back.stats.waters, 2, "a tap after the gap counts")
+			data = back
+			slot = back.slots["1"]
+
+			-- On the pad: the boost and the pad don't multiply, the higher applies.
+			WaterService.setOnPad(player, true)
+			local g0 = slot.growth
+			world:advance(water.boostSeconds)
+			world.service.GrowthService.settle(data, world.now)
+			t.near(slot.growth - g0, math.max(2, data.waterMult) * water.boostSeconds, 1e-6)
 			WaterService.setOnPad(player, false)
 
 			-- Leaving: nobody's on the pad and nothing is watered while away.

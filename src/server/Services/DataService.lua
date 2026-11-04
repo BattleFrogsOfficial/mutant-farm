@@ -58,6 +58,9 @@ local TEMPLATE: Types.Profile = {
 	wateredUntil = 0,
 	waterMult = 1,
 	waterOffer = 0,
+	-- When the circle is back after the last boost (its end + the rolled 3-8 s vanish gap);
+	-- TapBoost is refused before it. Saved, so the gap survives a rejoin.
+	waterReadyAt = 0,
 	onPad = false,
 	lastSeen = 0,
 	streak = { day = 0, lastClaimDay = 0, count = 0 }, -- day = position in the 7-day cycle, count = days in a row
@@ -294,6 +297,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		wateredUntil = data.wateredUntil,
 		waterMult = data.waterMult,
 		waterOffer = data.waterOffer,
+		waterReadyAt = data.waterReadyAt,
 		onPad = data.onPad,
 		eggs = data.eggs,
 		slots = slots,

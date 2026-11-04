@@ -113,7 +113,7 @@ return function(api)
 	end
 	set(State.boostSpot, 1)
 	local boosted = snapWith({ Starter = 3, Swamp = 2 }, 12_400, {
-		wateredUntil = NOW + GameConfig.water.tapSeconds - 1,
+		wateredUntil = NOW + GameConfig.water.boostSeconds - 1,
 		waterMult = 7,
 		onPad = true,
 	})

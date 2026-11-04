@@ -1,46 +1,56 @@
--- Watering rules (shared/Watering.lua): the growth circle's offers (3x-10x, lower likelier),
--- the tap cooldown, and where the circle shows up next.
+-- Watering rules (shared/Watering.lua): the growth circle's offers (2x-10x, lower likelier), the
+-- boost, the vanish gap, and where the circle shows up next.
 return function(t)
 	local Watering = t.require("src/shared/Watering")
 	local GameConfig = t.require("src/shared/Config/Game")
 	return {
-		["offers run 3x to 10x, lower likelier, odds sum to 1"] = function()
+		["offers: 2x 30%, 3x 30%, 4x 20%, 5x 12%, 7x 5%, 10x 3% (3.55x on average; the spec said 3.47)"] = function()
 			local odds = Watering.odds()
-			local sum, last = 0, math.huge
-			for mult = 3, 10 do
-				t.ok(odds[mult] and odds[mult] > 0, mult .. "x is offered")
-				t.ok(odds[mult] <= last, mult .. "x is no likelier than " .. (mult - 1) .. "x")
-				last = odds[mult]
+			local want = { [2] = 0.3, [3] = 0.3, [4] = 0.2, [5] = 0.12, [7] = 0.05, [10] = 0.03 }
+			local sum = 0
+			for mult, p in want do
+				t.near(odds[mult], p, 1e-9, mult .. "x")
 				sum += odds[mult]
 			end
 			t.near(sum, 1, 1e-9)
-			t.eq(odds[2], nil)
-			t.eq(odds[11], nil)
-			t.near(Watering.averageOffer(), 4.94, 1e-9)
+			t.near(Watering.averageOffer(), 3.55, 1e-9)
+		end,
+		["10,000 rolled offers average the table's 3.55x +- 0.05"] = function()
+			local Rng = t.require("src/shared/Rng")
+			local rng = Rng.new(4242)
+			local total = 0
+			for _ = 1, 10_000 do
+				total += Watering.offerFor(rng:next())
+			end
+			t.near(total / 10_000, Watering.averageOffer(), 0.05)
 		end,
 		["offerFor walks the weights"] = function()
-			t.eq(Watering.offerFor(0), 3)
-			t.eq(Watering.offerFor(0.2999), 3)
-			t.eq(Watering.offerFor(0.3), 4)
+			t.eq(Watering.offerFor(0), 2)
+			t.eq(Watering.offerFor(0.2999), 2)
+			t.eq(Watering.offerFor(0.3), 3)
 			t.eq(Watering.offerFor(0.9999), 10)
-			-- a seeded sweep lands near the configured odds
-			local counts = {}
-			local n = 20000
-			for i = 0, n - 1 do
-				local m = Watering.offerFor((i + 0.5) / n)
-				counts[m] = (counts[m] or 0) + 1
-			end
-			for mult, p in Watering.odds() do
-				t.near(counts[mult] / n, p, 1e-3)
-			end
 		end,
-		["a tap waits for the last boost to run out (a little latency is fine)"] = function()
-			local grace = GameConfig.water.tapGrace
-			t.ok(Watering.canTap(100, 0), "no boost yet")
-			t.ok(not Watering.canTap(100, 104), "boost still running")
-			t.ok(Watering.canTap(104 - grace, 104), "just inside the grace")
-			t.ok(not Watering.canTap(104 - grace - 0.05, 104), "too early")
-			t.eq(Watering.boostEnd(100), 100 + GameConfig.water.tapSeconds)
+		["after a boost the circle vanishes for 3-8 s; taps wait for it (a little latency is fine)"] = function()
+			local w = GameConfig.water
+			t.eq(w.boostSeconds, 5)
+			t.eq(Watering.gapFor(0), w.gapMin)
+			t.eq(Watering.gapFor(0.9999), w.gapMin + 0.9999 * (w.gapMax - w.gapMin))
+			t.eq(w.gapMin, 3)
+			t.eq(w.gapMax, 8)
+			local boostEnd = Watering.boostEnd(100)
+			t.eq(boostEnd, 105)
+			local ready = Watering.readyAt(boostEnd, 0.5)
+			t.eq(ready, 105 + 5.5)
+			t.ok(Watering.circleShown(102, boostEnd, ready), "shown while the boost runs")
+			t.ok(not Watering.circleShown(107, boostEnd, ready), "gone during the gap")
+			t.ok(Watering.circleShown(ready, boostEnd, ready), "back after it")
+			t.ok(not Watering.canTap(107, ready), "no tap during the gap")
+			t.ok(Watering.canTap(ready - w.tapGrace, ready), "just inside the grace")
+			t.ok(Watering.canTap(100, 0), "never tapped")
+		end,
+		["a perfect tapper's cycle: ~2.7x on the pad, ~2.2x off it"] = function()
+			t.near(Watering.cycleRate(2), 2.74, 0.01)
+			t.near(Watering.cycleRate(1), 2.21, 0.01)
 		end,
 		["the circle never comes back on the same spot"] = function()
 			for count = 2, 7 do

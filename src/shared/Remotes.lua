@@ -12,7 +12,7 @@ Remotes.ClientToServer = {
 	"Plant", -- (slotIndex: number, eggId: string)
 	"Harvest", -- (slotIndex: number)
 	"HarvestAll", -- ()
-	"TapBoost", -- () the growth circle: grow at its offered multiplier for Game.water.tapSeconds
+	"TapBoost", -- () the growth circle: grow at its offered multiplier for Game.water.boostSeconds, then the circle vanishes for a gap
 	"BuyEgg", -- (eggId: string, quantity: number)
 	"Sell", -- (itemId: string)
 	"SellAll", -- ()

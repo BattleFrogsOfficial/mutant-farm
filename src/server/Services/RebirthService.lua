@@ -65,6 +65,7 @@ local function rebirth(player: Player, data: Types.Profile)
 	data.upgrades = { growthSpeed = 0, mutationOdds = 0 }
 	data.eggs = keptEggs
 	data.wateredUntil = 0 -- the tap boost ends (standing on the pad still counts)
+	data.waterReadyAt = 0 -- and the circle is back at once
 	data.waterMult = 1
 	Analytics.funnel(player, data, "FirstRebirth")
 

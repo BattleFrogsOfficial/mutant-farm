@@ -44,14 +44,43 @@ function Watering.averageOffer(): number
 	return sum / totalWeight
 end
 
--- A tap is allowed once the last boost has run out (a little early is fine: latency).
-function Watering.canTap(now: number, boostUntil: number): boolean
-	return now >= boostUntil - GameConfig.water.tapGrace
+-- A tap is allowed once the circle is back (`readyAt`: the boost's end plus the vanish gap; a
+-- little early is fine: latency).
+function Watering.canTap(now: number, readyAt: number): boolean
+	return now >= readyAt - GameConfig.water.tapGrace
 end
 
 -- The boost a tap starts at `now`: until when it runs.
 function Watering.boostEnd(now: number): number
-	return now + GameConfig.water.tapSeconds
+	return now + GameConfig.water.boostSeconds
+end
+
+-- The vanish gap after a boost, from a uniform `u` in [0, 1): gapMin..gapMax seconds.
+function Watering.gapFor(u: number): number
+	local w = GameConfig.water
+	return w.gapMin + u * (w.gapMax - w.gapMin)
+end
+
+-- When the circle comes back after a boost that ends at `boostEnd` (gap rolled from `u`).
+function Watering.readyAt(boostEnd: number, u: number): number
+	return boostEnd + Watering.gapFor(u)
+end
+
+-- The circle shows while a boost runs, or once its gap is over (never during the gap).
+function Watering.circleShown(now: number, boostUntil: number, readyAt: number): boolean
+	return now < boostUntil or now >= readyAt
+end
+
+-- One whole tap cycle's average speed for a perfect tapper: `boostSeconds` at the offer (or
+-- the pad, the higher) and the average gap at `base` (the pad's 2x, or 1 off it).
+function Watering.cycleRate(base: number): number
+	local w = GameConfig.water
+	local boosted = 0
+	for mult, chance in Watering.odds() do
+		boosted += math.max(base, mult) * chance
+	end
+	local gap = (w.gapMin + w.gapMax) / 2
+	return (w.boostSeconds * boosted + gap * base) / (w.boostSeconds + gap)
 end
 
 -- The next spot for the circle: any of the `count` spots except `last`, from a uniform `u`.

@@ -58,6 +58,7 @@ export type Profile = {
 	wateredUntil: number, -- the tap boost runs until then...
 	waterMult: number, -- ...at this multiplier
 	waterOffer: number, -- the next tap's multiplier (0 = not rolled yet)
+	waterReadyAt: number, -- the circle is back (the boost's end + its vanish gap)
 	onPad: boolean, -- standing on the plot's water pad right now (false on join and offline)
 	lastSeen: number,
 	streak: { day: number, lastClaimDay: number, count: number },
@@ -119,6 +120,7 @@ export type Snapshot = {
 	wateredUntil: number,
 	waterMult: number,
 	waterOffer: number,
+	waterReadyAt: number?,
 	onPad: boolean,
 	eggs: { [string]: number },
 	slots: { [string]: SlotView },

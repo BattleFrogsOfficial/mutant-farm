@@ -1408,7 +1408,7 @@ end
 local function plainNumber(n: number): string
 	return if n == math.floor(n) then tostring(math.floor(n)) else tostring(n)
 end
-local BOOST_SECONDS = plainNumber(GameConfig.water.tapSeconds)
+local BOOST_SECONDS = plainNumber(GameConfig.water.boostSeconds)
 
 local function boostCircle()
 	local active = Computed(function()
@@ -1460,11 +1460,15 @@ local function boostCircle()
 			local screen, spot = State.screen:get(), boostSpot:get()
 			return UDim2.new(0.5, BOOST.spots[spot] or 0, 0, boostCenterY(screen))
 		end),
-		-- Only while you stand on your water pad (the boost counts only there) and an egg grows.
+		-- Whenever an egg grows on your plot (on or off the pad), except during the vanish gap
+		-- after a boost: then it's gone entirely (no placeholder) until the server's waterReadyAt.
 		Visible = Computed(function()
-			local plot, ready, isActive, snap =
-				atPlot:get(), State.nextReadyIn:get(), active:get(), State.snapshot:get()
-			return plot and snap ~= nil and snap.onPad == true and (ready ~= nil or isActive)
+			local plot, ready, isActive, snap, now =
+				atPlot:get(), State.nextReadyIn:get(), active:get(), State.snapshot:get(), State.now:get()
+			if not plot or snap == nil or not (ready ~= nil or isActive) then
+				return false
+			end
+			return Watering.circleShown(now, snap.wateredUntil, snap.waterReadyAt or 0)
 		end),
 		[OnEvent("Activated")] = function()
 			local snap = State.snapshot:get(false)
@@ -1478,7 +1482,7 @@ local function boostCircle()
 				boostToastShown = true
 				State.toast(
 					string.format(
-						"%sx growth for %s s! A new boost pops up when it ends.",
+						"%sx growth for %s s! Another one pops up a few seconds after it ends.",
 						plainNumber(snap.waterOffer),
 						BOOST_SECONDS
 					),
@@ -1525,7 +1529,7 @@ local function boostCircle()
 					if not isActive or not snap then
 						return UDim2.fromScale(1, 0)
 					end
-					local left = math.clamp((snap.wateredUntil - now) / GameConfig.water.tapSeconds, 0, 1)
+					local left = math.clamp((snap.wateredUntil - now) / GameConfig.water.boostSeconds, 0, 1)
 					return UDim2.fromScale(1, left)
 				end),
 				ZIndex = 8,

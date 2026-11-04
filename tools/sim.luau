@@ -439,13 +439,11 @@ end
 
 -- Online watering: the pad all the time, and a growth boost (the higher of the two applies) for
 -- `opts.taps` of it, at the average of max(pad, offer) over the offers' odds.
+-- The bot stands on its pad; a perfect tapper (`--taps 1`) runs the circle's whole cycle (the
+-- boost, then the 3-8 s vanish at the pad's 2x), an idler (`--taps 0`) the pad alone.
 local function onlineWater(): number
 	local pad = GameConfig.water.padMultiplier
-	local boosted = 0
-	for mult, chance in Watering.odds() do
-		boosted += math.max(pad, mult) * chance
-	end
-	return opts.taps * boosted + (1 - opts.taps) * pad
+	return opts.taps * Watering.cycleRate(pad) + (1 - opts.taps) * pad
 end
 
 -- Expected Cash/min with every slot on the best unlocked tier, actively watered.
