@@ -151,6 +151,44 @@ return function(t)
 			t.eq(d2.slots["1"].baseGrow, 10)
 		end,
 
+		["OpenedAlmanac ends the tutorial only on its last step (the server re-derives it)"] = function()
+			local world = t.server()
+			local player, data = world:join(1, { grantedStarterEggs = true, stats = { harvested = 2, sold = 1 } })
+			data.tutorialDone = false
+			world:send(player, "OpenedAlmanac")
+			t.eq(data.tutorialDone, false, "no patch bought, no Swamp egg yet: refused")
+			data.stats.slotsBought = 1
+			world:send(player, "OpenedAlmanac")
+			t.eq(data.tutorialDone, false, "still no Swamp egg")
+			data.eggs.Swamp = 1
+			world:send(player, "OpenedAlmanac")
+			t.eq(data.tutorialDone, true)
+		end,
+
+		["existing profiles: the ramp isn't restarted mid-life, offline pen income is paid past the sale cap"] = function()
+			local world = t.server()
+			local _, veteran = world:join(1, { grantedStarterEggs = true, rebirths = 3, stats = { harvested = 400 } })
+			t.ok(veteran.stats.hatchesThisLife >= 30, "past the ramp")
+			local _, early = world:join(2, { grantedStarterEggs = true, rebirths = 0, stats = { harvested = 12 } })
+			t.eq(early.stats.hatchesThisLife, 12, "first life: its hatches so far")
+			-- A long absence with a pen whose offline income passes the single-sale cap.
+			local inventory = {}
+			for i = 1, 8 do
+				inventory[tostring(i)] = mutant(i, "Lab", "Legendary", { pinned = true })
+			end
+			local player, data =
+				world:join(3, { grantedStarterEggs = true, inventory = inventory, nextItemId = 9, cash = 0 })
+			world:leave(player)
+			world:advance(200 * 86400) -- 200 days away
+			local _, back = world:join(3)
+			local DataService = world.service.DataService
+			local expected = math.floor(DataService.penIncome(back, true) * 200 * 86400 / 60)
+			local Valuation = world:modulesRequire("src/shared/Valuation")
+			t.ok(expected > Valuation.maxSingleSale(0, DataService.cashMultiplier(back)), "past the cap")
+			t.near(back.cash, expected, 2, "paid in full, in chunks")
+			local _ = data
+		end,
+
 		["the grow ramp restarts each life"] = function()
 			local world = t.server()
 			local player, data = world:join(1, {

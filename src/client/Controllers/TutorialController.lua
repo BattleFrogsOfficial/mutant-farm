@@ -370,11 +370,23 @@ function TutorialController.Start()
 				end
 			end
 			-- A step completed: the old card shows its check for checkSeconds, then the new one.
-			if shown and shown.id and shown.id ~= step.id and now >= checkUntil then
+			-- Only a step forward (or the end) plays the check; going back just switches cards.
+			local forward = shown ~= nil
+				and shown.id ~= nil
+				and shown.id ~= step.id
+				and (step.id == nil or Onboarding.stepIndex(step.id :: any) > Onboarding.stepIndex(shown.id :: any))
+			if forward and now >= checkUntil then
 				checkUntil = now + Tutorial.checkSeconds
-				local done = shown
+				local done = shown :: Step
 				shown = nil
-				publish(done, { done = true, ui = nil, soil = nil })
+				-- Built explicitly: nothing of the finished step keeps pulsing during the check.
+				State.objective:set({
+					title = done.title,
+					text = done.text,
+					step = Onboarding.stepIndex(done.id :: any),
+					hub = done.hub,
+					done = true,
+				} :: any)
 				setTarget(nil)
 			elseif now < checkUntil then
 				-- keep the check on screen

@@ -12,6 +12,8 @@ local Players = game:GetService("Players")
 
 local Shared = ReplicatedStorage.Shared
 local Types = require(Shared.Types)
+local Eggs = require(Shared.Config.Eggs)
+local Mutants = require(Shared.Config.Mutants)
 local Onboarding = require(Shared.Onboarding)
 local OnboardingConfig = require(Shared.Config.Onboarding)
 local DataService = require(script.Parent.DataService)
@@ -22,6 +24,33 @@ local Net = require(script.Parent.Parent.Util.Net)
 local OnboardingService = {}
 
 function OnboardingService.Init() end
+
+-- The server's own check that the tutorial is on its last step (the earlier steps are done):
+-- hatched twice and sold, a soil patch bought (or none left to buy), a Swamp egg ever owned.
+function OnboardingService.onAlmanacStep(data: Types.Profile): boolean
+	local st = data.stats
+	if st.harvested < 2 or st.sold < 1 then
+		return false
+	end
+	if st.slotsBought == 0 and DataService.nextSlotCost(data) ~= nil then
+		return false
+	end
+	if (data.eggs.Swamp or 0) > 0 or (data.eggs.SwampGem or 0) > 0 then
+		return true
+	end
+	for _, slot in data.slots do
+		if Eggs.baseOf(slot.eggId) == "Swamp" then
+			return true
+		end
+	end
+	for id in data.almanac do
+		local species = Mutants.species[id]
+		if species and species.tier == "Swamp" then
+			return true
+		end
+	end
+	return false
+end
 
 function OnboardingService.Start()
 	DataService.Loaded:Connect(function(player: Player, data: Types.Profile)
@@ -38,7 +67,7 @@ function OnboardingService.Start()
 	end)
 	-- The tutorial's last step: the Almanac opened (after the earlier steps) ends it for good.
 	Net.on("OpenedAlmanac", function(player: Player, data: Types.Profile)
-		if not data.tutorialDone and data.stats.harvested >= 2 and data.stats.sold >= 1 then
+		if not data.tutorialDone and OnboardingService.onAlmanacStep(data) then
 			data.tutorialDone = true
 			DataService.changed(player)
 		end

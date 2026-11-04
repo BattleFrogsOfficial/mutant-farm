@@ -20,7 +20,7 @@ The owner's spec, parts A-F. Config-driven, server-authoritative.
 | `649421e` | B + C (one commit: the C edits landed in the same files before B was committed): additive mutation bonuses, labels "GOLDEN +2" / "x11", offline rolls x0.25, the $115 first hatch, tray BUY 2; hourly weather, one roll per egg per event (`slot.weatherRolled`), new chances, cap 0.6 |
 | `58d9b3d` | D: `stats.cashEarnedThisLife` gates Rebirth / Rebirth Now, reset after the bag sale; existing profiles seeded from Cash held; panel / Altar / strip / shop card / Next Up read it; the ramp by `stats.hatchesThisLife` for everyone |
 | `e8cd717` | E: the tutorial card (`Config/Tutorial`, Hud `nextUp`, `TutorialController`, `OpenedAlmanac` -> `profile.tutorialDone`), gold beam + outline, Swamp focus, WEATHER! card; growth circle 88 px to fit; F (part): harness tests, sim `--bank` / `--max`, Cosmic +12 |
-| (this one) | F: preview fixes, docs, review fixes |
+| `aec9e69`, (this one) | F: preview fixes, docs; review fixes |
 
 Choices made where the spec left room or contradicted itself:
 - **B4: `valueScale` 0.2 stays.** "Remove valueScale" and "$13 -> x9 -> about $115" can't both hold:
@@ -39,6 +39,14 @@ Choices made where the spec left room or contradicted itself:
 - F3: the max bot rebirths under 60 min, so Cosmic is +12 (ceiling x28). Rebirth 1 is under 35 min,
   so Solar Flare / Golden stay. Nothing else tuned (rarity tables, egg prices, rebirth costs untouched).
 
+**Review (one reviewer, A-E):** fixed: offline pen income is paid in chunks under the sale cap (the
+x28 ceiling made the cap far lower, and a long absence with a big pen was refused outright); existing
+profiles get `hatchesThisLife` seeded (no ramp restart mid-life); `OpenedAlmanac` re-derives the step on
+the server (patch bought or none left, a Swamp egg ever owned); the card's check plays only on a step
+forward and clears the finished step's pulses. Left for you: Glitch Storm now gives Radioactive at 40%
+vs Acid Rain's 20%, both 400 Gems in Instant Weather, so Acid Rain is never the better buy (price per
+event, drop Glitch Storm from the picker, or change one of them).
+
 **Sim, 60 runs each (`--runs 60 --autoharvest --bank --max`, `--onboarding --first`, `--first --taps 0`):**
 
 | Bot | Rebirth 1 | Rebirth 4 | Rebirth 10 | Target |
@@ -50,7 +58,7 @@ Choices made where the spec left room or contradicted itself:
 | `--bank` (7 days) | 7 rebirths = default 7: PASS | | | <= default |
 | `--max` (5 h) | 3 sim-min, 7 rebirths in 5 h: FAIL | | | > 60 min |
 
-**Checks:** check 139 files · test 176 passed · stylua clean · world checker 0 issues (and with the
+**Checks:** check 139 files · test 178 passed · stylua clean · world checker 0 issues (and with the
 limited decor) · UI preview: HUD overlap 0, shop 0, panels 0, text 0, extra checks 0 after the fixes in
 this commit (the Rebirth Now scenes needed `earnedThisLife`, the Instant Weather line was shortened).
 **Not played in Studio.**
@@ -504,6 +512,7 @@ end first).
   Levers outside the spec's list: rebirth costs (early cheaper-to-reach vs late steep: e.g. a higher
   `firstCost` with a lower `costGrowth`), the ramp only in the first life, softer tap offers, or larger
   additive bonuses for the rare mutations. Nothing changed without your choice.
+- **Instant Weather prices** after C: Acid Rain (20% Radioactive) and Glitch Storm (40% Radioactive) cost the same 400 Gems.
 - **Onboarding idle gap** still fails (76 s worst vs 20); the first-rebirth check now passes (+4.6%).
 
 - **Onboarding (2026-11-04):** two `--onboarding` sim checks fail: the idle gap in the first 5 min

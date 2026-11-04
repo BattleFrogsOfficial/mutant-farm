@@ -681,9 +681,19 @@ local function catchUp(player: Player, data: Types.Profile)
 	local earned = 0
 	if away > 0 then
 		earned = math.floor(DataService.penIncome(data, true) * away / 60)
-		if earned <= 0 or not EconomyService.addCash(player, data, earned, "Gameplay", "OfflineIncome") then
-			earned = 0
+		-- Paid in chunks under the single-sale sanity cap (additive mutations made the cap far lower,
+		-- and a long absence with a big pen can pass it): never dropped.
+		local cap = math.floor(Valuation.maxSingleSale(data.rebirths, DataService.cashMultiplier(data)))
+		local left, paid = earned, 0
+		while left > 0 and cap > 0 do
+			local chunk = math.min(left, cap)
+			if not EconomyService.addCash(player, data, chunk, "Gameplay", "OfflineIncome") then
+				break
+			end
+			paid += chunk
+			left -= chunk
 		end
+		earned = paid
 	end
 
 	local capAt = if data.lastSeen > 0 and not data.ownedPasses.OfflineMutations
