@@ -105,7 +105,8 @@ return function(api)
 	local PHONES = { { 844, 390 }, { 667, 375 }, { 800, 360 } }
 	for spot = 1, #Hud.boost.spots do
 		set(State.boostSpot, spot)
-		set(State.snapshot, snapWith({ Starter = 3, Swamp = 2 }, 12_400, { waterOffer = 10, onPad = true }))
+		-- Off the pad: the circle shows whenever an egg grows (2026-11-05).
+		set(State.snapshot, snapWith({ Starter = 3, Swamp = 2 }, 12_400, { waterOffer = 10, onPad = false }))
 		api.captureHud("hud-plot-boost" .. spot, MOUSE)
 		set(State.touch, true)
 		api.captureHud("hud-plot-boost" .. spot .. "-touch", PHONES)
@@ -121,6 +122,20 @@ return function(api)
 	api.captureHud("hud-plot-boosted", { { 1280, 720 }, { 800, 600 } })
 	set(State.touch, true)
 	api.captureHud("hud-plot-boosted-touch", { { 844, 390 } })
+	set(State.touch, false)
+	-- The vanish: the boost ended 1 s ago and the circle is back in 4 s: gone, no placeholder.
+	set(
+		State.snapshot,
+		snapWith({ Starter = 3, Swamp = 2 }, 12_400, {
+			wateredUntil = NOW - 1,
+			waterMult = 7,
+			waterReadyAt = NOW + 4,
+			onPad = true,
+		})
+	)
+	api.captureHud("hud-plot-boostgap", { { 1280, 720 }, { 800, 600 } })
+	set(State.touch, true)
+	api.captureHud("hud-plot-boostgap-touch", { { 844, 390 } })
 	set(State.touch, false)
 
 	-- Icon sheet (not a "hud" scene): every UI/Icons glyph large and at a HUD size, on navy, 10 per row.

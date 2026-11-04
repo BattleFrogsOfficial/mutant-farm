@@ -161,7 +161,10 @@ registerCheck({
     // pink; at its configured spot, inside the band between the toast lane and Next Up (8 px clear
     // of each as drawn), so a toast never covers it.
     const boost = el("Boost");
-    if (plot && kind.includes("boost") && !vis(boost)) problems.push("the growth circle is missing");
+    const gapScene = kind.includes("boostgap");
+    if (plot && kind.includes("boost") && !gapScene && !vis(boost)) problems.push("the growth circle is missing");
+    // During the vanish gap the circle is gone entirely: nothing named Boost drawn, no placeholder.
+    if (gapScene && boost && vis(boost)) problems.push("the growth circle shows during its vanish gap");
     if (!plot && vis(boost)) problems.push("the growth circle shows in the hub");
     if (plot && vis(boost)) {
       const cfg = data.hud.boost;

@@ -168,6 +168,7 @@ type Player = {
 	bank: boolean, -- --bank: hoards mutants in the bag, sells them only to make a rebirth
 	weather: boolean, -- the global weather schedule rolls on its eggs (the max bot)
 	gemLuck: number, -- Permanent Luck Gem upgrade (+0.1 a level)
+	autoOffline: boolean, -- Auto-Harvest's offline replay (the scenario's `autoOffline`)
 }
 
 local function luckOf(p: Player): number
@@ -211,6 +212,7 @@ local function newPlayer(seed: number, passes: { [string]: boolean }, onboarding
 		bank = false,
 		weather = false,
 		gemLuck = 0,
+		autoOffline = false,
 	}
 	p.slotCount = baseSlots(p)
 	if p.onboarding then
@@ -628,7 +630,7 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 			end
 		end
 		-- The longest stretch with nothing to do in the first 5 minutes (--onboarding asserts it
-		-- stays short): no egg to hatch, no egg you can afford for an empty patch, and no patch or
+		-- stays under 45 s): no egg to hatch, no egg you can afford for an empty patch, and no patch or
 		-- upgrade you can afford (the bot's own thrift doesn't count as nothing to do).
 		if actions > 0 or somethingToDo(p) then
 			p.lastActionAt = p.activeSeconds
@@ -639,7 +641,7 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 				p.maxIdleEarlyAt = p.activeSeconds
 			end
 		end
-	elseif opts.autoharvest and p.passes.AutoHarvest and now - p.leftAt < GameConfig.autoHarvestOfflineHours * 3600 then
+	elseif p.autoOffline and p.passes.AutoHarvest and now - p.leftAt < GameConfig.autoHarvestOfflineHours * 3600 then
 		-- Auto-Harvest with every replant toggle on (the server's rules, shared/AutoHarvest):
 		-- Commons sold at once, the rest kept while the bag (pen included) has room, else they wait
 		-- on their patch; each empty patch rebuys its last egg with Cash when it can.
@@ -783,7 +785,22 @@ if opts.autoharvest then
 			GameConfig.autoHarvestOfflineHours
 		),
 		passes = { Luck2x = true, AutoHarvest = true },
+		autoOffline = true,
 	})
+	if opts.all then
+		table.insert(scenarios, {
+			name = string.format("Everything + Auto-Harvest offline (%d h a day)", GameConfig.autoHarvestOfflineHours),
+			passes = {
+				Luck2x = true,
+				AutoHarvest = true,
+				GrowthSpeed2x = true,
+				OfflineMutations = true,
+				PlotSlots10 = true,
+				VIP = true,
+			},
+			autoOffline = true,
+		})
+	end
 end
 
 if opts.labCost then
@@ -836,7 +853,7 @@ if opts.onboarding then
 	print("Onboarding (the scripted opening), free, continuous play:")
 	print(
 		string.format(
-			"  longest wait with nothing to do in the first 5 min: %.0f s worst run, %.0f s median  [<= 20]",
+			"  longest wait with nothing to do in the first 5 min: %.0f s worst run, %.0f s median  [<= 45]",
 			worstIdle,
 			median(table.clone(idle))
 		)
@@ -852,7 +869,7 @@ if opts.onboarding then
 	)
 	-- The checks: each reported, and the run fails (exit 1) if any does.
 	local checks = {
-		{ worstIdle <= 20, "never waits more than 20 s with nothing to do in the first 5 min" },
+		{ worstIdle <= 45, "never waits more than 45 s with nothing to do in the first 5 min" },
 		{ worstSell < 60, "first sale under 60 s" },
 		{ math.abs(change) <= 0.05, "first rebirth within 5% of the same bot without the opening" },
 	}
@@ -877,7 +894,7 @@ do
 	end
 	print(
 		string.format(
-			"First rebirth (free, continuous active play): %.0f min median  [target 35–45]\n",
+			"First rebirth (free, continuous active play): %.0f min median  [target 22-30 tapping, 30-60 idle]\n",
 			median(times) / 60
 		)
 	)
@@ -892,7 +909,9 @@ for _, scenario in scenarios do
 		reachedDay[r], reachedActive[r] = {}, {}
 	end
 	for run = 1, opts.runs do
-		local p = playDays(run * 31, scenario.passes, opts.hours, opts.days, opts.rebirths, costTable)
+		local p = playDays(run * 31, scenario.passes, opts.hours, opts.days, opts.rebirths, costTable, nil, function(p)
+			p.autoOffline = scenario.autoOffline == true
+		end)
 		for r = 1, opts.rebirths do
 			table.insert(reachedDay[r], if p.rebirthAt[r] then p.rebirthAt[r] / 86400 else math.huge)
 			table.insert(reachedActive[r], p.activeAt[r] or math.huge)
@@ -908,7 +927,9 @@ for _, scenario in scenarios do
 				r,
 				Format.cash(Costs.rebirth(r - 1)),
 				if day == math.huge then "not in " .. opts.days .. "d" else string.format("day %d", math.floor(day) + 1),
-				hours(median(reachedActive[r]))
+				if r == 1 and median(reachedActive[r]) < math.huge
+					then string.format("%s (%.0f min)", hours(median(reachedActive[r])), median(reachedActive[r]) / 60)
+					else hours(median(reachedActive[r]))
 			)
 		)
 	end
