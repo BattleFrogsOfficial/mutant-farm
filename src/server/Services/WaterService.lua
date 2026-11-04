@@ -5,7 +5,7 @@
 --   * the HUD's growth circle: `TapBoost` grows the plot at the offered multiplier for
 --     Game.water.boostSeconds, then the circle vanishes for a gap the server rolls
 --     (`waterReadyAt`; taps before it are refused) and the server rolls the next offer (the
---     client never picks one). On or off the pad.
+--     client never picks one). Only while the owner stands on the pad.
 -- Rules in shared/Watering.lua, the growth math in shared/Growth.lua. Every change settles the
 -- plot first, so growth up to now uses the old rate.
 
@@ -51,7 +51,8 @@ end
 -- gap is rolled and a new offer too. Ignored while a boost runs or during the gap.
 local function onTapBoost(player: Player, data: Types.Profile)
 	local now = DataService.now()
-	if not Watering.canTap(now, math.max(data.wateredUntil, data.waterReadyAt)) then
+	-- The circle belongs to the pad: only while standing on it.
+	if not data.onPad or not Watering.canTap(now, math.max(data.wateredUntil, data.waterReadyAt)) then
 		return
 	end
 	ensureOffer(data)

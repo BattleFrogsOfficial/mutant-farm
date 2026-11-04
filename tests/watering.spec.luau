@@ -48,9 +48,8 @@ return function(t)
 			t.ok(Watering.canTap(ready - w.tapGrace, ready), "just inside the grace")
 			t.ok(Watering.canTap(100, 0), "never tapped")
 		end,
-		["a perfect tapper's cycle: ~2.7x on the pad, ~2.2x off it"] = function()
+		["a perfect tapper's cycle on the pad: ~2.7x"] = function()
 			t.near(Watering.cycleRate(2), 2.74, 0.01)
-			t.near(Watering.cycleRate(1), 2.21, 0.01)
 		end,
 		["the circle never comes back on the same spot"] = function()
 			for count = 2, 7 do

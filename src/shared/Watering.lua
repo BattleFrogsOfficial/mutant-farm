@@ -71,8 +71,8 @@ function Watering.circleShown(now: number, boostUntil: number, readyAt: number):
 	return now < boostUntil or now >= readyAt
 end
 
--- One whole tap cycle's average speed for a perfect tapper: `boostSeconds` at the offer (or
--- the pad, the higher) and the average gap at `base` (the pad's 2x, or 1 off it).
+-- One whole tap cycle's average speed for a perfect tapper on the pad: `boostSeconds` at the
+-- offer (or the pad, the higher) and the average gap at `base` (the pad's 2x).
 function Watering.cycleRate(base: number): number
 	local w = GameConfig.water
 	local boosted = 0

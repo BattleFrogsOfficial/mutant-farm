@@ -123,6 +123,23 @@ return function(t)
 			t.eq(data.onboarding.bundle, true)
 		end,
 
+		["Studio tests the free game: saved passes are cleared and creator ownership is skipped (Game.studioPasses off)"] = function()
+			local world = t.server({ studioPasses = false })
+			local player, data = world:join(1, {
+				grantedStarterEggs = true,
+				ownedPasses = { Luck2x = true, AutoHarvest = true, GrowthSpeed2x = true, VIP = true },
+			})
+			world:advance(1, 1)
+			t.eq(next(data.ownedPasses), nil, "no passes in a Studio session")
+			t.eq(player:GetAttribute("VIP"), false)
+			local DataService = world.service.DataService
+			t.eq(DataService.luck(data), 1)
+			-- With the flag on (the harness default) a saved pass stays.
+			local on = t.server()
+			local _, kept = on:join(1, { grantedStarterEggs = true, ownedPasses = { Luck2x = true } })
+			t.eq(kept.ownedPasses.Luck2x, true)
+		end,
+
 		["no grow ramp: every egg grows at its tier time x rarity from the first plant"] = function()
 			local world = t.server()
 			local player, data = world:join(1)
@@ -644,7 +661,7 @@ return function(t)
 			t.eq(poorData.gems, 10)
 		end,
 
-		["watering: the pad grows 2x, a tap boosts at the server's offer for 5 s, then the circle vanishes 3-8 s"] = function()
+		["watering: the pad grows 2x; the circle only on the pad: 5 s at the offer, then a 3-8 s vanish"] = function()
 			local world = t.server()
 			local player, data = world:join(1, { eggs = { Swamp = 1 }, grantedStarterEggs = true })
 			local WaterService = world.service.WaterService
@@ -661,11 +678,15 @@ return function(t)
 			WaterService.setOnPad(player, false)
 			t.near(slot.growth, 20, 1e-6)
 
-			-- The circle is offered off the pad too: a tap there boosts from 1x.
+			-- Off the pad the circle doesn't exist: a tap is refused.
+			world:send(player, "TapBoost")
+			t.eq(data.stats.waters, 0, "off the pad: refused")
+			-- On the pad: the offer for 5 s, then the vanish gap.
+			WaterService.setOnPad(player, true)
 			local offer = data.waterOffer
 			local tappedAt = world.now
 			world:send(player, "TapBoost")
-			t.eq(data.stats.waters, 1, "off the pad: accepted")
+			t.eq(data.stats.waters, 1, "on the pad: accepted")
 			t.eq(data.waterMult, offer)
 			t.near(data.wateredUntil, tappedAt + water.boostSeconds, 1e-9)
 			local gap = data.waterReadyAt - data.wateredUntil
@@ -682,7 +703,14 @@ return function(t)
 			t.eq(data.stats.waters, 1, "ignored during the gap")
 			t.eq(data.waterOffer, next)
 			world.service.GrowthService.settle(data, world.now)
-			t.near(slot.growth, 20 + offer * water.boostSeconds + 1 * 1, 1e-6, "5 s boosted, then 1x off the pad")
+			t.near(
+				slot.growth,
+				20 + math.max(2, offer) * water.boostSeconds + 2 * 1,
+				1e-6,
+				"5 s boosted, then the pad's 2x"
+			)
+			-- Stepping off mid-boost: no effect off the pad (1x), even inside the window.
+			world:send(player, "TapBoost") -- (refused: still in the gap)
 
 			-- The gap survives a rejoin.
 			local readyAt = data.waterReadyAt
@@ -694,12 +722,14 @@ return function(t)
 			t.eq(back.stats.waters, 1, "still refused after the rejoin")
 			world:advance(readyAt - world.now + 0.01)
 			world:send(player, "TapBoost")
-			t.eq(back.stats.waters, 2, "a tap after the gap counts")
+			t.eq(back.stats.waters, 1, "off the pad after the rejoin: still refused")
+			world.service.WaterService.setOnPad(player, true)
+			world:send(player, "TapBoost")
+			t.eq(back.stats.waters, 2, "a tap on the pad after the gap counts")
 			data = back
 			slot = back.slots["1"]
 
-			-- On the pad: the boost and the pad don't multiply, the higher applies.
-			WaterService.setOnPad(player, true)
+			-- The rejoin cleared onPad; back on it the tap counts and the boost doesn't multiply the pad.
 			local g0 = slot.growth
 			world:advance(water.boostSeconds)
 			world.service.GrowthService.settle(data, world.now)

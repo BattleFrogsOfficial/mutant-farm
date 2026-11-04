@@ -30,11 +30,14 @@ function Growth.water(boostUntil: number?, boostMult: number?, onPad: boolean?):
 	return { boostUntil = boostUntil or 0, boostMult = boostMult or 1, onPad = onPad == true }
 end
 
--- Watering multipliers: `low` outside the boost window (the pad's 2x while you stand on it, else
--- 1), `high` inside it: the boost or the pad, the higher (they don't multiply). The circle works
--- on or off the pad (2026-11-05).
+-- Watering multipliers: `low` outside the boost window (the pad's 2x), `high` inside it (the
+-- boost or the pad, the higher: they don't multiply). Off the pad neither counts: 1x, even
+-- inside a boost's window (the growth circle belongs to the pad).
 local function rates(water: Water): (number, number)
-	local low = if water.onPad then GameConfig.water.padMultiplier else 1
+	if not water.onPad then
+		return 1, 1
+	end
+	local low = GameConfig.water.padMultiplier
 	return low, math.max(low, water.boostMult)
 end
 

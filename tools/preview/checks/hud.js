@@ -163,8 +163,8 @@ registerCheck({
     const boost = el("Boost");
     const gapScene = kind.includes("boostgap");
     if (plot && kind.includes("boost") && !gapScene && !vis(boost)) problems.push("the growth circle is missing");
-    // During the vanish gap the circle is gone entirely: nothing named Boost drawn, no placeholder.
-    if (gapScene && boost && vis(boost)) problems.push("the growth circle shows during its vanish gap");
+    // During the vanish gap, and anywhere off the pad, the circle is gone entirely (no placeholder).
+    if (gapScene && boost && vis(boost)) problems.push(kind.includes("offpad") ? "the growth circle shows off the pad" : "the growth circle shows during its vanish gap");
     if (!plot && vis(boost)) problems.push("the growth circle shows in the hub");
     if (plot && vis(boost)) {
       const cfg = data.hud.boost;

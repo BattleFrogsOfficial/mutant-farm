@@ -4,6 +4,7 @@
 -- after any change the client should see. Cash and Gems are written only by EconomyService.
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ProfileStore = require(ReplicatedStorage.Packages.ProfileStore)
@@ -395,6 +396,12 @@ local function onPlayerAdded(player: Player)
 	profile:Reconcile()
 	if seedTutorial and (profile.Data.stats.harvested or 0) >= 2 then
 		profile.Data.tutorialDone = true
+	end
+	-- Studio tests the free game unless Game.studioPasses: no passes at the start of a session
+	-- (MonetizationService skips the ownership check too). Live servers re-check real ownership
+	-- on every join, so clearing a Studio save never costs a real purchase.
+	if RunService:IsStudio() and not GameConfig.studioPasses then
+		profile.Data.ownedPasses = {}
 	end
 	-- The grow ramp is gone (2026-11-05): its fields leave saved data.
 	profile.Data.stats.hatchesThisLife = nil

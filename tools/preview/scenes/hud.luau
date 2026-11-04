@@ -105,8 +105,8 @@ return function(api)
 	local PHONES = { { 844, 390 }, { 667, 375 }, { 800, 360 } }
 	for spot = 1, #Hud.boost.spots do
 		set(State.boostSpot, spot)
-		-- Off the pad: the circle shows whenever an egg grows (2026-11-05).
-		set(State.snapshot, snapWith({ Starter = 3, Swamp = 2 }, 12_400, { waterOffer = 10, onPad = false }))
+		-- On the pad (the circle shows only there).
+		set(State.snapshot, snapWith({ Starter = 3, Swamp = 2 }, 12_400, { waterOffer = 10, onPad = true }))
 		api.captureHud("hud-plot-boost" .. spot, MOUSE)
 		set(State.touch, true)
 		api.captureHud("hud-plot-boost" .. spot .. "-touch", PHONES)
@@ -134,6 +134,9 @@ return function(api)
 		})
 	)
 	api.captureHud("hud-plot-boostgap", { { 1280, 720 }, { 800, 600 } })
+	-- Off the pad with an egg growing: no circle at all.
+	set(State.snapshot, snapWith({ Starter = 3, Swamp = 2 }, 12_400, { waterOffer = 10, onPad = false }))
+	api.captureHud("hud-plot-boostgap-offpad", { { 1280, 720 }, { 800, 600 } })
 	set(State.touch, true)
 	api.captureHud("hud-plot-boostgap-touch", { { 844, 390 } })
 	set(State.touch, false)

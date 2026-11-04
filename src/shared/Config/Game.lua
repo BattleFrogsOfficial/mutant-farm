@@ -9,14 +9,15 @@ return {
 	-- Watering (shared/Watering.lua, WaterService). Standing on your plot's water pad grows the
 	-- whole plot at `padMultiplier` for as long as you stand there (the server checks your
 	-- position every `padPollSeconds`; `padTolerance` studs past the pad's edge still count). The
-	-- growth circle on the HUD (whenever an egg grows, on or off the pad) offers a boost: tap it
+	-- growth circle on the HUD (only while you stand on the pad and an egg grows) offers a boost: tap it
 	-- and the plot grows at the offered multiplier for `boostSeconds` (the higher of the boost and
 	-- the pad applies, they don't multiply). Then the circle vanishes for a gap the server rolls
 	-- uniformly in [gapMin, gapMax] seconds and comes back somewhere else with a new offer.
 	-- Offers are rolled by the server from `tapOffers` ({ multiplier, weight }: 2x 30%, 3x 30%,
 	-- 4x 20%, 5x 12%, 7x 5%, 10x 3%, 3.55x on average; 2026-11-05). A tap up to `tapGrace` s early
 	-- (latency) still counts. Both stack with the Growth Speed pass and the Growth Speed upgrade.
-	-- Nothing runs offline. With a perfect tapper this is ~2.7x on the pad (2.2x off it).
+	-- Off the pad neither the circle nor a running boost counts (1x). Nothing runs offline. With a
+	-- perfect tapper the pad + circle cycle is ~2.7x.
 	water = {
 		padMultiplier = 2,
 		padPollSeconds = 0.25,
@@ -34,6 +35,12 @@ return {
 			{ 10, 3 },
 		},
 	},
+
+	-- Game passes while testing in Studio. Off: every Studio session starts with no passes (the
+	-- place's creator "owns" every pass, and Studio test purchases would otherwise stick), so you
+	-- test the free game; a pass test-bought in the session works until you stop. Live servers
+	-- always check real ownership on join. Turn on to test with the passes you own.
+	studioPasses = false,
 
 	-- Luck (pass x potion) is capped here before it touches any roll.
 	maxLuck = 6,

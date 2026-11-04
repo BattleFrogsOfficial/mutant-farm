@@ -32,13 +32,12 @@ return function(t)
 			-- the boost and the pass multiply
 			t.eq(Growth.advance(0, 100, 105, boost, 2), 70)
 		end,
-		["off the pad the boost still runs, then 1x"] = function()
+		["off the pad the circle has no effect: 1x, even inside a boost's window"] = function()
 			local off = Growth.water(105, 7, false)
-			t.eq(Growth.advance(0, 100, 160, off, 1), 35 + 55)
-			t.eq(Growth.waterRate(off, 101), 7)
-			t.eq(Growth.waterRate(off, 106), 1)
-			t.eq(Growth.totalSpeed(off, 101, 1.5), 10.5, "boost x pass")
-			t.eq(Growth.totalSpeed(Growth.water(0, 1, false), 101, 1.5), 1.5, "the pass alone")
+			t.eq(Growth.advance(0, 100, 160, off, 1), 60)
+			t.eq(Growth.waterRate(off, 101), 1)
+			t.eq(Growth.totalSpeed(off, 101, 1.5), 1.5, "the pass alone")
+			t.eq(Growth.totalSpeed(Growth.water(105, 7, true), 101, 1.5), 10.5, "boost x pass, on the pad")
 			t.eq(Growth.totalSpeed(Growth.water(105, 7, true), 101, 1.5), 10.5, "boost x pass")
 			t.eq(Growth.totalSpeed(Growth.water(0, 1, true), 101, 1.5), 3, "pad x pass")
 		end,

@@ -77,7 +77,14 @@ local function reconcile(data, template)
 	end
 end
 
-function ServerHarness.new(options: { now: number?, seed: number?, groupId: number?, memory: any?, relayUrl: string? }?)
+function ServerHarness.new(options: {
+	now: number?,
+	seed: number?,
+	groupId: number?,
+	memory: any?,
+	relayUrl: string?,
+	studioPasses: boolean?,
+}?)
 	local opts = options or {}
 	local self = setmetatable({}, ServerHarness)
 	self.now = opts.now or 1_800_000_000
@@ -451,6 +458,9 @@ function ServerHarness.new(options: { now: number?, seed: number?, groupId: numb
 	if opts.groupId then
 		self.modules("src/shared/Config/Game").groupId = opts.groupId
 	end
+	-- The harness reports IsStudio = true; tests grant passes through profiles, so passes stay on
+	-- unless a test asks for Studio's default (studioPasses = false).
+	self.modules("src/shared/Config/Game").studioPasses = if opts.studioPasses == nil then true else opts.studioPasses
 	if opts.relayUrl then
 		self.modules("src/shared/Config/Game").relayUrl = opts.relayUrl
 	end

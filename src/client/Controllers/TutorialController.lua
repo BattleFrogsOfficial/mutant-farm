@@ -198,8 +198,8 @@ local function currentStep(snap: Types.Snapshot): Step
 	elseif step == "water" then
 		return card("water", { target = waterPad })
 	elseif step == "circle" then
-		-- The circle is on the HUD: its rim turns gold (ui = "Boost"); no world target.
-		return card("circle", { ui = "Boost" })
+		-- The circle shows only on the pad: the beam keeps pointing at the pad, its rim turns gold.
+		return card("circle", { ui = "Boost", target = waterPad })
 	elseif step == "hatch2" then
 		return card("hatch2", { ui = "Hatch", target = plantedSlot })
 	elseif step == "patch" then

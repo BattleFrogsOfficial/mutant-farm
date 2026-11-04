@@ -15,6 +15,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
 local Passes = require(Shared.Config.Passes)
+local GameConfig = require(Shared.Config.Game)
 local Products = require(Shared.Config.Products)
 local Types = require(Shared.Types)
 local Remotes = require(Shared.Remotes)
@@ -145,8 +146,12 @@ local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
 
--- Passes bought on the website (or in another server) show up here on join.
+-- Passes bought on the website (or in another server) show up here on join. Not in Studio
+-- unless Game.studioPasses (Studio says the creator owns every pass).
 local function checkOwnedPasses(player: Player, data: Types.Profile)
+	if RunService:IsStudio() and not GameConfig.studioPasses then
+		return
+	end
 	for passId, pass in Passes do
 		if pass.id ~= 0 and not data.ownedPasses[passId] then
 			local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, pass.id)

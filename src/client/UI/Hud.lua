@@ -1460,12 +1460,12 @@ local function boostCircle()
 			local screen, spot = State.screen:get(), boostSpot:get()
 			return UDim2.new(0.5, BOOST.spots[spot] or 0, 0, boostCenterY(screen))
 		end),
-		-- Whenever an egg grows on your plot (on or off the pad), except during the vanish gap
-		-- after a boost: then it's gone entirely (no placeholder) until the server's waterReadyAt.
+		-- Only while you stand on your water pad and an egg grows, never during the vanish gap after
+		-- a boost: off the pad or in the gap it's gone entirely (no placeholder).
 		Visible = Computed(function()
 			local plot, ready, isActive, snap, now =
 				atPlot:get(), State.nextReadyIn:get(), active:get(), State.snapshot:get(), State.now:get()
-			if not plot or snap == nil or not (ready ~= nil or isActive) then
+			if not plot or snap == nil or snap.onPad ~= true or not (ready ~= nil or isActive) then
 				return false
 			end
 			return Watering.circleShown(now, snap.wateredUntil, snap.waterReadyAt or 0)
