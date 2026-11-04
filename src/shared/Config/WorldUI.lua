@@ -74,4 +74,23 @@ return {
 		sway = 0.15,
 		transparency = 0.35,
 	},
+	-- Standing on your water pad (client/Controllers/PadController): a water-blue vignette round
+	-- the screen edges that fades in and breathes slowly while you stand there, a light blue
+	-- colour tint, a small camera push-in, and on stepping on a splash: a ring rolling out over
+	-- the pad, a burst of bubbles and the water sound. All fade out when you step off. Hidden
+	-- during the hatch cutscene.
+	padFx = {
+		fadeIn = 0.35,
+		fadeOut = 0.5,
+		vignette = {
+			color = "#3FA9FF",
+			edge = 0.22, -- share of the screen's shorter side each edge band covers
+			opacity = 0.55, -- at the very edge (fades to clear inward)
+			breathe = 0.12, -- +- opacity, slowly
+			breathePeriod = 2.4,
+		},
+		tint = { color = "#D8EEFF", saturation = 0.08, brightness = 0.02 },
+		fovPush = 4, -- degrees narrower while on the pad
+		splash = { ringRadius = 7, ringSeconds = 0.7, burst = 14, volume = 0.6, pitch = 1.15 },
+	},
 }
