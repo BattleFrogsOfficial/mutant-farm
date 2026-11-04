@@ -36,6 +36,13 @@ function OnboardingService.Start()
 			DataService.changed(player)
 		end
 	end)
+	-- The tutorial's last step: the Almanac opened (after the earlier steps) ends it for good.
+	Net.on("OpenedAlmanac", function(player: Player, data: Types.Profile)
+		if not data.tutorialDone and data.stats.harvested >= 2 and data.stats.sold >= 1 then
+			data.tutorialDone = true
+			DataService.changed(player)
+		end
+	end)
 	local w = OnboardingConfig.soloWeather
 	while true do
 		task.wait(1)
@@ -49,7 +56,8 @@ function OnboardingService.Start()
 				local near = WeatherService.globalNear(now, w.clearSeconds)
 				if
 					Onboarding.soloWeatherDue(o.weather, o.playSeconds, growing, near)
-					and WeatherService.startPlotEvent(player, data, w.event, w.toast)
+					-- No toast: the tutorial card says "WEATHER!" (the toast lane is for events).
+					and WeatherService.startPlotEvent(player, data, w.event, "")
 				then
 					o.weather = true
 					DataService.changed(player)

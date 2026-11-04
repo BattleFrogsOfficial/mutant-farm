@@ -220,7 +220,9 @@ function WeatherService.startPlotEvent(player: Player, data: Types.Profile, even
 	plotEvents[player] = { id = eventId, startsAt = now, endsAt = now + event.durationSeconds }
 	player:SetAttribute("PlotWeatherId", eventId)
 	player:SetAttribute("PlotWeatherEndsAt", now + event.durationSeconds)
-	Net.notify(player, message, "success")
+	if message ~= "" then
+		Net.notify(player, message, "success")
+	end
 	GrowthService.weatherRoll(player, data, eventId, WeatherRules.key("plot", now))
 	return true
 end

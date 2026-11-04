@@ -38,10 +38,10 @@ function Onboarding.soloWeatherDue(done: boolean, played: number, growing: numbe
 	return not done and played >= w.afterSeconds and growing >= w.minGrowing and not globalNear
 end
 
--- The tutorial (Next Up) step for where the player is, each completed by the real event (never
--- by opening or closing a panel): TAP HATCH -> SELL -> BUY 2 EGGS -> PLANT THEM -> WATER ->
--- HATCH -> first soil patch -> first Swamp egg; nil after (Next Up shows the nearest goal).
--- "plantFirst" only for a profile without the pre-planted egg (the opening switched off).
+-- The tutorial card's step for where the player is, each completed by the real event: TAP HATCH
+-- -> SELL IT -> BUY 2 EGGS -> PLANT THEM -> STAND ON THE WATER PAD -> HATCH -> BUY A SOIL PATCH ->
+-- GET A SWAMP EGG -> OPEN THE ALMANAC (Config/Tutorial); nil once profile.tutorialDone (Next Up
+-- shows the nearest goal). "plantFirst" only for a profile without the pre-planted egg.
 export type TutorialState = {
 	harvested: number,
 	sold: number,
@@ -55,11 +55,24 @@ export type TutorialState = {
 	slotsBought: number,
 	canBuySlot: boolean, -- there is a next patch to buy
 	hasSwamp: boolean, -- ever bought / planted / hatched a Swamp egg
+	tutorialDone: boolean?, -- profile.tutorialDone (set when the Almanac is opened on its step)
 }
-export type Step = "plantFirst" | "hatch" | "sell" | "buy" | "plant" | "water" | "hatch2" | "patch" | "swamp"
+export type Step =
+	"plantFirst"
+	| "hatch"
+	| "sell"
+	| "buy"
+	| "plant"
+	| "water"
+	| "hatch2"
+	| "patch"
+	| "swamp"
+	| "almanac"
 
 function Onboarding.tutorialStep(s: TutorialState): Step?
-	if s.harvested == 0 then
+	if s.tutorialDone then
+		return nil
+	elseif s.harvested == 0 then
 		return if s.eggsPlanted == 0 then "plantFirst" else "hatch"
 	elseif s.sold == 0 then
 		return "sell"
@@ -77,7 +90,25 @@ function Onboarding.tutorialStep(s: TutorialState): Step?
 	elseif not s.hasSwamp then
 		return "swamp"
 	end
-	return nil
+	return "almanac"
+end
+
+-- The step's place in the tutorial (1..stepCount) for the card's "3 / 9".
+local ORDER = {
+	plantFirst = 1,
+	hatch = 1,
+	sell = 2,
+	buy = 3,
+	plant = 4,
+	water = 5,
+	hatch2 = 6,
+	patch = 7,
+	swamp = 8,
+	almanac = 9,
+}
+Onboarding.stepCount = 9
+function Onboarding.stepIndex(step: Step): number
+	return ORDER[step] or 1
 end
 
 -- A scripted outcome (never counted in odds, mutation analytics or Top Pens).

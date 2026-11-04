@@ -47,14 +47,20 @@ State.weather = Value({ nextId = "", nextAt = 0, id = "", endsAt = 0 })
 -- Your own Instant Weather event (player attributes PlotWeatherId / EndsAt): id "" when none.
 State.plotWeather = Value({ id = "", endsAt = 0 })
 State.toasts = Value({} :: { { id: number, text: string, kind: string } })
--- "Next up" panel: { text, progress?, ui?, hub?, soil? } where ui names a HUD button to pulse, hub
--- shows it in the hub too, and soil pulses the "+" markers on your empty soil (the plant steps).
+-- The tutorial card / Next Up (TutorialController): { title, text, progress?, step?, ui?, hub?,
+-- soil?, done?, focusEgg? }. `step` is the tutorial's "n / 9" (nil for Next Up), `done` shows the
+-- check animation, ui names a HUD button to pulse, hub shows it in the hub too, soil pulses the
+-- "+" markers on your empty soil (the plant steps), focusEgg opens the Egg Shop on that egg.
 State.objective = Value({
+	title = "",
 	text = "",
 	progress = nil :: number?,
+	step = nil :: number?,
 	ui = nil :: string?,
 	hub = nil :: boolean?,
 	soil = nil :: boolean?,
+	done = nil :: boolean?,
+	focusEgg = nil :: string?,
 })
 -- Almanac entries the player has discovered: speciesId -> { n, first, best }
 State.almanac = Value({} :: { [string]: { n: number, first: number, best: number } })

@@ -185,6 +185,12 @@ local function bestFocus(): number
 	if not sn then
 		return l + 1
 	end
+	-- The tutorial's "GET A SWAMP EGG" step opens the shop on that egg.
+	local tutorialEgg = State.objective:get(false).focusEgg
+	local at = tutorialEgg and table.find(Eggs.order, tutorialEgg)
+	if at then
+		return l + at
+	end
 	local m = mode:get(false)
 	for i = BASE_N, 1, -1 do
 		if tierKind(sn, i) == "buyable" then

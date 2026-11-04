@@ -90,6 +90,7 @@ export type Profile = {
 	groupOffered: boolean, -- the group offer was shown (once, at the first sale)
 	vipGemsDay: number, -- UTC day of the last VIP daily Gems claim
 	seenLimited: { [string]: boolean }, -- limited egg id -> the shop has opened on it once
+	tutorialDone: boolean, -- the tutorial card is finished (OpenedAlmanac)
 	onboarding: {
 		active: boolean, -- created with the scripted opening (Config/Onboarding)
 		preplanted: boolean, -- its first egg was planted for it
@@ -153,6 +154,7 @@ export type Snapshot = {
 	almanacLuck: number,
 	vipGemsReady: boolean, -- VIP pass: today's Gems can be claimed
 	seenLimited: { [string]: boolean },
+	tutorialDone: boolean?,
 	onboarding: { active: boolean, shopOpened: boolean, weather: boolean }?,
 }
 

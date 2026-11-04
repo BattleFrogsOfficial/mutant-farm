@@ -33,6 +33,10 @@ local Format = harness.require(shared .. "/Format")
 local AutoHarvest = harness.require(shared .. "/AutoHarvest")
 local Watering = harness.require(shared .. "/Watering")
 local Onboarding = harness.require(shared .. "/Onboarding")
+local Weather = harness.require(shared .. "/Weather")
+local WeatherRules = harness.require(shared .. "/WeatherRules")
+local WeatherConfig = harness.require(shared .. "/Config/Weather")
+local GemUpgrades = harness.require(shared .. "/GemUpgrades")
 local OnboardingConfig = harness.require(shared .. "/Config/Onboarding")
 
 ---------------------------------------------------------------------------- options
@@ -52,6 +56,8 @@ local opts = {
 	onboarding = false,
 	passes = nil :: string?,
 	taps = 1,
+	bank = false,
+	max = false,
 }
 do
 	local args = process.args
@@ -70,6 +76,12 @@ do
 			-- the scripted opening (Config/Onboarding): a pre-planted egg, the scripted $320 first
 			-- hatch, the guaranteed Rare 2nd egg, the grow ramp; reports and asserts its first 5 min
 			opts.onboarding = true
+		elseif a == "--bank" then
+			-- add a free bot that hoards its mutants and sells only when that makes a rebirth
+			opts.bank = true
+		elseif a == "--max" then
+			-- add the max bot: every pass, every Gem upgrade, hourly weather, 5 straight hours
+			opts.max = true
 		elseif a == "--all" then
 			opts.all = true -- add a scenario that owns every pass
 		elseif a == "--first" then
@@ -119,6 +131,7 @@ type Slot = {
 	required: number,
 	mature: boolean,
 	scripted: boolean?, -- onboarding: the scripted first hatch (fixed outcome, no rolls)
+	weatherRolled: { [string]: boolean }?, -- weather events that gave it its one roll
 }
 type Mutant = { tier: string, rarity: string, mutations: { string }, size: number }
 
@@ -153,10 +166,13 @@ type Player = {
 	lastActionAt: number, -- active seconds at the last harvest / plant / purchase
 	maxIdleEarly: number, -- the longest wait with nothing to do in the first 5 minutes
 	maxIdleEarlyAt: number?, -- when it ended
+	bank: boolean, -- --bank: hoards mutants in the bag, sells them only to make a rebirth
+	weather: boolean, -- the global weather schedule rolls on its eggs (the max bot)
+	gemLuck: number, -- Permanent Luck Gem upgrade (+0.1 a level)
 }
 
 local function luckOf(p: Player): number
-	return if p.passes.Luck2x then 2 else 1
+	return (if p.passes.Luck2x then 2 else 1) * (1 + p.gemLuck)
 end
 
 local function baseSlots(p: Player): number
@@ -194,6 +210,9 @@ local function newPlayer(seed: number, passes: { [string]: boolean }, onboarding
 		swampSeen = nil,
 		lastActionAt = 0,
 		maxIdleEarly = 0,
+		bank = false,
+		weather = false,
+		gemLuck = 0,
 	}
 	p.slotCount = baseSlots(p)
 	if p.onboarding then
@@ -426,6 +445,7 @@ local function tutorialStep(p: Player): string?
 		slotsBought = p.slotCount - baseSlots(p),
 		canBuySlot = Costs.slot(p.slotCount + 1, p.rebirths) ~= nil,
 		hasSwamp = p.swampSeen == true,
+		tutorialDone = p.swampSeen == true, -- the bot opens the Almanac at once
 	})
 end
 
@@ -515,6 +535,9 @@ local function buyUpgrades(p: Player): number
 	end
 end
 
+-- Sim time 0 as wall-clock time for the weather schedule (a fixed day, so runs are repeatable).
+local SIM_EPOCH = 1_800_000_000
+
 -- One step of `dt` seconds.
 local function step(p: Player, now: number, dt: number, online: boolean, rebirthCost: (number) -> number)
 	local luck = luckOf(p)
@@ -538,6 +561,25 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 		end
 	end
 
+	-- Hourly global weather (the max bot): each growing egg gets one roll per event.
+	if p.weather then
+		local e = Weather.scheduleAt(SIM_EPOCH + now)
+		if e.active then
+			local key = WeatherRules.key("global", e.startsAt)
+			local mutation = WeatherConfig.events[e.id].mutation
+			local chance = WeatherRules.chance(e.id, luck)
+			for _, slot in p.slots do
+				if not slot.mature and not slot.scripted and not (slot.weatherRolled and slot.weatherRolled[key]) then
+					slot.weatherRolled = slot.weatherRolled or {}
+					(slot.weatherRolled :: any)[key] = true
+					if not table.find(slot.mutations, mutation) and p.rng:next() < chance then
+						table.insert(slot.mutations, mutation)
+					end
+				end
+			end
+		end
+	end
+
 	penIncome(p, dt, online)
 	if online then
 		p.activeSeconds += dt
@@ -547,11 +589,29 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 				local m = harvestMutant(p, slot)
 				if slot.scripted then
 					sell(p, m) -- the scripted first hatch is sold, never kept
+				elseif p.bank then
+					table.insert(p.pending, m) -- hoarded in the bag
 				else
 					keepOrSell(p, m)
 				end
 				p.slots[i] = nil
 				actions += 1
+			end
+		end
+		-- The hoarder sells its bag only when that makes the rebirth (earned this life is the
+		-- requirement, so the rebirth's own bag sale wouldn't count), when the bag is full, or
+		-- when it can't buy an egg for an empty patch.
+		if p.bank and #p.pending > 0 then
+			local bagValue = 0
+			for _, m in p.pending do
+				bagValue += Valuation.sellValue(m, cashMultiplier(p))
+			end
+			local broke = p.cash < Eggs.tiers.Starter.cost and next(p.bag) == nil
+			if p.life + bagValue >= rebirthCost(p.rebirths) or #p.pending >= GameConfig.inventoryCap or broke then
+				for _, m in p.pending do
+					sell(p, m)
+				end
+				p.pending = {}
 			end
 		end
 		if p.life >= rebirthCost(p.rebirths) then
@@ -619,6 +679,9 @@ local function step(p: Player, now: number, dt: number, online: boolean, rebirth
 end
 
 local function login(p: Player)
+	if p.bank then
+		return -- the hoarder keeps its bag
+	end
 	for _, m in p.pending do
 		keepOrSell(p, m)
 	end
@@ -634,9 +697,13 @@ local function playDays(
 	days: number,
 	maxRebirths: number,
 	rebirthCost,
-	onboarding: boolean?
+	onboarding: boolean?,
+	setup: ((Player) -> ())?
 )
 	local p = newPlayer(seed, passes, if onboarding == nil then opts.onboarding else onboarding)
+	if setup then
+		setup(p)
+	end
 	local now = 0
 	local onlineDt, offlineDt = 2, 30
 	for _ = 1, days do
@@ -862,6 +929,61 @@ for _, scenario in scenarios do
 	end
 	print()
 end
+-- The hoarder (--bank): keeps its mutants and sells only to make a rebirth. Rebirth gates on Cash
+-- earned this life, so banking never chains rebirths: over 7 days it must not beat the default bot.
+if opts.bank then
+	local bankCount, plainCount = {}, {}
+	for run = 1, opts.runs do
+		local plain = playDays(run * 31, {}, opts.hours, 7, 99, costTable)
+		local bank = playDays(run * 31, {}, opts.hours, 7, 99, costTable, nil, function(p)
+			p.bank = true
+		end)
+		table.insert(plainCount, plain.rebirths)
+		table.insert(bankCount, bank.rebirths)
+	end
+	local b, d = median(bankCount), median(plainCount)
+	print("Bank bot (free, hoards mutants, sells only to make a rebirth), 7 days:")
+	print(
+		string.format(
+			"  rebirths: %d median (default bot: %d)  %s\n",
+			b,
+			d,
+			if b <= d then "PASS (<= default)" else "FAIL"
+		)
+	)
+end
+
+-- The max bot (--max): every pass, every Gem upgrade, hourly weather, 5 straight hours of play.
+if opts.max then
+	local firsts, counts = {}, {}
+	local allPasses = {
+		Luck2x = true,
+		AutoHarvest = true,
+		GrowthSpeed2x = true,
+		OfflineMutations = true,
+		PlotSlots10 = true,
+		VIP = true,
+	}
+	for run = 1, opts.runs do
+		local p = playDays(run * 17, allPasses, 5, 1, 99, costTable, nil, function(p)
+			p.weather = true
+			p.gemLuck = GemUpgrades.luckBonus(#harness.require(shared .. "/Config/Upgrades").gem.luck.costs)
+		end)
+		table.insert(firsts, p.activeAt[1] or math.huge)
+		table.insert(counts, p.rebirths)
+	end
+	local first = median(firsts)
+	print("Max bot (every pass, all Gem upgrades, hourly weather, 5 straight hours):")
+	print(
+		string.format(
+			"  first rebirth at %.0f sim-min  %s; %d rebirths in the 5 h\n",
+			first / 60,
+			if first > 3600 then "PASS (> 60)" else "FAIL (target > 60)",
+			median(counts)
+		)
+	)
+end
+
 print(
 	"Targets (2026-11-03): Rebirth 10 in ~20 h of play with every pass (one long session: --all --hours 30 --days 1); free about 3x the play."
 )

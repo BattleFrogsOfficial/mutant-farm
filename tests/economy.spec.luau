@@ -8,12 +8,12 @@ return function(t)
 				Valuation.sellValue({ tier = "Toxic", rarity = "Legendary", mutations = { "Golden" }, size = 1 }, 1)
 			t.eq(v, 97_500_000)
 		end,
-		["mutations add: value x (1 + sum of bonuses), ceiling x36"] = function()
+		["mutations add: value x (1 + sum of bonuses), ceiling x28"] = function()
 			t.eq(Valuation.mutationMultiplier({}), 1)
 			t.eq(Valuation.mutationMultiplier({ "Shiny" }), 2)
 			t.eq(Valuation.mutationMultiplier({ "Golden", "Glitched" }), 11)
-			t.eq(Valuation.mutationMultiplier({ "Shiny", "Golden", "Radioactive", "Glitched", "Cosmic" }), 36)
-			t.eq(Valuation.maxMutationMultiplier(), 36)
+			t.eq(Valuation.mutationMultiplier({ "Shiny", "Golden", "Radioactive", "Glitched", "Cosmic" }), 28)
+			t.eq(Valuation.maxMutationMultiplier(), 28)
 			-- base x rarity x (1 + bonuses) x size x cash multiplier
 			local v = Valuation.sellValue(
 				{ tier = "Swamp", rarity = "Rare", mutations = { "Golden", "Glitched" }, size = 1.5 },
@@ -23,7 +23,7 @@ return function(t)
 		end,
 		["mutation display strings: chips '+N', the running total 'xN'"] = function()
 			t.eq(Valuation.mutationLabel("Golden"), "GOLDEN +2")
-			t.eq(Valuation.mutationLabel("Cosmic"), "COSMIC +20")
+			t.eq(Valuation.mutationLabel("Cosmic"), "COSMIC +12")
 			t.eq(Valuation.totalLabel({ "Golden", "Glitched" }), "x11")
 			t.eq(Valuation.totalLabel({}), "x1")
 		end,

@@ -67,7 +67,7 @@ return function(t)
 			t.ok(not Onboarding.soloWeatherDue(false, 300, 5, true), "a global event is near")
 			t.ok(not Onboarding.soloWeatherDue(true, 300, 5, false), "once")
 		end,
-		["tutorial: HATCH -> SELL -> BUY 2 -> PLANT ALL -> WATER -> HATCH -> patch -> Swamp"] = function()
+		["tutorial: HATCH -> SELL -> BUY 2 -> PLANT -> WATER PAD -> HATCH -> patch -> Swamp -> Almanac"] = function()
 			t.eq(Onboarding.tutorialStep(state()), "hatch")
 			t.eq(Onboarding.tutorialStep(state({ eggsPlanted = 0 })), "plantFirst")
 			t.eq(Onboarding.tutorialStep(state({ harvested = 1 })), "sell")
@@ -86,7 +86,14 @@ return function(t)
 			bought.slotsBought = 1
 			t.eq(Onboarding.tutorialStep(state(bought)), "swamp")
 			bought.hasSwamp = true
+			t.eq(Onboarding.tutorialStep(state(bought)), "almanac")
+			bought.tutorialDone = true
 			t.eq(Onboarding.tutorialStep(state(bought)), nil, "done")
+			-- The card's "n / 9".
+			t.eq(Onboarding.stepIndex("hatch"), 1)
+			t.eq(Onboarding.stepIndex("water"), 5)
+			t.eq(Onboarding.stepIndex("almanac"), 9)
+			t.eq(Onboarding.stepCount, 9)
 			-- A full farm with eggs left over still moves on to watering.
 			t.eq(
 				Onboarding.tutorialStep(

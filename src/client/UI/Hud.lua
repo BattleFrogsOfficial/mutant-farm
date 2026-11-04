@@ -38,6 +38,8 @@ local Products = require(Shared.Config.Products)
 local ShopRules = require(Shared.ShopRules)
 local Watering = require(Shared.Watering)
 local OnboardingConfig = require(Shared.Config.Onboarding)
+local Tutorial = require(Shared.Config.Tutorial)
+local Onboarding = require(Shared.Onboarding)
 local State = require(script.Parent.Parent.State)
 local Purchase = require(script.Parent.Parent.Purchase)
 local Sfx = require(script.Parent.Parent.Sfx)
@@ -179,6 +181,7 @@ local function nextUpShift(
 	hub: boolean,
 	midRight: boolean
 ): number
+	local bottom = if hub then Tutorial.card.hubBottom else L.nextUpBottom
 	local shift = shiftFor(screen)
 	if not midRight then
 		return shift
@@ -187,7 +190,7 @@ local function nextUpShift(
 	local buttonsW = if hub then L.shop.hubWidth else PLOT.width
 	local buttonsH = if hub then L.shop.hubHeight else PLOT.height
 	local buttonsBottom = midRightTop(screen, buttonsH, hub) + buttonsH + Theme.shadow
-	local nextUpTop = canvasH - L.nextUpBottom - L.nextUpHeight - L.faceOutline
+	local nextUpTop = canvasH - bottom - L.nextUpHeight - L.faceOutline
 	if buttonsBottom + COLUMN.gap <= nextUpTop then
 		return shift
 	end
@@ -520,6 +523,11 @@ end
 -- a vector glyph and its red dot inside the tile.
 local function iconButton(name: string, glyph: string, slot: number, alert: any, onClick: () -> ())
 	local T = L.tiles
+	-- The tutorial step that points at this tile pulses it too (no red dot).
+	local pulse = Computed(function()
+		local a = if type(alert) == "table" then alert:get() else alert
+		return a == true or State.objective:get().ui == name
+	end)
 	return New("Frame")({
 		Name = name,
 		AnchorPoint = Vector2.new(1, 0),
@@ -531,7 +539,7 @@ local function iconButton(name: string, glyph: string, slot: number, alert: any,
 				Size = UDim2.fromScale(1, 1),
 				Color = NAVY,
 				Text = "",
-				Pulse = alert,
+				Pulse = pulse,
 				OnClick = onClick,
 				Children = Icons.new(glyph, {
 					AnchorPoint = Vector2.new(0.5, 0.5),
@@ -1559,8 +1567,16 @@ local function boostCircle()
 	})
 end
 
--- One line right above the tray: "⭐ NEXT SOIL PATCH: $675 ▮▮▮▯". Also in the hub while a
--- tutorial step points there.
+-- The tutorial card (Config/Tutorial), and Next Up in the same chrome once the tutorial is done:
+-- a boxy navy card bottom-center, above the egg tray on your plot and above SHOP's row in the
+-- hub, a gold stripe on the left and the star glyph (a check while a completed step shows), the
+-- title in CAPS and one instruction line; the tutorial's "3 / 9" with pips on the title row, Next
+-- Up's progress segments there instead. Hidden with the rest of the HUD while a panel is open.
+local CARD = Tutorial.card
+local function cardBottom(hub: boolean): number
+	return if hub then CARD.hubBottom else L.nextUpBottom
+end
+
 local function nextUp()
 	local objective = State.objective
 	local SEGMENTS = 8
@@ -1570,6 +1586,7 @@ local function nextUp()
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Padding = UDim.new(0, 3),
 			VerticalAlignment = Enum.VerticalAlignment.Center,
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
 		}),
 	}
 	for i = 1, SEGMENTS do
@@ -1577,7 +1594,7 @@ local function nextUp()
 			segments,
 			New("Frame")({
 				LayoutOrder = i,
-				Size = UDim2.fromOffset(9, 16),
+				Size = UDim2.fromOffset(9, 14),
 				BorderSizePixel = 0,
 				BackgroundColor3 = Computed(function()
 					local p = objective:get().progress or 0
@@ -1587,6 +1604,45 @@ local function nextUp()
 			})
 		)
 	end
+	-- The tutorial's progress strip along the bottom: done gold, current cream, later ink.
+	local pips: { any } = {
+		New("UIListLayout")({
+			FillDirection = Enum.FillDirection.Horizontal,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Padding = UDim.new(0, CARD.strip.gap),
+		}),
+	}
+	local n = Onboarding.stepCount
+	for i = 1, n do
+		table.insert(
+			pips,
+			New("Frame")({
+				LayoutOrder = i,
+				Size = UDim2.new(1 / n, -CARD.strip.gap * (n - 1) / n, 1, 0),
+				BorderSizePixel = 0,
+				BackgroundColor3 = Computed(function()
+					local o = objective:get()
+					local at = o.step or 0
+					return if i < at or (i == at and o.done)
+						then Theme.colors.gold
+						elseif i == at then Theme.colors.cream
+						else Theme.colors.ink
+				end),
+				ZIndex = 3,
+			})
+		)
+	end
+	local isTutorial = Computed(function()
+		return objective:get().step ~= nil
+	end)
+	local rightWidth = Computed(function()
+		local o = objective:get()
+		if o.step ~= nil then
+			return CARD.countWidth + 6
+		end
+		return if o.progress ~= nil then SEGMENTS * 12 else 0
+	end)
+	local textLeft = CARD.stripe + 8 + CARD.glyph + 8
 	return New("Frame")({
 		Name = "NextUp",
 		AnchorPoint = Vector2.new(0.5, 1),
@@ -1595,11 +1651,10 @@ local function nextUp()
 			local screen, hub, plotRight, shopRight =
 				State.screen:get(), inHub:get(), plotMidRight:get(), shopMidRight:get()
 			local shift = nextUpShift(screen, hub, if hub then shopRight else plotRight)
-			return UDim2.new(0.5, shift, 1, -L.nextUpBottom)
+			return UDim2.new(0.5, shift, 1, -cardBottom(hub))
 		end),
 		Size = UDim2.fromOffset(L.nextUpWidth, L.nextUpHeight),
-		BackgroundColor3 = Theme.colors.panel,
-		BackgroundTransparency = 0.1,
+		BackgroundColor3 = Theme.colors.navy,
 		BorderSizePixel = 0,
 		Visible = Computed(function()
 			local o, plot = objective:get(), atPlot:get()
@@ -1607,36 +1662,97 @@ local function nextUp()
 		end),
 		[Children] = {
 			C.stroke(Theme.colors.ink, 3),
+			New("Frame")({
+				Name = "Stripe",
+				Size = UDim2.new(0, CARD.stripe, 1, 0),
+				BackgroundColor3 = Theme.colors.gold,
+				BorderSizePixel = 0,
+				ZIndex = 2,
+			}),
 			C.icon(
-				"star",
-				18,
-				nil,
-				{ AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 9, 0.5, 0), ZIndex = 2 }
+				Computed(function()
+					return if objective:get().done then "check" else "star"
+				end),
+				CARD.glyph,
+				Computed(function()
+					return if objective:get().done then Theme.colors.toxic else nil
+				end),
+				{
+					AnchorPoint = Vector2.new(0, 0.5),
+					Position = UDim2.new(0, CARD.stripe + 8, 0.5, 0),
+					ZIndex = 3,
+				}
 			),
 			C.label({
+				Name = "Title",
 				Text = Computed(function()
-					return string.upper(objective:get().text)
+					return string.upper(objective:get().title or "")
 				end),
-				Position = UDim2.fromOffset(34, 5),
+				Position = UDim2.fromOffset(textLeft, CARD.title.y),
 				Size = Computed(function()
-					return if objective:get().progress ~= nil
-						then UDim2.new(1, -144, 1, -10)
-						else UDim2.new(1, -44, 1, -10)
+					return UDim2.new(1, -textLeft - rightWidth:get() - 10, 0, CARD.title.height)
+				end),
+				TextScaled = false,
+				TextSize = CARD.title.text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextColor3 = Computed(function()
+					return if objective:get().done then Theme.colors.toxic else Theme.colors.gold
+				end),
+				ZIndex = 3,
+			}),
+			C.label({
+				Name = "Line",
+				Text = Computed(function()
+					return objective:get().text
+				end),
+				Position = UDim2.fromOffset(textLeft, CARD.line.y),
+				Size = UDim2.new(1, -textLeft - 10, 0, CARD.line.height),
+				TextScaled = false,
+				-- 16 px for a price or number (CLAUDE.md text sizes), 14 for words.
+				TextSize = Computed(function()
+					return if string.find(objective:get().text, "[%$%d]") then CARD.line.priceText else CARD.line.text
 				end),
 				TextXAlignment = Enum.TextXAlignment.Left,
-				MaxTextSize = 16,
-				ZIndex = 2,
+				TextColor3 = Theme.colors.cream,
+				ZIndex = 3,
+			}),
+			-- "3 / 9" and the pips (tutorial), or the progress segments (Next Up).
+			C.label({
+				Name = "StepCount",
+				Visible = isTutorial,
+				Text = Computed(function()
+					local o = objective:get()
+					return string.format("%d / %d", o.step or 0, Onboarding.stepCount)
+				end),
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -10, 0, CARD.title.y),
+				Size = UDim2.fromOffset(CARD.countWidth, CARD.title.height),
+				TextScaled = false,
+				TextSize = 16,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				TextColor3 = Theme.colors.cream,
+				ZIndex = 3,
+			}),
+			New("Frame")({
+				Name = "Pips",
+				Position = UDim2.fromOffset(textLeft, CARD.strip.y),
+				Size = UDim2.new(1, -textLeft - 10, 0, CARD.strip.height),
+				BackgroundTransparency = 1,
+				Visible = isTutorial,
+				ZIndex = 3,
+				[Children] = pips,
 			}),
 			New("Frame")({
 				Name = "Segments",
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, -10, 0.5, 0),
-				Size = UDim2.fromOffset(SEGMENTS * 12, 18),
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -10, 0, CARD.title.y),
+				Size = UDim2.fromOffset(SEGMENTS * 12, CARD.title.height),
 				BackgroundTransparency = 1,
 				Visible = Computed(function()
-					return objective:get().progress ~= nil
+					local o = objective:get()
+					return o.step == nil and o.progress ~= nil
 				end),
-				ZIndex = 2,
+				ZIndex = 3,
 				[Children] = segments,
 			}),
 		},

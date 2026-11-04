@@ -318,6 +318,7 @@ local snapshot = {
 	ownedPasses = {},
 	replant = {},
 	rebirthCost = 700_000,
+	earnedThisLife = 48_200, -- the Cash earned this life (the rebirth requirement)
 	bundleOfferEndsAt = 1_800_000_000 + 581,
 	daily = { day = 2, canClaim = true, streak = 1 },
 	potionUntil = 0,
@@ -483,7 +484,7 @@ set(State.snapshot, snapshot)
 set(State.now, 1_800_000_000)
 set(State.weather, { nextId = "AcidRain", nextAt = 1_800_000_000 + 252, id = "", endsAt = 0 })
 set(State.almanac, almanac)
-set(State.objective, { text = "Next soil patch: $675", progress = 0.62 })
+set(State.objective, { title = "NEXT SOIL PATCH", text = "$420 / $675", progress = 0.62 })
 set(State.toasts, {
 	{ id = 1, text = "GOLDEN +2 on your Swamp Egg · worth $2.7K now", kind = "success" },
 })
@@ -744,7 +745,7 @@ do
 		set(State.touch, false)
 		set(State.toasts, {})
 		set(State.weather, { nextId = "AcidRain", nextAt = 1_800_000_000 + 252, id = "", endsAt = 0 })
-		set(State.objective, { text = "Next soil patch: $675", progress = 0.62 })
+		set(State.objective, { title = "NEXT SOIL PATCH", text = "$420 / $675", progress = 0.62 })
 		set(State.almanac, almanac)
 		touchDeviceOverride = nil
 		set(State.screen, screenAt(1280, 720))

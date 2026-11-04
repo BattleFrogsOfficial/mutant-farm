@@ -94,6 +94,7 @@ local TEMPLATE: Types.Profile = {
 	seenLimited = {}, -- limited egg id -> true once the shop has opened on it
 	-- The scripted opening (Config/Onboarding, OnboardingService). `active` only on profiles
 	-- created with it on; the rest are once-per-profile flags. playSeconds: online seconds so far.
+	tutorialDone = false, -- the tutorial card's 9 steps are done (OpenedAlmanac); Next Up after
 	onboarding = {
 		active = false,
 		preplanted = false,
@@ -332,6 +333,7 @@ local function snapshot(player: Player, data: Types.Profile): Types.Snapshot
 		bundleOfferEndsAt = if data.bundleBought or DataService.now() >= data.bundleOfferEndsAt
 			then 0
 			else data.bundleOfferEndsAt,
+		tutorialDone = data.tutorialDone,
 		onboarding = {
 			active = data.onboarding.active,
 			shopOpened = data.onboarding.shopOpened,
@@ -383,9 +385,14 @@ local function onPlayerAdded(player: Player)
 	profile:AddUserId(player.UserId)
 	-- Profiles from before cashEarnedThisLife (2026-11-04) keep their progress: what they held
 	-- was the old requirement. Seeded once, below, after Reconcile adds the field.
+	-- Profiles from before the tutorial card (2026-11-04) that are past its hatch steps skip it.
+	local seedTutorial = profile.Data.grantedStarterEggs == true and profile.Data.tutorialDone == nil
 	local seedLife = profile.Data.grantedStarterEggs == true
 		and (profile.Data.stats == nil or profile.Data.stats.cashEarnedThisLife == nil)
 	profile:Reconcile()
+	if seedTutorial and (profile.Data.stats.harvested or 0) >= 2 then
+		profile.Data.tutorialDone = true
+	end
 	if seedLife then
 		profile.Data.stats.cashEarnedThisLife = math.max(0, profile.Data.cash or 0)
 	end

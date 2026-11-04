@@ -114,12 +114,12 @@ return {
 	-- over a water fill that drains with the time left, the rim grey. It
 	-- pulses `pulse` (scale, around its center) while it waits.
 	boost = {
-		size = 104,
+		size = 88, -- 104 until the 50 px tutorial card took the Next Up slot (2026-11-04)
 		gap = 8,
 		spots = { -130, -44, 44, 130 },
-		line1 = { y = 20, height = 16, text = 14 },
-		mult = { y = 36, height = 34, text = 32 },
-		line3 = { y = 70, height = 17, text = 16 },
+		line1 = { y = 14, height = 16, text = 14 },
+		mult = { y = 29, height = 30, text = 28 },
+		line3 = { y = 58, height = 17, text = 16 },
 		shadeTransparency = 0, -- opaque: the bars overlap a little (no seams)
 		pulse = 0.04,
 		pulsePeriod = 1.2,
@@ -188,8 +188,8 @@ return {
 	-- Next Up's bottom edge above the screen bottom (clear of the tray's tab). It slides left when
 	-- the mid-right buttons (a narrow window) would reach over it.
 	nextUpBottom = 202,
-	nextUpWidth = 430,
-	nextUpHeight = 32,
+	nextUpWidth = 420, -- the tutorial card (Config/Tutorial.card) and Next Up in the same slot
+	nextUpHeight = 50,
 
 	-- Vector glyphs (UI/Icons.lua): ink outline and the boxy hard shadow (Theme.shadow), in design
 	-- px. The shadow is faded as one layer (a CanvasGroup) like C.shadow, so overlapping shapes

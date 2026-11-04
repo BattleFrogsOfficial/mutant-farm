@@ -260,7 +260,7 @@ return function(t)
 			for _, n in world:received(player, "Notify") do
 				table.insert(toasts, n[1])
 			end
-			t.ok(table.find(toasts, "A Solar Flare hit your farm! Golden odds up for 2 minutes."), "toast")
+			t.eq(#toasts, 0, "no toast: the tutorial card says WEATHER! (the toast lane is for events)")
 			-- Never again: once it ended, more growing eggs don't bring another.
 			world:advance(200, 1)
 			t.eq(player:GetAttribute("PlotWeatherId"), nil, "the event ended")
@@ -679,6 +679,32 @@ return function(t)
 			local _, back = world:join(1)
 			t.near(back.slots["1"].growth - g1, 60, 1e-6, "dry while away")
 			t.eq(back.onPad, false)
+		end,
+
+		["offline mutation rolls run at 25% of the online chance (catch-up on join)"] = function()
+			local world = t.server()
+			local player = world:join(1, { eggs = { Swamp = 3 }, grantedStarterEggs = true })
+			for i = 1, 3 do
+				world:send(player, "Plant", i, "Swamp")
+			end
+			world:advance(1)
+			world:leave(player)
+			-- Watch the chance scale every roll uses while the server catches up on rejoin.
+			local Rolls = world:modulesRequire("src/shared/Rolls")
+			local scales = {}
+			local real = Rolls.rollMutations
+			Rolls.rollMutations = function(rng, existing, luck, odds, scale)
+				table.insert(scales, scale or 1)
+				return real(rng, existing, luck, odds, scale)
+			end
+			world:advance(30 * 60) -- 30 min away: inside the 2 h cap
+			world:join(1)
+			Rolls.rollMutations = real
+			t.ok(#scales > 0, "rolls happened offline")
+			for _, s in scales do
+				t.eq(s, GameConfig.offlineMutationChanceScale, "offline scale")
+			end
+			t.eq(GameConfig.offlineMutationChanceScale, 0.25)
 		end,
 
 		["$/min is the pen's income only: growing eggs earn nothing, a pen mutant does"] = function()

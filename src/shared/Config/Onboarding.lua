@@ -43,6 +43,5 @@ return {
 		afterSeconds = 150,
 		minGrowing = 3,
 		clearSeconds = 300,
-		toast = "A Solar Flare hit your farm! Golden odds up for 2 minutes.",
 	},
 }

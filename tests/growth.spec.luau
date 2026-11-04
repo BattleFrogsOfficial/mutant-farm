@@ -46,6 +46,20 @@ return function(t)
 			-- a boost below the pad's multiplier never slows you down
 			t.eq(Growth.advance(0, 100, 110, Growth.water(200, 1.5, true), 1), 20)
 		end,
+		["timers show time left at 1x: a speed change never jumps them, they count at the speed"] = function()
+			local required = 300
+			local g = Growth.advance(0, 0, 100, Growth.water(0, 1, false), 1) -- 100 s dry
+			local before = Growth.displayRemaining(g, required)
+			-- Stepping onto the pad (and a 1.5x pass) at the same instant: same progress, same text.
+			local onPad = Growth.water(0, 1, true)
+			local after = Growth.displayRemaining(Growth.advance(g, 100, 100, onPad, 1.5), required)
+			t.eq(before, 200)
+			t.eq(after, before, "no jump on a speed change")
+			-- Then it counts down at the total speed (2 x 1.5 = 3 s per second).
+			local later = Growth.displayRemaining(Growth.advance(g, 100, 101, onPad, 1.5), required)
+			t.near(before - later, Growth.totalSpeed(onPad, 100, 1.5), 1e-9)
+			t.eq(Growth.displayRemaining(400, required), 0)
+		end,
 		["advancing in pieces equals advancing once"] = function()
 			local w = Growth.water(40, 6, true)
 			local once = Growth.advance(0, 0, 100, w, 1.5)

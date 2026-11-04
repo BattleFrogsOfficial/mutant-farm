@@ -37,7 +37,7 @@ function Valuation.totalLabel(mutations: { string }): string
 	return "x" .. Valuation.mutationMultiplier(mutations)
 end
 
--- Every mutation at once (x36).
+-- Every mutation at once (x28).
 function Valuation.maxMutationMultiplier(): number
 	return Valuation.mutationMultiplier(Mutations.order)
 end

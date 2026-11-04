@@ -292,7 +292,7 @@ local function updateSlot(v: SlotVisual, now: number, t: number)
 	local speed = (v.plot:GetAttribute("Speed") or 1) :: number
 	-- The time left at 1x (required - growth): it counts down at the current speed and never jumps
 	-- when the speed changes. The chip shows the total speed ("2x", "3x" with the pass).
-	local timeText = if ready then "" else Format.duration(math.max(0, required - growth))
+	local timeText = if ready then "" else Format.duration(Growth.displayRemaining(growth, required))
 	SlotTimer.set(v.timer :: SlotTimer.Timer, progress, ready, Growth.totalSpeed(water, now, speed), timeText)
 end
 

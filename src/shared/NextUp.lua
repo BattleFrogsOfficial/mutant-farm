@@ -7,7 +7,7 @@ local ShopRules = require(script.Parent.ShopRules)
 
 local NextUp = {}
 
-export type Goal = { text: string, progress: number? }
+export type Goal = { title: string?, text: string, progress: number? }
 
 -- Does the player have a Swamp egg, in the bag or growing in a slot?
 function NextUp.ownsSwamp(eggs: { [string]: number }, slots: { [string]: { eggId: string } }): boolean
@@ -23,7 +23,7 @@ function NextUp.ownsSwamp(eggs: { [string]: number }, slots: { [string]: { eggId
 end
 
 -- While Lab is the next locked tier (its lifetime-Cash gate at Rebirth 0) and the player owns a
--- Swamp egg: "Lab Egg: $12.4K / $25K earned" with the progress toward the gate. Otherwise nil.
+-- Swamp egg: "LAB EGG" / "$12.4K / $25K earned" with the progress toward the gate. Otherwise nil.
 function NextUp.labGoal(
 	rebirths: number,
 	totalCashEarned: number,
@@ -39,27 +39,28 @@ function NextUp.labGoal(
 		return nil
 	end
 	return {
-		text = string.format("%s: %s / %s earned", lab.name, Format.cash(totalCashEarned), Format.cash(need)),
+		title = string.upper(lab.name),
+		text = string.format("%s / %s earned", Format.cash(totalCashEarned), Format.cash(need)),
 		progress = math.clamp(totalCashEarned / need, 0, 1),
 	}
 end
 
 -- The rebirth goal, from half the next rebirth's cost earned this life (Cash earned, not held):
--- "Rebirth 2: $1.2M / $4.55M earned this life".
+-- "REBIRTH 2" / "$1.2M / $4.55M earned this life".
 function NextUp.rebirthGoal(rebirths: number, earnedThisLife: number, cost: number): Goal?
 	if cost <= 0 or earnedThisLife < cost * 0.5 then
 		return nil
 	end
 	if earnedThisLife >= cost then
-		return { text = string.format("Rebirth %d is ready: step on the Rebirth Altar", rebirths + 1), progress = 1 }
+		return {
+			title = string.format("REBIRTH %d READY", rebirths + 1),
+			text = "Step on the Rebirth Altar in the market",
+			progress = 1,
+		}
 	end
 	return {
-		text = string.format(
-			"Rebirth %d: %s / %s earned this life",
-			rebirths + 1,
-			Format.cash(earnedThisLife),
-			Format.cash(cost)
-		),
+		title = string.format("REBIRTH %d", rebirths + 1),
+		text = string.format("%s / %s earned this life", Format.cash(earnedThisLife), Format.cash(cost)),
 		progress = math.clamp(earnedThisLife / cost, 0, 1),
 	}
 end

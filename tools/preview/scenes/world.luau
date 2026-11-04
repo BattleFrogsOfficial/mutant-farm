@@ -166,7 +166,7 @@ return function(api)
 	-- The main UI mount (scene files start from it).
 	api.restoreRoot()
 	api.set(api.State.zone, "plot")
-	api.set(api.State.objective, { text = lab.text, progress = lab.progress })
+	api.set(api.State.objective, { title = lab.title, text = lab.text, progress = lab.progress })
 	api.captureHud("hud-plot-lab")
 	api.set(api.State.touch, true)
 	api.captureHud("hud-plot-lab-touch")

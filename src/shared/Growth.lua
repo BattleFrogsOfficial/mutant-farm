@@ -74,6 +74,12 @@ end
 
 -- Growth after advancing from `from` to `to` (the pad state held over the whole span: it
 -- settles on every change).
+-- The timer's text: seconds left AT 1x (the server's progress, never the speed), so a speed change
+-- never makes it jump; it counts down at the current total speed.
+function Growth.displayRemaining(growth: number, required: number): number
+	return math.max(0, required - growth)
+end
+
 function Growth.advance(growth: number, from: number, to: number, water: Water, speed: number): number
 	if to <= from then
 		return growth
