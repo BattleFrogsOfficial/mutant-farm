@@ -1,7 +1,9 @@
 --!strict
 -- Guided first session. Works out the current step from the player's stats (so it survives
--- rejoins with nothing extra saved), shows it in the "Next up" panel, and draws a glowing beam
--- from the player to whatever they should tap or walk to. After the tutorial, "Next up" keeps
+-- rejoins with nothing extra saved; the order is shared/Onboarding.tutorialStep: TAP HATCH ->
+-- SELL -> BUY 5 EGGS (the tray's button) -> PLANT ALL 5 -> WATER -> HATCH -> first soil patch ->
+-- first Swamp egg), shows it in the "Next up" panel, and draws a glowing beam from the player to
+-- whatever they should tap or walk to. Every step ends on the real event, never on a panel. After the tutorial, "Next up" keeps
 -- pointing at the nearest goal: Lab's earned gate once a Swamp egg is owned (shared/NextUp), else
 -- the next soil patch.
 
@@ -11,6 +13,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
 local Format = require(Shared.Format)
 local NextUp = require(Shared.NextUp)
+local Onboarding = require(Shared.Onboarding)
+local OnboardingConfig = require(Shared.Config.Onboarding)
+local Mutants = require(Shared.Config.Mutants)
+local Eggs = require(Shared.Config.Eggs)
 local Types = require(Shared.Types)
 local State = require(script.Parent.Parent.State)
 local Theme = require(script.Parent.Parent.UI.Theme)
@@ -87,38 +93,95 @@ local function eggCount(snap: Types.Snapshot): number
 	return n
 end
 
+-- Has the player ever had a Swamp egg (bought, planted or hatched)?
+local function hasSwamp(snap: Types.Snapshot): boolean
+	for id, n in snap.eggs do
+		if n > 0 and Eggs.baseOf(id) == "Swamp" then
+			return true
+		end
+	end
+	for _, slot in snap.slots do
+		if Eggs.baseOf(slot.eggId) == "Swamp" then
+			return true
+		end
+	end
+	for id in State.almanac:get(false) do
+		local e = Mutants.species[id]
+		if e and e.tier == "Swamp" then
+			return true
+		end
+	end
+	return false
+end
+
+local function anyEmptyPatch(snap: Types.Snapshot): boolean
+	for i = 1, snap.totalSlots or snap.slotCount do
+		if not snap.slots[tostring(i)] then
+			return true
+		end
+	end
+	return false
+end
+
+local function onYourFarm(): BasePart?
+	return firstSlot(function(s)
+		return s:GetAttribute("State") == "owned"
+	end)
+end
+
 local function currentStep(snap: Types.Snapshot): Step
 	local st = snap.stats
-	local planted = next(snap.slots) ~= nil
-	if st.eggsPlanted == 0 then
+	local qty = OnboardingConfig.trayBuy.quantity
+	local step = Onboarding.tutorialStep({
+		harvested = st.harvested or 0,
+		sold = st.sold or 0,
+		eggsBought = st.eggsBought or 0,
+		eggsPlanted = st.eggsPlanted or 0,
+		eggsInBag = eggCount(snap),
+		emptyPatch = anyEmptyPatch(snap),
+		growing = snap.growingCount or 0,
+		waters = st.waters or 0,
+		padVisits = st.padVisits or 0,
+		slotsBought = st.slotsBought or 0,
+		canBuySlot = snap.nextSlotCost ~= nil,
+		hasSwamp = hasSwamp(snap),
+	})
+	local shopOpened = snap.onboarding == nil or not snap.onboarding.active or snap.onboarding.shopOpened
+	if step == "plantFirst" then
 		return { text = "Tap a soil patch to plant your egg", target = emptySlot, soil = true }
-	elseif st.waters == 0 and planted and snap.readyCount == 0 then
-		return { text = "Tap the circle to boost your egg's growth!", ui = "Boost" }
-	elseif (st.padVisits or 0) == 0 and planted and snap.readyCount == 0 then
-		return { text = "Stand on the blue water pad: 2x growth", target = waterPad }
-	elseif st.harvested == 0 then
-		return { text = "Tap your egg when it says HATCH!", target = plantedSlot }
-	elseif st.eggsPlanted < 2 and eggCount(snap) > 0 then
-		return { text = "Plant your 2nd egg. It's guaranteed RARE!", target = emptySlot, soil = true }
-	elseif st.harvested < 2 and planted then
-		return { text = "Hatch your Rare mutant!", target = plantedSlot }
-	elseif st.sold == 0 then
+	elseif step == "hatch" then
+		return { text = "TAP HATCH: your first egg is ready!", ui = "Hatch", target = plantedSlot }
+	elseif step == "sell" then
 		return {
-			text = "Walk to the gold SELL pad and sell your mutants",
+			text = "WALK TO THE SELL PAD and sell your mutant",
 			hub = true,
 			target = function()
 				return hub("SellPad")
 			end,
 		}
-	elseif st.eggsBought == 0 then
+	elseif step == "buy" and not shopOpened then
+		-- The tray's BUY button (Hud), so the next eggs are one tap away from your farm.
 		return {
-			text = "Buy more eggs at the EGG SHOP",
+			text = string.format("BUY %d EGGS: tap BUY on your egg tray", qty),
+			ui = "TrayBuy",
+			hub = true,
+			target = onYourFarm,
+		}
+	elseif step == "buy" then
+		return {
+			text = string.format("BUY %d EGGS at the EGG SHOP", qty),
 			hub = true,
 			target = function()
 				return hub("EggShopPad")
 			end,
 		}
-	elseif st.slotsBought == 0 and snap.nextSlotCost then
+	elseif step == "plant" then
+		return { text = string.format("PLANT ALL %d: tap your soil patches", qty), target = emptySlot, soil = true }
+	elseif step == "water" then
+		return { text = "WATER: tap the growth circle, or stand on the blue pad", ui = "Boost", target = waterPad }
+	elseif step == "hatch2" then
+		return { text = "HATCH your eggs when they say HATCH!", target = plantedSlot }
+	elseif step == "patch" then
 		local cost = snap.nextSlotCost :: number
 		return {
 			text = if snap.cash >= cost
@@ -126,6 +189,14 @@ local function currentStep(snap: Types.Snapshot): Step
 				else "Save up for a new soil patch",
 			target = if snap.cash >= cost then buySlot else nil,
 			progress = math.clamp(snap.cash / cost, 0, 1),
+		}
+	elseif step == "swamp" then
+		return {
+			text = "Buy your first SWAMP EGG at the EGG SHOP",
+			hub = true,
+			target = function()
+				return hub("EggShopPad")
+			end,
 		}
 	end
 	-- After the tutorial: always show the nearest goal. Lab's earned gate once a Swamp egg is owned,

@@ -38,6 +38,48 @@ function Onboarding.soloWeatherDue(done: boolean, played: number, growing: numbe
 	return not done and played >= w.afterSeconds and growing >= w.minGrowing and not globalNear
 end
 
+-- The tutorial (Next Up) step for where the player is, each completed by the real event (never
+-- by opening or closing a panel): TAP HATCH -> SELL -> BUY 5 EGGS -> PLANT ALL 5 -> WATER ->
+-- HATCH -> first soil patch -> first Swamp egg; nil after (Next Up shows the nearest goal).
+-- "plantFirst" only for a profile without the pre-planted egg (the opening switched off).
+export type TutorialState = {
+	harvested: number,
+	sold: number,
+	eggsBought: number,
+	eggsPlanted: number,
+	eggsInBag: number,
+	emptyPatch: boolean, -- an owned patch is empty
+	growing: number, -- eggs growing now
+	waters: number, -- growth circle taps
+	padVisits: number,
+	slotsBought: number,
+	canBuySlot: boolean, -- there is a next patch to buy
+	hasSwamp: boolean, -- ever bought / planted / hatched a Swamp egg
+}
+export type Step = "plantFirst" | "hatch" | "sell" | "buy" | "plant" | "water" | "hatch2" | "patch" | "swamp"
+
+function Onboarding.tutorialStep(s: TutorialState): Step?
+	if s.harvested == 0 then
+		return if s.eggsPlanted == 0 then "plantFirst" else "hatch"
+	elseif s.sold == 0 then
+		return "sell"
+	elseif s.eggsBought < O.trayBuy.quantity then
+		return "buy"
+	elseif s.harvested < 2 then
+		if s.eggsInBag > 0 and s.emptyPatch then
+			return "plant"
+		elseif s.waters == 0 and s.padVisits == 0 and s.growing > 0 then
+			return "water"
+		end
+		return "hatch2"
+	elseif s.slotsBought == 0 and s.canBuySlot then
+		return "patch"
+	elseif not s.hasSwamp then
+		return "swamp"
+	end
+	return nil
+end
+
 -- A scripted outcome (never counted in odds, mutation analytics or Top Pens).
 function Onboarding.isScripted(item: { scripted: string? }): boolean
 	return item.scripted ~= nil
